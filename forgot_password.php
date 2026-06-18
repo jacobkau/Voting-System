@@ -6,8 +6,9 @@ ini_set('display_startup_errors', 1);
 
 include("conn.php");
 
-if (file_exists(__DIR__ . '/mail_config.php')) {
-    require_once __DIR__ . '/mail_config.php';
+// Load SendGrid library if available
+if (file_exists(__DIR__ . '/vendor/autoload.php')) {
+    require_once __DIR__ . '/vendor/autoload.php';
 }
 
 // Handle AJAX request
@@ -52,8 +53,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             $uri = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
             $reset_link = "$protocol://$host$uri/test_reset.php?token=$token";
             
-            // Try Resend first
+            // ---------- FIX: Use SendGrid/Resend instead of mail() ----------
             $emailSent = false;
+            
+            // Try Resend first (if available)
             if (function_exists('sendEmailWithResend')) {
                 $result = sendEmailWithResend($email, $username, $reset_link);
                 if ($result['success']) {
@@ -61,6 +64,45 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 }
             }
             
+            // If Resend failed or not available, try SendGrid
+            if (!$emailSent && class_exists('SendGrid\Mail\Mail')) {
+                try {
+                    $sendgridApiKey = getenv('SENDGRID_API_KEY');
+                    if ($sendgridApiKey) {
+                        $emailObj = new \SendGrid\Mail\Mail();
+                        $fromEmail = getenv('FROM_EMAIL') ?: 'noreply@' . $_SERVER['HTTP_HOST'];
+                        $fromName = getenv('FROM_NAME') ?: 'Voting System';
+                        $emailObj->setFrom($fromEmail, $fromName);
+                        $emailObj->setSubject("Password Reset Request");
+                        $emailObj->addTo($email, $username);
+                        
+                        $htmlContent = "
+                        <html>
+                        <body>
+                            <h2>Password Reset</h2>
+                            <p>Hello $username,</p>
+                            <p>Click the link below to reset your password:</p>
+                            <p><a href='$reset_link'>$reset_link</a></p>
+                            <p>This link expires in 1 hour.</p>
+                            <p>If you didn't request this, please ignore this email.</p>
+                        </body>
+                        </html>
+                        ";
+                        $emailObj->addContent("text/html", $htmlContent);
+                        
+                        $sendgrid = new \SendGrid($sendgridApiKey);
+                        $response = $sendgrid->send($emailObj);
+                        
+                        if ($response->statusCode() == 202) {
+                            $emailSent = true;
+                        }
+                    }
+                } catch (Exception $e) {
+                    error_log("SendGrid error: " . $e->getMessage());
+                }
+            }
+            
+            // If both failed, fall back to PHP mail (last resort)
             if (!$emailSent) {
                 $subject = "Password Reset Request";
                 $body = "<h2>Password Reset</h2><p>Hello $username,</p><p><a href='$reset_link'>$reset_link</a></p><p>Expires in 1 hour.</p>";
