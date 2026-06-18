@@ -61,7 +61,7 @@ function sendEmailWithSendGrid($to, $username, $resetLink) {
                 'subject' => $subject
             ]
         ],
-        'from' => ['email' => 'noreply@yourdomain.com', 'name' => 'Voting System'],
+        'from' => ['email' => 'jacobkau4@gmail.com', 'name' => 'Voting System'],
         'content' => [
             [
                 'type' => 'text/html',
