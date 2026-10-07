@@ -1,5 +1,8 @@
 {
-  "require": {
-    "cloudinary/cloudinary_php": "^2.0"
-  }
+    "require": {
+        "cloudinary/cloudinary_php": "^2.0"
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
 }
