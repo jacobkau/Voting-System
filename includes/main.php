@@ -257,7 +257,7 @@
 <body>
     <header>
         <div class="header-left">
-            <h1><i class="fas fa-vote-yea"></i> Witty Voting System Admin Panel</h1>
+            <h1><i class="fas fa-vote-yea"></i>&nbsp; Witty Voting System Admin Panel</h1>
             <p>Manage your elections and voters</p>
         </div>
         
