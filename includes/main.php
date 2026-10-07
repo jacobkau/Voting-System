@@ -9,15 +9,30 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-// Get admin name
+// Get admin name + profile photo
 $adminName = "";
+$adminPhoto = "";
 try {
-    $stmt = $conn->prepare("SELECT name FROM admin WHERE id = ?");
+    $stmt = $conn->prepare("SELECT name, profile_photo FROM admin WHERE id = ?");
     $stmt->execute([$_SESSION['admin_id']]);
     $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-    $adminName = $admin ? $admin['name'] : ($_SESSION['username'] ?? 'Admin');
+    if ($admin) {
+        $adminName = $admin['name'] ?? ($_SESSION['username'] ?? 'Admin');
+        $adminPhoto = $admin['profile_photo'] ?? '';
+    } else {
+        $adminName = $_SESSION['username'] ?? 'Admin';
+    }
 } catch (PDOException $e) {
     $adminName = $_SESSION['username'] ?? 'Admin';
+}
+
+// Resolve displayable URL (Cloudinary URL or legacy filename)
+if (!empty($adminPhoto)) {
+    $adminPhotoDisplay = preg_match('#^https?://#i', $adminPhoto)
+        ? $adminPhoto
+        : '../faces/' . $adminPhoto;
+} else {
+    $adminPhotoDisplay = '';
 }
 
 // Determine which content to load
@@ -90,16 +105,27 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             align-items: center;
             gap: 10px;
             background: rgba(255, 255, 255, 0.15);
-            padding: 8px 15px;
+            padding: 6px 15px 6px 6px;
             border-radius: 30px;
         }
 
         .admin-info i {
-            font-size: 18px;
+            font-size: 22px;
         }
 
         .admin-info span {
             font-weight: 500;
+        }
+
+        /* Admin avatar in header */
+        .admin-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            display: inline-block;
+            vertical-align: middle;
         }
 
         .logout-btn {
@@ -295,7 +321,15 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
         
         <div class="header-right" id="headerRight">
             <div class="admin-info">
-                <i class="fas fa-user-circle"></i>
+                <?php if (!empty($adminPhotoDisplay)): ?>
+                    <img src="<?php echo htmlspecialchars($adminPhotoDisplay); ?>"
+                         alt="Admin"
+                         class="admin-avatar"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+                    <i class="fas fa-user-circle" style="display:none;"></i>
+                <?php else: ?>
+                    <i class="fas fa-user-circle"></i>
+                <?php endif; ?>
                 <span>Welcome, <?php echo htmlspecialchars($adminName); ?></span>
             </div>
             <a href="logout.php" class="logout-btn">
