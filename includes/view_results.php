@@ -53,7 +53,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b; 
         }
         
         .stat-card:hover {
@@ -63,7 +63,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         
         .stat-icon {
             font-size: 45px;
-            color: #667eea;
+            color: #2c7a7b; 
             margin-bottom: 15px;
         }
         
@@ -121,7 +121,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
         .election-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b; 
             padding: 25px 30px;
             color: white;
             cursor: pointer;
@@ -129,7 +129,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
         .election-header:hover {
-            background: linear-gradient(135deg, #5a67d8 0%, #6b46a0 100%);
+            background: #236162;
         }
         
         .election-title {
@@ -261,7 +261,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
         .winner-row {
-            background: linear-gradient(90deg, #d1fae5 0%, #a7f3d0 100%);
+            background: #d1fae5; 
             font-weight: 600;
         }
         
@@ -272,7 +272,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         
         .vote-count {
             font-weight: 700;
-            color: #667eea;
+            color: #2c7a7b;
             font-size: 18px;
         }
         
@@ -285,7 +285,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
         .percentage-fill {
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b;
             height: 100%;
             border-radius: 10px;
             transition: width 0.5s ease;
@@ -340,7 +340,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             width: 50px;
             height: 50px;
             border: 3px solid #e5e7eb;
-            border-top-color: #667eea;
+            border-top-color: #2c7a7b; 
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
