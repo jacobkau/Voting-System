@@ -1,5 +1,5 @@
 # Dockerfile for Voting System 
-FROM php:8.4-apache
+FROM php:8.3-apache
 
 # ============================================
 # System Dependencies
