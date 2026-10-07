@@ -49,8 +49,8 @@ try {
         .admin-container { width: 90%; max-width: 1200px; margin: 20px auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         h2 { color: #333; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
+        
         .dashboard-item { 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             padding: 25px; 
             border-radius: 10px; 
             text-align: center;
@@ -73,10 +73,12 @@ try {
             font-size: 36px; 
             font-weight: bold;
         }
-        .dashboard-item:nth-child(1) { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-        .dashboard-item:nth-child(2) { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .dashboard-item:nth-child(3) { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .dashboard-item:nth-child(4) { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        
+        /* Solid calm colors instead of gradients */
+        .dashboard-item:nth-child(1) { background-color: #2c7a7b; } /* teal - matches header */
+        .dashboard-item:nth-child(2) { background-color: #3b82f6; } /* blue */
+        .dashboard-item:nth-child(3) { background-color: #6366f1; } /* indigo */
+        .dashboard-item:nth-child(4) { background-color: #0d9488; } /* darker teal */
         
         @media (max-width: 768px) { 
             .admin-container { width: 95%; }
