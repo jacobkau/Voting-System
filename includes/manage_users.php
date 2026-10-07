@@ -281,7 +281,7 @@ try {
         }
 
         .btn-view {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b; /* calm teal */
         }
 
         .btn-edit {
@@ -344,7 +344,7 @@ try {
         }
 
         .modal-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b; /* calm teal */
             color: white;
             padding: 20px 25px;
             display: flex;
@@ -397,11 +397,11 @@ try {
 
         .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: #2c7a7b;
         }
 
         .submit-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #2c7a7b; /* calm teal */
             color: white;
             padding: 12px 20px;
             border: none;
@@ -409,6 +409,10 @@ try {
             cursor: pointer;
             width: 100%;
             font-size: 16px;
+        }
+
+        .submit-btn:hover {
+            background: #236162;
         }
 
         .profile-photo {
@@ -421,7 +425,7 @@ try {
             height: 120px;
             border-radius: 50%;
             object-fit: cover;
-            border: 4px solid #667eea;
+            border: 4px solid #2c7a7b;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
@@ -436,7 +440,7 @@ try {
         }
 
         .info-section strong {
-            color: #667eea;
+            color: #2c7a7b;
             display: inline-block;
             min-width: 140px;
             font-size: 14px;
@@ -478,12 +482,12 @@ try {
         .loading {
             text-align: center;
             padding: 40px;
-            color: #667eea;
+            color: #2c7a7b;
         }
 
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border-top: 3px solid #2c7a7b;
             border-radius: 50%;
             width: 40px;
             height: 40px;
