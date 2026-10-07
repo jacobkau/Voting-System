@@ -1,3 +1,31 @@
+<?php
+include("conn.php");
+
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!isset($_SESSION['admin_id'])) {
+    header("Location: admin_login.php");
+    exit();
+}
+
+// Get admin name
+$adminName = "";
+try {
+    $stmt = $conn->prepare("SELECT name FROM admin WHERE id = ?");
+    $stmt->execute([$_SESSION['admin_id']]);
+    $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+    $adminName = $admin ? $admin['name'] : ($_SESSION['username'] ?? 'Admin');
+} catch (PDOException $e) {
+    $adminName = $_SESSION['username'] ?? 'Admin';
+}
+
+// Determine which content to load
+$page = isset($_GET['page']) ? $_GET['page'] : 'home';
+
+// Determine the current page for active link
+$currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
