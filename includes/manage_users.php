@@ -4,10 +4,24 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 include("conn.php");
 
+// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, Configuration)
+require_once __DIR__ . '/../cloudinary.php';
+
 // Admin Authentication (optional - remove if not needed)
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
     header("Location: login.php");
     exit();
+}
+
+// Helper: build a displayable image URL from either a Cloudinary URL or a legacy filename
+function resolveImageUrl($value, $folder = 'faces', $default = 'faces/default.jpg') {
+    if (empty($value)) {
+        return $default;
+    }
+    if (preg_match('#^https?://#i', $value)) {
+        return $value; // Cloudinary or other remote URL
+    }
+    return $folder . '/' . $value; // legacy local file
 }
 
 // Handle AJAX request for user info
@@ -53,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         
         $contests = [];
         try {
-            $contestsStmt = $conn->prepare("SELECT c.postname, e.title as election FROM contesters c JOIN elections e ON c.election_id = e.id WHERE c.user_id = ?");
+            $contestsStmt = $conn->prepare("SELECT c.postname, c.profile_photo AS contester_photo, e.title as election FROM contesters c JOIN elections e ON c.election_id = e.id WHERE c.user_id = ?");
             $contestsStmt->execute([$userId]);
             $contests = $contestsStmt->fetchAll(PDO::FETCH_ASSOC);
         } catch (Exception $e) { $contests = []; }
@@ -66,7 +80,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             $profilePhotoBlob = base64_encode($user['profile_photo_blob']);
             $profilePhotoType = $user['profile_photo_type'];
         } elseif (!empty($user['profile_photo'])) {
-            $profilePhoto = $user['profile_photo'];
+            // Could be Cloudinary URL or legacy filename — resolve to a usable URL
+            $profilePhoto = resolveImageUrl($user['profile_photo'], 'faces', 'faces/default.jpg');
+        }
+        
+        // Fall back to a contester photo if user has none (and it's a Cloudinary URL)
+        if (empty($profilePhoto) && empty($profilePhotoBlob) && !empty($contests)) {
+            foreach ($contests as $c) {
+                if (!empty($c['contester_photo'])) {
+                    $profilePhoto = resolveImageUrl($c['contester_photo'], 'faces', 'faces/default.jpg');
+                    break;
+                }
+            }
         }
         
         echo json_encode([
@@ -102,8 +127,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
     
     try {
-        // Start transaction
         $conn->beginTransaction();
+        
+        // Collect Cloudinary URLs from contester rows so we can delete them after DB cleanup
+        $cloudinaryUrls = [];
+        try {
+            $photoStmt = $conn->prepare("SELECT profile_photo FROM contesters WHERE user_id = ?");
+            $photoStmt->execute([$userId]);
+            foreach ($photoStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+                if (!empty($row['profile_photo'])) {
+                    $cloudinaryUrls[] = $row['profile_photo'];
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Could not fetch contester photos: " . $e->getMessage());
+        }
         
         // Delete user's votes
         $stmt = $conn->prepare("DELETE FROM votes WHERE user_id = ?");
@@ -122,6 +160,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         $stmt->execute([$userId]);
         
         $conn->commit();
+        
+        // After successful DB commit, delete images from Cloudinary (best-effort)
+        foreach ($cloudinaryUrls as $url) {
+            $publicId = extractPublicIdFromUrl($url);
+            if ($publicId) {
+                try {
+                    $upload = new \Cloudinary\Api\Upload\UploadApi();
+                    $upload->destroy($publicId);
+                } catch (Exception $ce) {
+                    error_log("Cloudinary delete error for {$publicId}: " . $ce->getMessage());
+                }
+            }
+        }
+        
         echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
         
     } catch (PDOException $e) {
@@ -703,23 +755,25 @@ try {
             const data = await response.json();
             
             if (data.error) {
-                modalBody.innerHTML = `<div class="error-message">❌ ${data.error}</div>`;
+                modalBody.innerHTML = `<div class="error-message">${data.error}</div>`;
             } else if (data.success) {
                 displayUserInfo(data);
             }
         } catch (error) {
-            modalBody.innerHTML = `<div class="error-message">❌ Failed to load user information.</div>`;
+            modalBody.innerHTML = `<div class="error-message">Failed to load user information.</div>`;
         }
     }
     
     function displayUserInfo(data) {
         const modalBody = document.getElementById('modalBody');
         
+        // Resolve profile photo: Cloudinary URL, base64 blob, or fallback
         let profilePhotoHtml = '';
         if (data.profile_photo_blob) {
             profilePhotoHtml = `<img src="data:image/${data.profile_photo_type};base64,${data.profile_photo_blob}" alt="Profile Photo">`;
         } else if (data.profile_photo && data.profile_photo !== '') {
-            profilePhotoHtml = `<img src="uploads/${data.profile_photo}" alt="Profile Photo" onerror="this.src='faces/default.jpg'">`;
+            // data.profile_photo is already a usable URL (Cloudinary or resolved legacy path)
+            profilePhotoHtml = `<img src="${escapeHtml(data.profile_photo)}" alt="Profile Photo" onerror="this.src='faces/default.jpg'">`;
         } else {
             profilePhotoHtml = `<img src="faces/default.jpg" alt="Default Profile Photo">`;
         }
@@ -755,7 +809,7 @@ try {
     }
     
     function deleteUser(userId) {
-        if (confirm('⚠️ Are you sure you want to delete this user? This action cannot be undone and will delete all votes, applications, and registrations associated with this user.')) {
+        if (confirm('Are you sure you want to delete this user? This action cannot be undone and will delete all votes, applications, and registrations associated with this user.')) {
             fetch('manage_users.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
