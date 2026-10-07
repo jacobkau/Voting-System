@@ -23,13 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $error = "Username and password are required.";
     } else {
         try {
-            // 1. Prepare query using the PDO format (targeting 'users' table)
             $stmt = $conn->prepare("SELECT id, username, password FROM admin WHERE username = :username");
-            
-            // 2. Execute query by passing the value inside an array
             $stmt->execute([':username' => $username]);
-            
-            // 3. Fetch the row entry cleanly
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
@@ -37,13 +32,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $db_username = $row["username"];
                 $db_password = $row["password"];
 
-                // 4. Verify the secure hashed password
                 if (password_verify($password, $db_password)) {
                     $_SESSION['admin_id'] = $admin_id;
                     $_SESSION['username'] = $db_username;
 
                     try {
-                        // 5. Log login event using secure PDO parameters (Create table if missing)
                         $conn->exec("CREATE TABLE IF NOT EXISTS event_log (
                             id INT AUTO_INCREMENT PRIMARY KEY,
                             username VARCHAR(50),
@@ -60,7 +53,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             ':desc' => "Admin logged in successfully."
                         ]);
                     } catch (Exception $logError) {
-                        // If logging fails, we don't block the user from accessing the main dashboard
                         error_log("Event Log Error: " . $logError->getMessage());
                     }
 
@@ -101,7 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm teal, matches admin panel */
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -131,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .login-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm teal */
             padding: 40px 30px;
             text-align: center;
             color: white;
@@ -171,7 +163,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         .form-label i {
             margin-right: 8px;
-            color: #667eea;
+            color: #2c7a7b; /* calm teal */
         }
         
         .input-wrapper {
@@ -190,13 +182,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         .form-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #2c7a7b;
+            box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
         
         .login-btn {
             width: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm teal */
             color: white;
             padding: 14px;
             border: none;
@@ -213,8 +205,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .login-btn:hover {
+            background-color: #236162; /* darker teal */
             transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
         }
         
         .login-btn:active {
@@ -279,14 +272,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .footer-links a {
-            color: #667eea;
+            color: #2c7a7b;
             text-decoration: none;
             font-size: 14px;
             transition: color 0.3s;
         }
         
         .footer-links a:hover {
-            color: #764ba2;
+            color: #236162;
             text-decoration: underline;
         }
         
@@ -374,8 +367,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if (form && loginBtn) {
             form.addEventListener('submit', function(e) {
                 // Validate fields
-                let hasError = false;
-                
                 if (!usernameInput.value.trim()) {
                     showError('Please enter your username.');
                     usernameInput.focus();
@@ -394,29 +385,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 loginBtn.classList.add('loading');
                 loginBtn.disabled = true;
                 
-                // The form will submit normally
                 return true;
             });
         }
         
         function showError(message) {
-            // Remove any existing error message
             const existingError = document.querySelector('.error-message');
             if (existingError) {
                 existingError.remove();
             }
             
-            // Create new error message
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
             errorDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i><span>' + message + '</span>';
             
-            // Insert after the form header
             const formHeader = document.querySelector('.login-header');
-            const loginForm = document.querySelector('.login-form');
             formHeader.insertAdjacentElement('afterend', errorDiv);
             
-            // Remove after 5 seconds
             setTimeout(function() {
                 if (errorDiv && errorDiv.parentNode) {
                     errorDiv.remove();
