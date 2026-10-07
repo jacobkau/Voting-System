@@ -1,32 +1,3 @@
-<?php
-include("conn.php");
-
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-if (!isset($_SESSION['admin_id'])) {
-    header("Location: admin_login.php");
-    exit();
-}
-
-// Get admin name
-$adminName = "";
-try {
-    $stmt = $conn->prepare("SELECT name FROM admin WHERE id = ?");
-    $stmt->execute([$_SESSION['admin_id']]);
-    $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-    $adminName = $admin ? $admin['name'] : $_SESSION['username'] ?? 'Admin';
-} catch (PDOException $e) {
-    $adminName = $_SESSION['username'] ?? 'Admin';
-}
-
-// Determine which content to load
-$page = isset($_GET['page']) ? $_GET['page'] : 'home';
-
-// Determine the current page for active link
-$currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
-?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -56,9 +27,9 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             color: #333;
         }
 
-        /* Header Styles */
+        /* Header Styles - calm, cool teal */
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm deep teal */
             color: white;
             padding: 15px 25px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -90,7 +61,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             display: flex;
             align-items: center;
             gap: 10px;
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.15);
             padding: 8px 15px;
             border-radius: 30px;
         }
@@ -104,7 +75,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
         }
 
         .logout-btn {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255, 255, 255, 0.15);
             color: white;
             text-decoration: none;
             padding: 8px 16px;
@@ -116,7 +87,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
         }
 
         .logout-btn:hover {
-            background: rgba(255,255,255,0.3);
+            background: rgba(255, 255, 255, 0.25);
             transform: translateY(-2px);
         }
 
@@ -137,9 +108,9 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             flex-grow: 1;
         }
 
-        /* Sidebar Styles */
+        /* Sidebar Styles - solid dark background */
         .sidebar {
-            background-color: #1e293b;
+            background-color: #1e293b; /* solid dark slate */
             width: 280px;
             padding: 20px 0;
             box-sizing: border-box;
@@ -179,8 +150,9 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             color: white;
         }
 
+        /* Active link - matching calm teal */
         .sidebar a.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* same calm teal as header */
             color: white;
             border-left: 3px solid #fff;
         }
@@ -238,7 +210,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
                 flex-direction: column;
                 width: 100%;
                 margin-top: 15px;
-                border-top: 1px solid rgba(255,255,255,0.2);
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
                 padding-top: 15px;
             }
 
@@ -285,7 +257,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
 <body>
     <header>
         <div class="header-left">
-            <h1><i class="fas fa-vote-yea"></i>Witty Voting System Admin</h1>
+            <h1><i class="fas fa-vote-yea"></i> Witty Voting System Admin</h1>
             <p>Manage your elections and voters</p>
         </div>
         
