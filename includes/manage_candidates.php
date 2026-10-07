@@ -4,6 +4,56 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 include("conn.php");
 
+// Cloudinary SDK
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Cloudinary\Configuration\Configuration;
+use Cloudinary\Api\Upload\UploadApi;
+
+// Configure Cloudinary from environment variables (Render dashboard)
+Configuration::instance([
+    'cloud' => [
+        'cloud_name' => getenv('CLOUDINARY_CLOUD_NAME'),
+        'api_key'    => getenv('CLOUDINARY_API_KEY'),
+        'api_secret' => getenv('CLOUDINARY_API_SECRET'),
+    ],
+    'url' => [
+        'secure' => true
+    ]
+]);
+
+// Helper: upload a file to Cloudinary and return the secure URL
+function uploadToCloudinary($fileTmpPath, $folder = 'candidates') {
+    try {
+        $upload = new UploadApi();
+        $result = $upload->upload($fileTmpPath, [
+            'folder' => $folder,
+            'resource_type' => 'image',
+            'transformation' => [
+                'width' => 500, 'height' => 500, 'crop' => 'fill', 'gravity' => 'face'
+            ]
+        ]);
+        return $result['secure_url'];
+    } catch (Exception $e) {
+        error_log("Cloudinary upload error: " . $e->getMessage());
+        return null;
+    }
+}
+
+// Helper: extract Cloudinary public_id from URL so we can delete it later
+function extractPublicIdFromUrl($url) {
+    if (empty($url)) return null;
+    // URL format: https://res.cloudinary.com/<cloud>/image/upload/v1234567/folder/filename.ext
+    $parts = explode('/upload/', $url);
+    if (count($parts) < 2) return null;
+    $path = $parts[1];
+    // Remove version segment (v1234567/)
+    $path = preg_replace('#^v\d+/#', '', $path);
+    // Remove file extension
+    $path = preg_replace('#\.[a-zA-Z0-9]+$#', '', $path);
+    return $path;
+}
+
 // Admin Authentication
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
@@ -34,7 +84,6 @@ function fetchUsersForElection($conn, $electionId) {
     return $users;
 }
 
-// Function to fetch positions for an election
 function fetchPositionsForElection($conn, $electionId) {
     if (empty($electionId)) return [];
     $positions = [];
@@ -48,10 +97,8 @@ function fetchPositionsForElection($conn, $electionId) {
     return $positions;
 }
 
-// Get election ID from GET or POST request
 $selectedElectionId = isset($_GET['election_id']) ? intval($_GET['election_id']) : (isset($_POST['election_id']) ? intval($_POST['election_id']) : null);
 
-// Fetch users and positions based on selected election
 $usersForSelectedElection = [];
 $positionsForSelectedElection = [];
 if ($selectedElectionId) {
@@ -65,52 +112,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     $electionId = intval($_POST['election_id']);
     $position = trim($_POST['position']);
     $bio = trim($_POST['bio']);
-    $profilePhoto = "";
+    $profilePhotoUrl = "";
 
-    if (!empty($_FILES['profile_photo']['name'])) {
-        $targetDir = "../faces/";
-        // Create directory if it doesn't exist
-        if (!file_exists($targetDir)) {
-            mkdir($targetDir, 0777, true);
-        }
-        
-        // Generate unique filename to prevent conflicts
-        $fileExtension = pathinfo($_FILES['profile_photo']['name'], PATHINFO_EXTENSION);
-        $profilePhoto = time() . '_' . uniqid() . '.' . $fileExtension;
-        $targetFilePath = $targetDir . $profilePhoto;
-        
-        if (!move_uploaded_file($_FILES['profile_photo']['tmp_name'], $targetFilePath)) {
-            echo "<p style='color:red;'>Error uploading profile photo.</p>";
+    // Upload image to Cloudinary
+    if (!empty($_FILES['profile_photo']['name']) && $_FILES['profile_photo']['error'] === UPLOAD_ERR_OK) {
+        $profilePhotoUrl = uploadToCloudinary($_FILES['profile_photo']['tmp_name'], 'candidates');
+        if (!$profilePhotoUrl) {
+            echo "<p style='color:red;'>Error uploading profile photo to Cloudinary.</p>";
         }
     }
 
     try {
-        // Check if user is registered for the election
         $checkRegStmt = $conn->prepare("SELECT 1 FROM user_elections WHERE user_id = ? AND election_id = ?");
         $checkRegStmt->execute([$userId, $electionId]);
         if ($checkRegStmt->rowCount() === 0) {
             throw new Exception("User is not registered for the selected election.");
         }
 
-        // Check if position exists for the election
         $checkPostStmt = $conn->prepare("SELECT 1 FROM election_posts WHERE postname = ? AND election_id = ?");
         $checkPostStmt->execute([$position, $electionId]);
         if ($checkPostStmt->rowCount() === 0) {
             throw new Exception("Position not found for the selected election.");
         }
 
-        // Check if user is already a candidate for this election and position
         $checkCandidateStmt = $conn->prepare("SELECT 1 FROM contesters WHERE user_id = ? AND election_id = ? AND postname = ?");
         $checkCandidateStmt->execute([$userId, $electionId, $position]);
         if ($checkCandidateStmt->rowCount() > 0) {
             throw new Exception("User is already a candidate for this position in this election.");
         }
 
-        // Insert candidate
         $stmt = $conn->prepare("INSERT INTO contesters (user_id, election_id, postname, bio, profile_photo) VALUES (?, ?, ?, ?, ?)");
-        if ($stmt->execute([$userId, $electionId, $position, $bio, $profilePhoto])) {
+        if ($stmt->execute([$userId, $electionId, $position, $bio, $profilePhotoUrl])) {
             echo "<p style='color:green;'>Candidate added successfully.</p>";
-            // Refresh the page to show updated candidate list
             echo "<script>setTimeout(function(){ window.location.href = window.location.pathname + '?election_id=' + $electionId; }, 1000);</script>";
         } else {
             throw new Exception("Failed to insert candidate.");
@@ -129,26 +162,25 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         $candidateId = intval($_POST['delete_id']);
         if ($candidateId > 0) {
             try {
-                // Fetch profile photo filename
+                // Fetch profile photo URL
                 $stmt_select = $conn->prepare("SELECT profile_photo FROM contesters WHERE id = ?");
                 $stmt_select->execute([$candidateId]);
                 $candidate = $stmt_select->fetch(PDO::FETCH_ASSOC);
                 
-                if ($candidate) {
-                    $profile_photo = $candidate['profile_photo'];
-                    
-                    // Delete profile photo if exists
-                    if (!empty($profile_photo)) {
-                        $file_path = realpath("../faces/" . $profile_photo);
-                        if ($file_path && file_exists($file_path)) {
-                            if (!unlink($file_path)) {
-                                error_log("Error deleting profile photo file: " . $file_path);
-                            }
+                if ($candidate && !empty($candidate['profile_photo'])) {
+                    // Delete image from Cloudinary
+                    $publicId = extractPublicIdFromUrl($candidate['profile_photo']);
+                    if ($publicId) {
+                        try {
+                            $upload = new UploadApi();
+                            $upload->destroy($publicId);
+                        } catch (Exception $ce) {
+                            error_log("Cloudinary delete error: " . $ce->getMessage());
+                            // Continue anyway - DB record should still be removed
                         }
                     }
                 }
 
-                // Delete candidate record
                 $stmt_delete = $conn->prepare("DELETE FROM contesters WHERE id = ?");
                 if ($stmt_delete->execute([$candidateId])) {
                     echo json_encode(["status" => "success"]);
@@ -191,16 +223,17 @@ try {
         .admin-container { width: 90%; max-width: 1200px; margin: 20px auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         .form-container { margin-bottom: 20px; padding: 15px; background: #e9ecef; border-radius: 8px; }
         .form-container input, .form-container select, .form-container textarea { width: 98%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
-        .form-container button { background: #3498db; color: white; padding: 10px 15px; border: none; cursor: pointer; border-radius: 4px; }
-        .form-container button:hover { background: #2980b9; }
+        .form-container button { background: #2c7a7b; color: white; padding: 10px 15px; border: none; cursor: pointer; border-radius: 4px; }
+        .form-container button:hover { background: #236162; }
         .candidate-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
         .candidate-table th, .candidate-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        .candidate-table th { background-color: #3498db; color: white; }
+        .candidate-table th { background-color: #2c7a7b; color: white; }
         .delete-btn { color: red; text-decoration: none; cursor: pointer; }
         .delete-btn:hover { text-decoration: underline; }
-        .profile-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; }
+        .profile-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #2c7a7b; }
         .success-msg { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
         .error-msg { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+        .upload-note { font-size: 12px; color: #666; margin-top: -3px; }
     </style>
 </head>
 <body>
@@ -242,7 +275,9 @@ try {
                 </select>
 
                 <textarea name="bio" placeholder="Candidate Bio" rows="4" required></textarea>
-                <input type="file" name="profile_photo" accept="image/*" required><br>
+                <input type="file" name="profile_photo" accept="image/*" required>
+                <div class="upload-note">Image will be uploaded to Cloudinary (max 500x500, face-centered crop).</div>
+                <br>
                 <button type="submit" name="action" value="add_candidate">Add Candidate</button>
             </form>
         </div>
@@ -268,8 +303,8 @@ try {
                         <tr id="candidate-<?php echo $candidate['id']; ?>">
                             <td><?php echo $candidate['id']; ?></td>
                             <td>
-                                <?php if (!empty($candidate['profile_photo']) && file_exists("../faces/" . $candidate['profile_photo'])): ?>
-                                    <img src="../faces/<?php echo htmlspecialchars($candidate['profile_photo']); ?>" alt="Profile Photo" class="profile-img">
+                                <?php if (!empty($candidate['profile_photo'])): ?>
+                                    <img src="<?php echo htmlspecialchars($candidate['profile_photo']); ?>" alt="Profile Photo" class="profile-img">
                                 <?php else: ?>
                                     <img src="../faces/default.png" alt="No Image" class="profile-img">
                                 <?php endif; ?>
@@ -288,7 +323,6 @@ try {
 
     <script>
     $(document).ready(function() {
-        // Delete Candidate
         $(document).on("click", ".delete-btn", function() {
             if (!confirm("Are you sure you want to delete this candidate?")) return;
             let candidateId = $(this).data("id");
