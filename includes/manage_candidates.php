@@ -4,55 +4,8 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 include("conn.php");
 
-// Cloudinary SDK
-require_once __DIR__ . '/vendor/autoload.php';
-
-use Cloudinary\Configuration\Configuration;
-use Cloudinary\Api\Upload\UploadApi;
-
-// Configure Cloudinary from environment variables (Render dashboard)
-Configuration::instance([
-    'cloud' => [
-        'cloud_name' => getenv('CLOUDINARY_CLOUD_NAME'),
-        'api_key'    => getenv('CLOUDINARY_API_KEY'),
-        'api_secret' => getenv('CLOUDINARY_API_SECRET'),
-    ],
-    'url' => [
-        'secure' => true
-    ]
-]);
-
-// Helper: upload a file to Cloudinary and return the secure URL
-function uploadToCloudinary($fileTmpPath, $folder = 'candidates') {
-    try {
-        $upload = new UploadApi();
-        $result = $upload->upload($fileTmpPath, [
-            'folder' => $folder,
-            'resource_type' => 'image',
-            'transformation' => [
-                'width' => 500, 'height' => 500, 'crop' => 'fill', 'gravity' => 'face'
-            ]
-        ]);
-        return $result['secure_url'];
-    } catch (Exception $e) {
-        error_log("Cloudinary upload error: " . $e->getMessage());
-        return null;
-    }
-}
-
-// Helper: extract Cloudinary public_id from URL so we can delete it later
-function extractPublicIdFromUrl($url) {
-    if (empty($url)) return null;
-    // URL format: https://res.cloudinary.com/<cloud>/image/upload/v1234567/folder/filename.ext
-    $parts = explode('/upload/', $url);
-    if (count($parts) < 2) return null;
-    $path = $parts[1];
-    // Remove version segment (v1234567/)
-    $path = preg_replace('#^v\d+/#', '', $path);
-    // Remove file extension
-    $path = preg_replace('#\.[a-zA-Z0-9]+$#', '', $path);
-    return $path;
-}
+// Cloudinary helpers 
+require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
 if (!isset($_SESSION['admin_id'])) {
@@ -172,7 +125,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     $publicId = extractPublicIdFromUrl($candidate['profile_photo']);
                     if ($publicId) {
                         try {
-                            $upload = new UploadApi();
+                            $upload = new \Cloudinary\Api\Upload\UploadApi();
                             $upload->destroy($publicId);
                         } catch (Exception $ce) {
                             error_log("Cloudinary delete error: " . $ce->getMessage());
