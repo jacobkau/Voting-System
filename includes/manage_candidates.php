@@ -4,7 +4,7 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 include("conn.php");
 
-// Cloudinary helpers 
+// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, defaultAvatarUrl)
 require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
@@ -129,7 +129,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                             $upload->destroy($publicId);
                         } catch (Exception $ce) {
                             error_log("Cloudinary delete error: " . $ce->getMessage());
-                            // Continue anyway - DB record should still be removed
                         }
                     }
                 }
@@ -183,7 +182,7 @@ try {
         .candidate-table th { background-color: #2c7a7b; color: white; }
         .delete-btn { color: red; text-decoration: none; cursor: pointer; }
         .delete-btn:hover { text-decoration: underline; }
-        .profile-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #2c7a7b; }
+        .profile-img { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #2c7a7b; background: #f4f7f9; }
         .success-msg { background-color: #d4edda; color: #155724; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
         .error-msg { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
         .upload-note { font-size: 12px; color: #666; margin-top: -3px; }
@@ -253,14 +252,15 @@ try {
                 </thead>
                 <tbody id="candidate-list">
                     <?php foreach ($candidates as $candidate): ?>
+                        <?php
+                        $imgSrc = (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo']))
+                            ? $candidate['profile_photo']
+                            : defaultAvatarUrl();
+                        ?>
                         <tr id="candidate-<?php echo $candidate['id']; ?>">
                             <td><?php echo $candidate['id']; ?></td>
                             <td>
-                                <?php if (!empty($candidate['profile_photo'])): ?>
-                                    <img src="<?php echo htmlspecialchars($candidate['profile_photo']); ?>" alt="Profile Photo" class="profile-img">
-                                <?php else: ?>
-                                    <img src="../faces/default.png" alt="No Image" class="profile-img">
-                                <?php endif; ?>
+                                <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="Profile Photo" class="profile-img">
                             </td>
                             <td><?php echo htmlspecialchars($candidate['username']); ?></td>
                             <td><?php echo htmlspecialchars($candidate['election_title']); ?></td>
