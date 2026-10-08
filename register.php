@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
-// Cloudinary helper (uploadToCloudinary)
+// Cloudinary helpers (uploadToCloudinary, defaultAvatarUrl)
 require_once __DIR__ . '/cloudinary.php';
 
 // Function to create user_elections table if it doesn't exist
@@ -27,7 +27,6 @@ function createUserElectionsTable($conn) {
     }
 }
 
-// Create the table if it doesn't exist
 createUserElectionsTable($conn);
 
 $message = "";
@@ -44,12 +43,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($username) || empty($name) || empty($email) || empty($password) || empty($selectedElections)) {
         $message = "All fields are required, including selecting at least one election.";
         $messageType = "error";
+    } elseif (strlen($password) < 6) {
+        $message = "Password must be at least 6 characters.";
+        $messageType = "error";
     } else {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-        
-        // Handle profile photo — upload to Cloudinary
         $profilePhotoUrl = null;
 
+        // Upload profile photo to Cloudinary (if provided)
         if (!empty($profilePhoto['name']) && $profilePhoto['error'] === UPLOAD_ERR_OK) {
             $allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
             $fileExt = strtolower(pathinfo($profilePhoto['name'], PATHINFO_EXTENSION));
@@ -61,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $message = "File is too large. Maximum size is 2MB.";
                 $messageType = "error";
             } else {
-                $uploadedUrl = uploadToCloudinary($profilePhoto['tmp_name'], 'users');
+                $uploadedUrl = uploadToCloudinary($profilePhoto['tmp_name'], 'voters');
                 if ($uploadedUrl) {
                     $profilePhotoUrl = $uploadedUrl;
                 } else {
@@ -73,16 +74,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (empty($message)) {
             try {
-                // Ensure the profile_photo column exists on users
-                try {
-                    $checkColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_photo'");
-                    if ($checkColumn->rowCount() == 0) {
-                        $conn->exec("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(500) DEFAULT NULL");
-                    }
-                } catch (PDOException $e) {
-                    error_log("Column check note: " . $e->getMessage());
-                }
-
                 // Check if user already exists
                 $checkUserStmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
                 $checkUserStmt->execute([$username, $email]);
@@ -91,7 +82,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $message = "Username or Email already exists.";
                     $messageType = "error";
                 } else {
-                    // Insert user with Cloudinary URL
+                    // Insert user with Cloudinary URL in profile_photo
                     $insertUserStmt = $conn->prepare("INSERT INTO users (username, name, email, password, profile_photo) VALUES (?, ?, ?, ?, ?)");
                     
                     if ($insertUserStmt->execute([$username, $name, $email, $passwordHash, $profilePhotoUrl])) {
@@ -120,7 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 }
             } catch (Exception $e) {
                 error_log("Registration error: " . $e->getMessage());
-                $message = "Registration failed: " . $e->getMessage();
+                $message = "Registration failed. Please try again.";
                 $messageType = "error";
             }
         }
@@ -137,16 +128,15 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 <style>
     .registration-container {
-        max-width: 700px;
+        max-width: 640px;
         margin: 40px auto;
         background: white;
         border-radius: 24px;
-        padding: 40px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        padding: 45px 40px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         transition: all 0.3s ease;
     }
     
-    /* Dark mode support for registration container */
     body.dark-theme .registration-container {
         background: #1e1e2e;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
@@ -165,10 +155,15 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         color: #f3f4f6;
     }
     
+    .registration-title i {
+        color: #2c7a7b;
+        margin-right: 10px;
+    }
+    
     .registration-subtitle {
         text-align: center;
         color: #6b7280;
-        margin-bottom: 30px;
+        margin-bottom: 35px;
         font-size: 14px;
         transition: color 0.3s ease;
     }
@@ -185,7 +180,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         display: block;
         margin-bottom: 8px;
         color: #374151;
-        font-weight: 600;
+        font-weight: 500;
         font-size: 14px;
         transition: color 0.3s ease;
     }
@@ -207,7 +202,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     .form-input,
     .form-input-file {
         width: 100%;
-        padding: 12px 16px;
+        padding: 14px 16px;
         border: 2px solid #e5e7eb;
         border-radius: 12px;
         font-size: 15px;
@@ -242,10 +237,14 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         background: #f9fafb;
     }
     
+    body.dark-theme .form-input-file {
+        background: #2d2d3d;
+    }
+    
     .file-hint {
         font-size: 12px;
         color: #9ca3af;
-        margin-top: 5px;
+        margin-top: 6px;
         transition: color 0.3s ease;
     }
     
@@ -263,10 +262,10 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     .form-check {
         display: flex;
         align-items: center;
-        padding: 10px 12px;
+        padding: 12px 14px;
         background: #f9fafb;
-        border-radius: 10px;
-        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        border: 2px solid #e5e7eb;
         transition: all 0.3s;
         cursor: pointer;
     }
@@ -291,6 +290,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         width: 18px;
         height: 18px;
         cursor: pointer;
+        accent-color: #2c7a7b;
     }
     
     .form-check-label {
@@ -336,7 +336,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     
     .submit-btn {
         width: 100%;
-        background-color: #2c7a7b; /* calm teal */
+        background-color: #2c7a7b;
         color: white;
         padding: 14px 20px;
         border: none;
@@ -350,6 +350,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         justify-content: center;
         gap: 10px;
         margin-top: 10px;
+        font-family: inherit;
     }
     
     .submit-btn:hover {
@@ -388,12 +389,13 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     .message {
-        padding: 15px 20px;
+        padding: 14px 18px;
         border-radius: 12px;
         margin-bottom: 25px;
         display: flex;
         align-items: center;
         gap: 12px;
+        font-size: 14px;
     }
     
     .message.success {
@@ -423,25 +425,30 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         margin-top: 25px;
         padding-top: 20px;
         border-top: 1px solid #e5e7eb;
+        font-size: 14px;
+        color: #6b7280;
     }
     
     body.dark-theme .login-link {
         border-top-color: #3d3d4d;
+        color: #9ca3af;
     }
     
     .login-link a {
         color: #2c7a7b;
         text-decoration: none;
+        font-weight: 600;
     }
     
     .login-link a:hover {
+        color: #236162;
         text-decoration: underline;
     }
     
     @media (max-width: 768px) {
         .registration-container {
             margin: 20px;
-            padding: 25px;
+            padding: 30px 25px;
         }
         .registration-title {
             font-size: 24px;
@@ -454,14 +461,14 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 <div class="registration-container">
     <h1 class="registration-title">
-        <i class="fas fa-user-plus"></i> Create Account
+        <i class="fas fa-vote-yea"></i> Create Account
     </h1>
     <p class="registration-subtitle">Join our voting system to participate in elections</p>
     
     <?php if (!empty($message)): ?>
         <div class="message <?php echo $messageType; ?>">
             <i class="fas <?php echo $messageType == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
-            <?php echo $message; ?>
+            <span><?php echo $message; ?></span>
         </div>
     <?php endif; ?>
     
@@ -500,12 +507,12 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <i class="fas fa-camera"></i> Profile Photo
             </label>
             <input type="file" name="profile_photo" id="profile_photo" class="form-input-file" accept="image/*">
-            <div class="file-hint">Optional: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded securely to Cloudinary.</div>
+            <div class="file-hint">Optional: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
         </div>
         
         <div class="form-group">
             <label class="form-label required">
-                <i class="fas fa-vote-yea"></i> Select Elections
+                <i class="fas fa-poll"></i> Select Elections
             </label>
             <div class="elections-grid" id="electionsGrid">
                 <?php if (empty($activeElections)): ?>
@@ -528,7 +535,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         
         <button type="submit" class="submit-btn" id="submitBtn">
             <span class="spinner"></span>
-            <span><i class="fas fa-paper-plane"></i> Register Account</span>
+            <span><i class="fas fa-user-plus"></i> Register Account</span>
         </button>
         
         <div class="login-link">
@@ -544,7 +551,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const passwordInput = document.getElementById('password');
     const electionsCheckboxes = document.querySelectorAll('input[name="elections[]"]');
     
-    // Password validation
+    // Password validation visual hint
     if (passwordInput) {
         passwordInput.addEventListener('input', function() {
             if (this.value.length > 0 && this.value.length < 6) {
@@ -585,7 +592,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // File validation with preview
+    // File validation
     const fileInput = document.getElementById('profile_photo');
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
