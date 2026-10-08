@@ -6,7 +6,7 @@ ini_set('display_startup_errors', 1);
 
 include("conn.php");
 
-// Load SendGrid library if available
+// Load composer autoload if available
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             $uri = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
             $reset_link = "$protocol://$host$uri/test_reset.php?token=$token";
             
-            // ---------- FIX: Use SendGrid/Resend instead of mail() ----------
+            // ---------- Email sending ----------
             $emailSent = false;
             
             // Try Resend first (if available)
@@ -91,9 +91,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                         $emailObj->addContent("text/html", $htmlContent);
                         
                         $sendgrid = new \SendGrid($sendgridApiKey);
-                        $response = $sendgrid->send($emailObj);
+                        $sendgridResponse = $sendgrid->send($emailObj);
                         
-                        if ($response->statusCode() == 202) {
+                        if ($sendgridResponse->statusCode() == 202) {
                             $emailSent = true;
                         }
                     }
@@ -102,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 }
             }
             
-            // If both failed, fall back to PHP mail (last resort)
+            // Fallback to PHP mail (last resort)
             if (!$emailSent) {
                 $subject = "Password Reset Request";
                 $body = "<h2>Password Reset</h2><p>Hello $username,</p><p><a href='$reset_link'>$reset_link</a></p><p>Expires in 1 hour.</p>";
@@ -112,15 +112,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             
             if ($emailSent) {
                 $response['success'] = true;
-                $response['message'] = '✓ Reset link sent! Check your email.';
+                $response['message'] = 'Reset link sent! Check your email.';
             } else {
-                $response['message'] = '⚠️ Email sending failed. Try again.';
+                $response['message'] = 'Email sending failed. Please try again.';
             }
         } else {
-            $response['message'] = '❌ Email not found in our records.';
+            // Don't reveal whether email exists — generic message for security
+            $response['success'] = true;
+            $response['message'] = 'If that email exists in our records, a reset link has been sent.';
         }
     } catch (PDOException $e) {
-        $response['message'] = '❌ Database error: ' . $e->getMessage();
+        error_log("Password reset error: " . $e->getMessage());
+        $response['message'] = 'An error occurred. Please try again.';
     }
     
     echo json_encode($response);
@@ -130,34 +133,196 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Forgot Password</title>
+    <title>Forgot Password | Voting System</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        * { box-sizing: border-box; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-        .container { max-width: 500px; width: 100%; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-        h1 { text-align: center; color: #333; margin-bottom: 10px; }
-        .subtitle { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
-        .message { padding: 15px 20px; border-radius: 10px; margin-bottom: 20px; font-weight: 500; display: none; align-items: center; gap: 10px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #2c7a7b; /* calm teal */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 480px;
+            width: 100%;
+            background: white;
+            padding: 45px 40px;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: fadeInUp 0.5s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        h1 {
+            text-align: center;
+            color: #1f2937;
+            margin-bottom: 10px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        h1 i {
+            color: #2c7a7b;
+            margin-right: 10px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #6b7280;
+            margin-bottom: 35px;
+            font-size: 14px;
+        }
+
+        .message {
+            padding: 14px 18px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            font-size: 14px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
         .message.show { display: flex; }
-        .message.success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
-        .message.error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+
+        .message.success {
+            background: #d1fae5;
+            color: #065f46;
+            border-left: 4px solid #10b981;
+        }
+
+        .message.error {
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #dc2626;
+        }
+
         .form-group { margin-bottom: 20px; }
-        label { display: block; font-weight: 600; color: #333; margin-bottom: 5px; }
-        input[type="email"] { width: 100%; padding: 14px 16px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; }
-        input:focus { outline: none; border-color: #667eea; }
-        button { width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; }
-        button:hover { transform: translateY(-2px); box-shadow: 0 5px 20px rgba(102,126,234,0.4); }
-        button:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-        .links { text-align: center; margin-top: 25px; padding-top: 20px; border-top: 1px solid #eee; }
-        .links a { color: #667eea; text-decoration: none; margin: 0 10px; }
-        .links a:hover { text-decoration: underline; }
-        small { color: #666; font-size: 12px; display: block; margin-top: 5px; }
-        .spinner { display: none; width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.8s linear infinite; }
+
+        label {
+            display: block;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        label i {
+            color: #2c7a7b;
+            margin-right: 8px;
+        }
+
+        input[type="email"] {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: all 0.3s;
+            background: white;
+        }
+
+        input[type="email"]:focus {
+            outline: none;
+            border-color: #2c7a7b;
+            box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #2c7a7b; /* calm teal */
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button:hover:not(:disabled) {
+            background-color: #236162;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .links {
+            text-align: center;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .links a {
+            color: #2c7a7b;
+            text-decoration: none;
+            margin: 0 10px;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .links a:hover {
+            color: #236162;
+            text-decoration: underline;
+        }
+
+        small {
+            color: #9ca3af;
+            font-size: 12px;
+            display: block;
+            margin-top: 6px;
+        }
+
+        .spinner {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+        }
+
         button.loading .spinner { display: inline-block; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .container { padding: 30px 25px; }
+            h1 { font-size: 22px; }
+        }
     </style>
 </head>
 <body>
@@ -178,7 +343,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             </div>
             <button type="submit" id="submitBtn">
                 <span class="spinner"></span>
-                <i class="fas fa-paper-plane"></i> Send Reset Link
+                <span><i class="fas fa-paper-plane"></i> Send Reset Link</span>
             </button>
         </form>
         
@@ -195,20 +360,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
         
         const email = document.getElementById('email');
         const submitBtn = document.getElementById('submitBtn');
-        const messageBox = document.getElementById('messageBox');
-        const messageText = document.getElementById('messageText');
-        const icon = messageBox.querySelector('i');
         
         // Validate
         if (email.value.trim() === '') {
-            showMessage('Please enter your email address!', 'error');
+            showMessage('Please enter your email address.', 'error');
             return;
         }
         
         // Show loading
         submitBtn.classList.add('loading');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner"></span> Sending...';
+        submitBtn.innerHTML = '<span class="spinner"></span> <span>Sending...</span>';
         
         try {
             const formData = new FormData();
@@ -230,7 +392,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
         // Reset button
         submitBtn.classList.remove('loading');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reset Link';
+        submitBtn.innerHTML = '<span><i class="fas fa-paper-plane"></i> Send Reset Link</span>';
     });
     
     function showMessage(text, type) {
