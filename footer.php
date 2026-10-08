@@ -1,9 +1,6 @@
-<?php
-// footer.php - Common footer for all pages
-?>
-    </div> <!-- Close main-content div -->
+</div>
     
-    <footer style="background: rgba(0,0,0,0.2); padding: 20px 0; text-align: center; color: white; margin-top: 40px; backdrop-filter: blur(10px);">
+    <footer style="background-color: #236162; padding: 20px 0; text-align: center; color: white; margin-top: 40px; transition: background-color 0.3s ease;">
         <div>
             <ul style="display: flex; flex-wrap: wrap; justify-content: center; list-style: none; padding: 0; margin: 0 0 10px 0;">
                 <?php if (isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true): ?>
@@ -26,11 +23,19 @@
     </footer>
     
     <script>
-        // Apply theme to all dynamic content
         document.addEventListener('DOMContentLoaded', function() {
-            const savedTheme = localStorage.getItem('voting_theme');
-            if (savedTheme && !document.body.classList.contains(savedTheme + '-theme')) {
+            const savedTheme = localStorage.getItem('voting_theme') || 'light';
+            if (!document.body.classList.contains(savedTheme + '-theme')) {
                 document.body.classList.add(savedTheme + '-theme');
+            }
+            // Match footer background to theme
+            const footer = document.querySelector('footer');
+            if (footer) {
+                if (document.body.classList.contains('dark-theme')) {
+                    footer.style.backgroundColor = '#0f172a';
+                } else {
+                    footer.style.backgroundColor = '#236162';
+                }
             }
         });
     </script>
