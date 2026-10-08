@@ -129,10 +129,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
     }
 }
 
-/**
- * Resolve a displayable image URL for a candidate.
- * Uses Cloudinary URL if set, falls back to the system default avatar.
- */
 function getCandidateImage($candidate) {
     if (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo'])) {
         return $candidate['profile_photo'];
@@ -150,7 +146,7 @@ function getCandidateImage($candidate) {
         padding: 0 20px;
     }
     
-    /* Hero Section */
+    /* Hero Section — teal accent only */
     .vote-hero {
         background-color: #2c7a7b;
         border-radius: 20px;
@@ -158,11 +154,12 @@ function getCandidateImage($candidate) {
         text-align: center;
         color: white;
         margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        box-shadow: 0 10px 30px rgba(44, 122, 123, 0.2);
     }
     
     body.dark-theme .vote-hero {
         background-color: #0f172a;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
     
     .vote-hero h2 {
@@ -181,19 +178,21 @@ function getCandidateImage($candidate) {
         display: block;
     }
     
-    /* Election Selector */
+    /* Election Selector — white card on light bg */
     .election-selector-wrapper {
         background: white;
         border-radius: 16px;
         padding: 25px;
         margin-bottom: 30px;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        transition: background-color 0.3s ease;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
     
     body.dark-theme .election-selector-wrapper {
         background: #1e1e2e;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        border-color: #3d3d4d;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
     
     .selector-label {
@@ -251,19 +250,22 @@ function getCandidateImage($candidate) {
         border-radius: 20px;
         margin-bottom: 40px;
         overflow: hidden;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        transition: background-color 0.3s ease;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
     
     body.dark-theme .position-card {
         background: #1e1e2e;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        border-color: #3d3d4d;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
     
+    /* Position header — light gray, teal accent icon */
     .position-header {
-        background: #f3f4f6;
+        background: #f9fafb;
         padding: 18px 25px;
-        border-bottom: 2px solid #e0e0e0;
+        border-bottom: 1px solid #e5e7eb;
     }
     
     body.dark-theme .position-header {
@@ -335,7 +337,7 @@ function getCandidateImage($candidate) {
     
     .candidate-item:hover {
         transform: translateY(-5px);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         border-color: #2c7a7b;
     }
     
@@ -343,14 +345,12 @@ function getCandidateImage($candidate) {
         transform: scaleX(1);
     }
     
+    /* Selected state — teal only when chosen */
     .candidate-item.selected {
         background-color: #2c7a7b;
         border-color: #2c7a7b;
         color: white;
-    }
-    
-    .candidate-item.selected .candidate-vote-count {
-        color: rgba(255,255,255,0.8);
+        box-shadow: 0 8px 20px rgba(44, 122, 123, 0.3);
     }
     
     .candidate-image {
@@ -360,10 +360,14 @@ function getCandidateImage($candidate) {
         object-fit: cover;
         margin: 0 auto 15px;
         border: 3px solid white;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         transition: transform 0.3s;
         background: #f4f7f9;
         display: block;
+    }
+    
+    body.dark-theme .candidate-image {
+        border-color: #3d3d4d;
     }
     
     .candidate-item:hover .candidate-image {
@@ -396,14 +400,7 @@ function getCandidateImage($candidate) {
     body.dark-theme .candidate-party { color: #9ca3af; }
     
     .candidate-item.selected .candidate-party {
-        color: rgba(255,255,255,0.8);
-    }
-    
-    .candidate-vote-count {
-        font-size: 13px;
-        color: #9ca3af;
-        margin-top: 8px;
-        display: none;
+        color: rgba(255, 255, 255, 0.8);
     }
     
     .selected-badge {
@@ -429,20 +426,22 @@ function getCandidateImage($candidate) {
         transform: scale(1);
     }
     
-    /* Submit Button */
+    /* Submit Section — white card, teal button */
     .submit-section {
         background: white;
         border-radius: 16px;
         padding: 25px;
         text-align: center;
         margin-top: 20px;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        transition: background-color 0.3s ease;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #e5e7eb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
     
     body.dark-theme .submit-section {
         background: #1e1e2e;
-        box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        border-color: #3d3d4d;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
     
     .submit-btn {
@@ -507,14 +506,14 @@ function getCandidateImage($candidate) {
     }
     
     .message.info {
-        background: #e0e7ff;
-        color: #3730a3;
-        border-left: 4px solid #6366f1;
+        background: #eff6ff;
+        color: #1e40af;
+        border-left: 4px solid #3b82f6;
     }
     
     body.dark-theme .message.info {
-        background: #1e1b4b;
-        color: #c7d2fe;
+        background: #1e3a8a;
+        color: #dbeafe;
     }
     
     /* Responsive */
