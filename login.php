@@ -62,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm teal */
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -72,11 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         /* Light Theme Support */
         body.light-theme {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background-color: #2c7a7b;
         }
         
         body.dark-theme {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background-color: #1e293b; /* dark slate */
         }
         
         .login-container {
@@ -149,7 +149,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         .form-label i {
             margin-right: 8px;
-            color: #667eea;
+            color: #2c7a7b;
         }
         
         .form-input {
@@ -171,13 +171,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         .form-input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            border-color: #2c7a7b;
+            box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
         
         .form-button {
             width: 100%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: #2c7a7b; /* calm teal */
             color: white;
             padding: 14px 20px;
             border: none;
@@ -194,8 +194,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         .form-button:hover {
+            background-color: #236162;
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 10px 25px rgba(44, 122, 123, 0.4);
         }
         
         .form-button:active {
@@ -246,6 +247,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         .error-message i {
             font-size: 16px;
+        }
+        
+        .error-message a {
+            color: #991b1b;
+            font-weight: 600;
         }
         
         .success-message {
@@ -300,14 +306,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         .register-link a {
-            color: #667eea;
+            color: #2c7a7b;
             text-decoration: none;
             font-size: 14px;
             transition: color 0.3s;
         }
         
         .register-link a:hover {
-            color: #4f46e5;
+            color: #236162;
             text-decoration: underline;
         }
         
@@ -342,8 +348,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         .theme-toggle-btn:hover {
-            background: rgba(102, 126, 234, 0.1);
-            border-color: #667eea;
+            background: rgba(44, 122, 123, 0.1);
+            border-color: #2c7a7b;
         }
         
         @media (max-width: 480px) {
@@ -367,7 +373,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             <?php if (isset($error) && !empty($error)): ?>
                 <div class="error-message">
                     <i class="fas fa-exclamation-circle"></i>
-                    <?php echo $error; ?>
+                    <span><?php echo $error; ?></span>
                 </div>
             <?php endif; ?>
             
@@ -448,7 +454,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         // Load saved theme
-        const savedTheme = localStorage.getItem('voting_theme') || 'dark';
+        const savedTheme = localStorage.getItem('voting_theme') || 'light';
         setTheme(savedTheme);
         
         // Theme toggle button
@@ -498,7 +504,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             // Create new error message
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
-            errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
+            errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + message + '</span>';
             
             // Insert after the subtitle
             const subtitle = document.querySelector('.login-subtitle');
