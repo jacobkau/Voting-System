@@ -9,6 +9,9 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
+// Cloudinary helpers (defaultAvatarUrl)
+require_once __DIR__ . '/../cloudinary.php';
+
 // Get admin name + profile photo
 $adminName = "";
 $adminPhoto = "";
@@ -26,20 +29,14 @@ try {
     $adminName = $_SESSION['username'] ?? 'Admin';
 }
 
-// Resolve displayable URL (Cloudinary URL or legacy filename)
-if (!empty($adminPhoto)) {
-    $adminPhotoDisplay = preg_match('#^https?://#i', $adminPhoto)
-        ? $adminPhoto
-        : '../faces/' . $adminPhoto;
-} else {
-    $adminPhotoDisplay = '';
-}
+// Resolve displayable URL — Cloudinary only, fall back to system default
+$adminPhotoDisplay = (!empty($adminPhoto) && preg_match('#^https?://#i', $adminPhoto))
+    ? $adminPhoto
+    : defaultAvatarUrl();
 
 // Determine which content to load
 $page = isset($_GET['page']) ? $_GET['page'] : 'home';
-
-// Determine the current page for active link
-$currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
+$currentPage = $page;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -70,9 +67,8 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             color: #333;
         }
 
-        /* Header Styles - calm, cool teal */
         header {
-            background-color: #2c7a7b; /* calm deep teal */
+            background-color: #2c7a7b;
             color: white;
             padding: 15px 25px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
@@ -117,7 +113,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             font-weight: 500;
         }
 
-        /* Admin avatar in header */
         .admin-avatar {
             width: 32px;
             height: 32px;
@@ -126,6 +121,7 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             border: 2px solid rgba(255, 255, 255, 0.6);
             display: inline-block;
             vertical-align: middle;
+            background: #f4f7f9;
         }
 
         .logout-btn {
@@ -145,7 +141,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             transform: translateY(-2px);
         }
 
-        /* Hamburger Menu Button */
         .menu-toggle {
             display: none;
             background: none;
@@ -156,15 +151,13 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             padding: 5px;
         }
 
-        /* Container */
         .container {
             display: flex;
             flex-grow: 1;
         }
 
-        /* Sidebar Styles - solid dark background */
         .sidebar {
-            background-color: #1e293b; /* solid dark slate */
+            background-color: #1e293b;
             width: 280px;
             padding: 20px 0;
             box-sizing: border-box;
@@ -204,9 +197,8 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             color: white;
         }
 
-        /* Active link - matching calm teal */
         .sidebar a.active {
-            background-color: #2c7a7b; /* same calm teal as header */
+            background-color: #2c7a7b;
             color: white;
             border-left: 3px solid #fff;
         }
@@ -225,7 +217,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             background-color: rgba(248, 113, 113, 0.1);
         }
 
-        /* Main Content */
         main {
             flex-grow: 1;
             padding: 25px;
@@ -241,7 +232,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             min-height: calc(100vh - 150px);
         }
 
-        /* Mobile Styles */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
@@ -299,7 +289,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             }
         }
 
-        /* Small screens */
         @media (max-width: 480px) {
             .sidebar a {
                 padding: 10px 15px;
@@ -321,15 +310,9 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
         
         <div class="header-right" id="headerRight">
             <div class="admin-info">
-                <?php if (!empty($adminPhotoDisplay)): ?>
-                    <img src="<?php echo htmlspecialchars($adminPhotoDisplay); ?>"
-                         alt="Admin"
-                         class="admin-avatar"
-                         onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
-                    <i class="fas fa-user-circle" style="display:none;"></i>
-                <?php else: ?>
-                    <i class="fas fa-user-circle"></i>
-                <?php endif; ?>
+                <img src="<?php echo htmlspecialchars($adminPhotoDisplay); ?>"
+                     alt="Admin"
+                     class="admin-avatar">
                 <span>Welcome, <?php echo htmlspecialchars($adminName); ?></span>
             </div>
             <a href="logout.php" class="logout-btn">
@@ -359,7 +342,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
         <main>
             <div class="main-content">
                 <?php
-                // Include the appropriate content file
                 switch ($page) {
                     case 'users':
                         include("manage_users.php");
@@ -399,7 +381,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
     </div>
 
     <script>
-        // Hamburger menu toggle
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
         const headerRight = document.getElementById('headerRight');
@@ -411,7 +392,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             });
         }
 
-        // Close menu when clicking outside on mobile
         document.addEventListener('click', function(event) {
             const isMobile = window.innerWidth <= 768;
             if (isMobile && sidebar && menuToggle) {
@@ -422,7 +402,6 @@ $currentPage = isset($_GET['page']) ? $_GET['page'] : 'home';
             }
         });
 
-        // Handle window resize - reset open state when switching to desktop
         window.addEventListener('resize', function() {
             if (window.innerWidth > 768) {
                 sidebar.classList.remove('open');
