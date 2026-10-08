@@ -74,7 +74,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         if (empty($message)) {
             try {
-                // Check if user already exists
                 $checkUserStmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
                 $checkUserStmt->execute([$username, $email]);
                 
@@ -82,13 +81,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $message = "Username or Email already exists.";
                     $messageType = "error";
                 } else {
-                    // Insert user with Cloudinary URL in profile_photo
                     $insertUserStmt = $conn->prepare("INSERT INTO users (username, name, email, password, profile_photo) VALUES (?, ?, ?, ?, ?)");
                     
                     if ($insertUserStmt->execute([$username, $name, $email, $passwordHash, $profilePhotoUrl])) {
                         $userId = $conn->lastInsertId();
 
-                        // Insert user's election registrations
                         $insertElectionStmt = $conn->prepare("INSERT IGNORE INTO user_elections (user_id, election_id) VALUES (?, ?)");
                         
                         $registeredCount = 0;
@@ -141,21 +138,17 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: flex-start;
             padding: 30px 20px;
+            transition: background-color 0.3s ease;
         }
         
-        body.light-theme {
-            background-color: #2c7a7b;
-        }
-        
-        body.dark-theme {
-            background-color: #1e293b;
-        }
+        body.light-theme { background-color: #2c7a7b; }
+        body.dark-theme  { background-color: #1e293b; }
         
         .registration-container {
             width: 100%;
@@ -173,9 +166,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             to   { opacity: 1; transform: translateY(0); }
         }
         
-        body.dark-theme .registration-container {
-            background: #1e1e2e;
-        }
+        body.dark-theme .registration-container { background: #1e1e2e; }
         
         .registration-title {
             text-align: center;
@@ -185,9 +176,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-weight: 700;
         }
         
-        body.dark-theme .registration-title {
-            color: #f3f4f6;
-        }
+        body.dark-theme .registration-title { color: #f3f4f6; }
         
         .registration-title i {
             color: #2c7a7b;
@@ -201,13 +190,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-size: 14px;
         }
         
-        body.dark-theme .registration-subtitle {
-            color: #9ca3af;
-        }
+        body.dark-theme .registration-subtitle { color: #9ca3af; }
         
-        .form-group {
-            margin-bottom: 25px;
-        }
+        .form-group { margin-bottom: 25px; }
         
         .form-label {
             display: block;
@@ -217,9 +202,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-size: 14px;
         }
         
-        body.dark-theme .form-label {
-            color: #e5e7eb;
-        }
+        body.dark-theme .form-label { color: #e5e7eb; }
         
         .form-label i {
             margin-right: 8px;
@@ -231,6 +214,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             color: #dc2626;
         }
         
+        /* -------- Input visibility fix -------- */
         .form-input,
         .form-input-file {
             width: 100%;
@@ -242,21 +226,50 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-family: inherit;
             box-sizing: border-box;
             background: white;
+            color: #1f2937;
+            -webkit-text-fill-color: #1f2937;
         }
-        
-        body.dark-theme .form-input,
-        body.dark-theme .form-input-file {
-            background: #2d2d3d;
-            border-color: #3d3d4d;
-            color: #f3f4f6;
+
+        .form-input::placeholder {
+            color: #9ca3af;
+            opacity: 1;
         }
-        
+
         .form-input:focus,
         .form-input-file:focus {
             outline: none;
             border-color: #2c7a7b;
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
+
+        body.dark-theme .form-input,
+        body.dark-theme .form-input-file {
+            background: #2d2d3d;
+            border-color: #3d3d4d;
+            color: #f3f4f6;
+            -webkit-text-fill-color: #f3f4f6;
+        }
+
+        body.dark-theme .form-input::placeholder {
+            color: #6b7280;
+        }
+
+        /* Autofill overrides */
+        .form-input:-webkit-autofill,
+        .form-input:-webkit-autofill:hover,
+        .form-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #1f2937;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        body.dark-theme .form-input:-webkit-autofill,
+        body.dark-theme .form-input:-webkit-autofill:hover,
+        body.dark-theme .form-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f3f4f6;
+            -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
+        }
+        /* ------------------------------------- */
         
         .form-input-file {
             padding: 10px 16px;
@@ -273,9 +286,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             margin-top: 6px;
         }
         
-        body.dark-theme .file-hint {
-            color: #6b7280;
-        }
+        body.dark-theme .file-hint { color: #6b7280; }
         
         .elections-grid {
             display: grid;
@@ -328,9 +339,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             align-items: center;
         }
         
-        body.dark-theme .form-check-label {
-            color: #e5e7eb;
-        }
+        body.dark-theme .form-check-label { color: #e5e7eb; }
         
         .election-status {
             font-size: 11px;
@@ -404,13 +413,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             animation: spin 0.8s linear infinite;
         }
         
-        .submit-btn.loading .spinner {
-            display: inline-block;
-        }
+        .submit-btn.loading .spinner { display: inline-block; }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         .message {
             padding: 14px 18px;
@@ -476,9 +481,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             border-top: 1px solid #e5e7eb;
         }
         
-        body.dark-theme .theme-toggle-container {
-            border-top-color: #3d3d4d;
-        }
+        body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
         
         .theme-toggle-btn {
             background: none;
@@ -506,15 +509,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
         @media (max-width: 768px) {
-            .registration-container {
-                padding: 30px 25px;
-            }
-            .registration-title {
-                font-size: 24px;
-            }
-            .elections-grid {
-                grid-template-columns: 1fr;
-            }
+            .registration-container { padding: 30px 25px; }
+            .registration-title { font-size: 24px; }
+            .elections-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -604,7 +601,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         </form>
         
         <div class="theme-toggle-container">
-            <button id="themeToggleBtn" class="theme-toggle-btn">
+            <button id="themeToggleBtn" class="theme-toggle-btn" type="button">
                 <i class="fas fa-moon"></i>
                 <span>Switch to Dark Mode</span>
             </button>
@@ -632,7 +629,6 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         // Form validation and submission
         if (form && submitBtn) {
             form.addEventListener('submit', function(e) {
-                // Validate at least one election is selected
                 let atLeastOneSelected = false;
                 electionsCheckboxes.forEach(checkbox => {
                     if (checkbox.checked) atLeastOneSelected = true;
@@ -644,14 +640,12 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                     return false;
                 }
                 
-                // Validate password length
                 if (passwordInput && passwordInput.value.length > 0 && passwordInput.value.length < 6) {
                     e.preventDefault();
                     alert('Password must be at least 6 characters long.');
                     return false;
                 }
                 
-                // Show loading state
                 submitBtn.classList.add('loading');
                 submitBtn.disabled = true;
                 
@@ -697,11 +691,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             }
         }
         
-        // Load saved theme (default: light to match login page)
         const savedTheme = localStorage.getItem('voting_theme') || 'light';
         setTheme(savedTheme);
         
-        // Theme toggle button
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function() {
