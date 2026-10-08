@@ -273,6 +273,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             cursor: not-allowed;
             transform: none;
         }
+           .theme-toggle-container {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        body.dark-theme .theme-toggle-container {
+            border-top-color: #3d3d4d;
+        }
+        
+        .theme-toggle-btn {
+            background: none;
+            border: 1px solid #e5e7eb;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            color: #6b7280;
+        }
+        
+        body.dark-theme .theme-toggle-btn {
+            border-color: #3d3d4d;
+            color: #9ca3af;
+        }
+        
+        .theme-toggle-btn:hover {
+            background: rgba(44, 122, 123, 0.1);
+            border-color: #2c7a7b;
+        }
 
         .links {
             text-align: center;
@@ -352,6 +386,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             <span>|</span>
             <a href="register.php"><i class="fas fa-user-plus"></i> Register</a>
         </div>
+        <br>
+         <div class="theme-toggle-container">
+                <button id="themeToggleBtn" class="theme-toggle-btn">
+                    <i class="fas fa-moon"></i>
+                    <span>Switch to Dark Mode</span>
+                </button>
+            </div>
     </div>
     
     <script>
