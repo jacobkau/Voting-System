@@ -1,6 +1,13 @@
 <?php
 session_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 include("conn.php");
+
+// Cloudinary helpers (defaultAvatarUrl)
+require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
     header("Location: login.php");
@@ -31,11 +38,9 @@ try {
         try {
             $conn->beginTransaction();
             
-            // Delete the application from contesters table
             $deleteStmt = $conn->prepare("DELETE FROM contesters WHERE user_id = ? AND election_id = ? AND postname = ?");
             $deleteStmt->execute([$userId, $electionId, $postname]);
             
-            // Log the action
             $logStmt = $conn->prepare("INSERT INTO event_log (username, event_type, event_description) VALUES (?, 'Withdraw Application', ?)");
             $logStmt->execute([$username, "Withdrew application for $postname in election ID: $electionId"]);
             
@@ -46,7 +51,8 @@ try {
             
         } catch (PDOException $e) {
             $conn->rollBack();
-            $message = "Error withdrawing application: " . $e->getMessage();
+            error_log("Unapply error: " . $e->getMessage());
+            $message = "Error withdrawing application. Please try again.";
             $messageType = "error";
         }
     }
@@ -68,7 +74,6 @@ try {
         if (!isset($mergedElections[$electionId])) {
             $mergedElections[$electionId] = $election;
             $mergedElections[$electionId]['contested_posts'] = [];
-            $mergedElections[$electionId]['application_ids'] = [];
         }
     }
     
@@ -80,7 +85,6 @@ try {
                 'id' => $application['id']
             ];
         } else {
-            // User applied but not registered? Still show
             $electionInfo = $conn->prepare("SELECT title, status FROM elections WHERE id = ?");
             $electionInfo->execute([$electionId]);
             $electionData = $electionInfo->fetch(PDO::FETCH_ASSOC);
@@ -90,8 +94,7 @@ try {
                     'election_id' => $electionId,
                     'election_title' => $electionData['title'] ?? 'Unknown Election',
                     'status' => $electionData['status'] ?? 'unknown',
-                    'contested_posts' => [],
-                    'application_ids' => []
+                    'contested_posts' => []
                 ];
             }
             $mergedElections[$electionId]['contested_posts'][] = [
@@ -101,7 +104,6 @@ try {
         }
     }
     
-    // Convert merged elections to a simple array
     $finalElections = array_values($mergedElections);
     
 } catch (Exception $e) {
@@ -118,36 +120,60 @@ try {
     .applications-container {
         max-width: 1000px;
         margin: 40px auto;
-        background-color: white;
+        background-color: #ffffff;
         padding: 35px;
         border-radius: 20px;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        border: 1px solid #e5e7eb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
+    body.dark-theme .applications-container {
+        background-color: #1e1e2e;
+        border-color: #3d3d4d;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    }
+
     .applications-container h1 {
-        color: #333;
+        color: #1f2937;
         margin-bottom: 10px;
         text-align: center;
         font-size: 32px;
+        transition: color 0.3s ease;
     }
-    
+
+    body.dark-theme .applications-container h1 { color: #f3f4f6; }
+
+    .applications-container h1 i {
+        color: #2c7a7b;
+        margin-right: 10px;
+    }
+
     .applications-container .subtitle {
         text-align: center;
         color: #6b7280;
         margin-bottom: 30px;
         font-size: 14px;
     }
-    
-    .section { 
-        border: 1px solid #e5e7eb; 
-        padding: 25px; 
-        margin-bottom: 25px; 
+
+    body.dark-theme .applications-container .subtitle { color: #9ca3af; }
+
+    .section {
+        border: 1px solid #e5e7eb;
+        padding: 25px;
+        margin-bottom: 25px;
         border-radius: 16px;
         background: #f9fafb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
+    body.dark-theme .section {
+        background: #2d2d3d;
+        border-color: #3d3d4d;
+    }
+
     .section h2 {
-        color: #667eea;
+        color: #1f2937;
         margin-top: 0;
         margin-bottom: 20px;
         padding-bottom: 12px;
@@ -156,28 +182,43 @@ try {
         display: flex;
         align-items: center;
         gap: 10px;
+        transition: color 0.3s ease, border-color 0.3s ease;
     }
-    
+
+    body.dark-theme .section h2 {
+        color: #f3f4f6;
+        border-bottom-color: #3d3d4d;
+    }
+
+    .section h2 i {
+        color: #2c7a7b;
+    }
+
     .election-list {
         list-style: none;
         padding: 0;
         margin: 0;
     }
-    
+
     .election-list li {
-        background-color: white;
+        background-color: #ffffff;
         margin-bottom: 20px;
         padding: 20px;
         border-radius: 12px;
-        border-left: 4px solid #667eea;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        border-left: 4px solid #2c7a7b;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         transition: all 0.3s;
     }
-    
-    .election-list li:hover {
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+
+    body.dark-theme .election-list li {
+        background-color: #1e1e2e;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
-    
+
+    .election-list li:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
     .election-header {
         display: flex;
         justify-content: space-between;
@@ -186,7 +227,7 @@ try {
         gap: 10px;
         margin-bottom: 15px;
     }
-    
+
     .election-title {
         font-size: 20px;
         font-weight: 700;
@@ -197,7 +238,13 @@ try {
         gap: 10px;
         flex-wrap: wrap;
     }
-    
+
+    body.dark-theme .election-title { color: #f3f4f6; }
+
+    .election-title i {
+        color: #2c7a7b;
+    }
+
     .election-status {
         display: inline-block;
         padding: 4px 12px;
@@ -205,37 +252,57 @@ try {
         font-size: 12px;
         font-weight: 600;
     }
-    
+
     .status-active {
         background: #d1fae5;
         color: #065f46;
     }
-    
+
+    body.dark-theme .status-active {
+        background: #064e3b;
+        color: #a7f3d0;
+    }
+
     .status-upcoming {
         background: #fef3c7;
         color: #92400e;
     }
-    
+
+    body.dark-theme .status-upcoming {
+        background: #78350f;
+        color: #fde68a;
+    }
+
     .status-completed {
         background: #fee2e2;
         color: #991b1b;
     }
-    
+
+    body.dark-theme .status-completed {
+        background: #7f1d1d;
+        color: #fecaca;
+    }
+
     .badge-contesting {
-        background: #e0e7ff;
-        color: #4338ca;
+        background: #e6f4f4;
+        color: #2c7a7b;
         padding: 4px 12px;
         border-radius: 20px;
         font-size: 12px;
         font-weight: 600;
     }
-    
+
+    body.dark-theme .badge-contesting {
+        background: rgba(44, 122, 123, 0.25);
+        color: #a7f3d0;
+    }
+
     .contest-posts {
         list-style: none;
         padding: 0;
         margin: 15px 0 0 0;
     }
-    
+
     .contest-post-item {
         background: #f3f4f6;
         border-radius: 10px;
@@ -248,28 +315,39 @@ try {
         gap: 15px;
         transition: all 0.3s;
     }
-    
+
+    body.dark-theme .contest-post-item {
+        background: #2d2d3d;
+    }
+
     .contest-post-item:hover {
         background: #e5e7eb;
     }
-    
+
+    body.dark-theme .contest-post-item:hover {
+        background: #3d3d4d;
+    }
+
     .post-info {
         display: flex;
         align-items: center;
         gap: 12px;
     }
-    
+
     .post-icon {
-        font-size: 20px;
+        color: #2c7a7b;
+        font-size: 18px;
     }
-    
+
     .post-name {
         font-weight: 600;
         color: #374151;
     }
-    
+
+    body.dark-theme .post-name { color: #e5e7eb; }
+
     .unapply-btn {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        background-color: #dc2626;
         color: white;
         border: none;
         padding: 8px 16px;
@@ -281,42 +359,40 @@ try {
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        font-family: inherit;
     }
-    
+
     .unapply-btn:hover {
+        background-color: #b91c1c;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(239,68,68,0.4);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
     }
-    
+
     .unapply-btn.loading {
         opacity: 0.7;
         cursor: not-allowed;
         transform: none;
     }
-    
+
     .unapply-btn.loading:hover {
         transform: none;
         box-shadow: none;
     }
-    
+
     .unapply-btn .spinner {
         display: none;
         width: 16px;
         height: 16px;
-        border: 2px solid rgba(255,255,255,0.3);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         border-top-color: white;
         animation: spin 0.8s linear infinite;
     }
-    
-    .unapply-btn.loading .spinner {
-        display: inline-block;
-    }
-    
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    
+
+    .unapply-btn.loading .spinner { display: inline-block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .message {
         padding: 15px 20px;
         border-radius: 12px;
@@ -324,55 +400,84 @@ try {
         display: flex;
         align-items: center;
         gap: 12px;
+        font-size: 14px;
     }
-    
+
     .message.success {
         background-color: #d1fae5;
         color: #065f46;
         border-left: 4px solid #10b981;
     }
-    
+
+    body.dark-theme .message.success {
+        background-color: #064e3b;
+        color: #a7f3d0;
+    }
+
     .message.error {
         background-color: #fee2e2;
         color: #991b1b;
         border-left: 4px solid #dc2626;
     }
-    
+
+    body.dark-theme .message.error {
+        background-color: #7f1d1d;
+        color: #fecaca;
+    }
+
     .no-data {
         text-align: center;
         padding: 50px;
         color: #9ca3af;
     }
-    
+
     .no-data i {
         font-size: 48px;
         margin-bottom: 15px;
         display: block;
+        color: #d1d5db;
     }
-    
+
+    body.dark-theme .no-data i { color: #4b5563; }
+
     .register-link {
         display: inline-block;
         margin-top: 15px;
-        color: #667eea;
+        color: #2c7a7b;
         text-decoration: none;
         font-weight: 500;
     }
-    
+
     .register-link:hover {
+        color: #236162;
         text-decoration: underline;
     }
-    
+
+    .apply-link {
+        color: #2c7a7b;
+        font-size: 13px;
+        text-decoration: none;
+    }
+
+    .apply-link:hover { text-decoration: underline; }
+
+    .info-text {
+        color: #6b7280;
+        margin-top: 15px;
+        font-size: 14px;
+    }
+
+    body.dark-theme .info-text { color: #9ca3af; }
+
+    .info-text i { color: #2c7a7b; }
+
     @media (max-width: 768px) {
         .applications-container {
             margin: 20px;
             padding: 20px;
         }
-        .applications-container h1 {
-            font-size: 24px;
-        }
-        .election-title {
-            font-size: 18px;
-        }
+        .applications-container h1 { font-size: 24px; }
+        .election-title { font-size: 18px; }
         .contest-post-item {
             flex-direction: column;
             align-items: flex-start;
@@ -387,17 +492,17 @@ try {
 <div class="applications-container">
     <h1><i class="fas fa-file-alt"></i> My Applications</h1>
     <div class="subtitle">View your election registrations and candidacy applications</div>
-    
+
     <?php if (!empty($message)): ?>
         <div class="message <?php echo $messageType; ?>">
             <i class="fas <?php echo $messageType == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
-            <?php echo $message; ?>
+            <span><?php echo $message; ?></span>
         </div>
     <?php endif; ?>
-    
+
     <div class="section">
         <h2><i class="fas fa-vote-yea"></i> My Election Activities</h2>
-        
+
         <?php if (empty($finalElections)): ?>
             <div class="no-data">
                 <i class="fas fa-inbox"></i>
@@ -418,21 +523,23 @@ try {
                                 <?php endif; ?>
                             </div>
                             <div>
-                                <span class="election-status status-<?php echo $election['status'] ?? 'upcoming'; ?>">
+                                <span class="election-status status-<?php echo htmlspecialchars($election['status'] ?? 'upcoming'); ?>">
                                     <i class="fas <?php echo $election['status'] == 'active' ? 'fa-play' : ($election['status'] == 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
-                                    <?php echo ucfirst($election['status'] ?? 'Upcoming'); ?>
+                                    <?php echo ucfirst(htmlspecialchars($election['status'] ?? 'Upcoming')); ?>
                                 </span>
                             </div>
                         </div>
-                        
+
                         <?php if (!empty($election['contested_posts'])): ?>
                             <div style="margin-top: 15px;">
-                                <strong style="color: #374151;"><i class="fas fa-user-tie"></i> My Candidacy Applications:</strong>
+                                <strong style="color: #374151; display: block; margin-bottom: 10px;">
+                                    <i class="fas fa-user-tie" style="color: #2c7a7b;"></i> My Candidacy Applications:
+                                </strong>
                                 <ul class="contest-posts">
                                     <?php foreach ($election['contested_posts'] as $post): ?>
                                         <li class="contest-post-item">
                                             <div class="post-info">
-                                                <span class="post-icon">🏆</span>
+                                                <i class="fas fa-trophy post-icon"></i>
                                                 <span class="post-name"><?php echo htmlspecialchars($post['postname']); ?></span>
                                             </div>
                                             <button class="unapply-btn" data-election-id="<?php echo $election['election_id']; ?>" data-postname="<?php echo htmlspecialchars($post['postname']); ?>" data-post-id="<?php echo $post['id']; ?>">
@@ -444,10 +551,10 @@ try {
                                 </ul>
                             </div>
                         <?php else: ?>
-                            <p style="color: #6b7280; margin-top: 15px; font-size: 14px;">
+                            <p class="info-text">
                                 <i class="fas fa-info-circle"></i> You are registered as a voter for this election but not contesting any position.
                             </p>
-                            <a href="apply.php?election_id=<?php echo $election['election_id']; ?>" style="color: #667eea; font-size: 13px;">
+                            <a href="apply.php?election_id=<?php echo $election['election_id']; ?>" class="apply-link">
                                 <i class="fas fa-user-plus"></i> Apply for a position
                             </a>
                         <?php endif; ?>
@@ -460,45 +567,42 @@ try {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle unapply buttons
     const unapplyBtns = document.querySelectorAll('.unapply-btn');
-    
+
     unapplyBtns.forEach(btn => {
         btn.addEventListener('click', function(e) {
             e.preventDefault();
-            
+
             const electionId = this.dataset.electionId;
             const postname = this.dataset.postname;
-            
-            if (confirm(`⚠️ Are you sure you want to withdraw your application for "${postname}"?\n\nThis action cannot be undone.`)) {
-                // Show loading state
+
+            if (confirm('Are you sure you want to withdraw your application for "' + postname + '"?\n\nThis action cannot be undone.')) {
                 this.classList.add('loading');
                 this.disabled = true;
-                
-                // Create form and submit
+
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = 'my_applications.php';
-                
+
                 const unapplyInput = document.createElement('input');
                 unapplyInput.type = 'hidden';
                 unapplyInput.name = 'unapply';
                 unapplyInput.value = '1';
-                
+
                 const electionIdInput = document.createElement('input');
                 electionIdInput.type = 'hidden';
                 electionIdInput.name = 'election_id';
                 electionIdInput.value = electionId;
-                
+
                 const postnameInput = document.createElement('input');
                 postnameInput.type = 'hidden';
                 postnameInput.name = 'postname';
                 postnameInput.value = postname;
-                
+
                 form.appendChild(unapplyInput);
                 form.appendChild(electionIdInput);
                 form.appendChild(postnameInput);
-                
+
                 document.body.appendChild(form);
                 form.submit();
             }
