@@ -129,6 +129,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
     }
 }
 
+/**
+ * Candidate image — Cloudinary only.
+ * Uses the contesters.profile_photo URL if set, otherwise the system default.
+ */
 function getCandidateImage($candidate) {
     if (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo'])) {
         return $candidate['profile_photo'];
@@ -145,8 +149,8 @@ function getCandidateImage($candidate) {
         margin: 40px auto;
         padding: 0 20px;
     }
-    
-    /* Hero Section — teal accent only */
+
+    /* ---------- Hero ---------- */
     .vote-hero {
         background-color: #2c7a7b;
         border-radius: 20px;
@@ -156,45 +160,45 @@ function getCandidateImage($candidate) {
         margin-bottom: 30px;
         box-shadow: 0 10px 30px rgba(44, 122, 123, 0.2);
     }
-    
+
     body.dark-theme .vote-hero {
         background-color: #0f172a;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
-    
+
     .vote-hero h2 {
         font-size: 36px;
         margin-bottom: 10px;
     }
-    
+
     .vote-hero p {
         font-size: 16px;
         opacity: 0.95;
     }
-    
+
     .vote-hero i {
         font-size: 48px;
         margin-bottom: 15px;
         display: block;
     }
-    
-    /* Election Selector — white card on light bg */
+
+    /* ---------- Election Selector ---------- */
     .election-selector-wrapper {
-        background: white;
+        background: #ffffff;
         border-radius: 16px;
         padding: 25px;
         margin-bottom: 30px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
     body.dark-theme .election-selector-wrapper {
         background: #1e1e2e;
         border-color: #3d3d4d;
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
-    
+
     .selector-label {
         display: flex;
         align-items: center;
@@ -204,14 +208,14 @@ function getCandidateImage($candidate) {
         margin-bottom: 12px;
         font-size: 16px;
     }
-    
+
     body.dark-theme .selector-label { color: #e5e7eb; }
-    
+
     .selector-label i {
         color: #2c7a7b;
         font-size: 18px;
     }
-    
+
     .election-select {
         width: 100%;
         padding: 14px 18px;
@@ -219,7 +223,7 @@ function getCandidateImage($candidate) {
         border-radius: 12px;
         font-size: 16px;
         font-family: inherit;
-        background: white;
+        background: #ffffff;
         color: #1f2937;
         -webkit-text-fill-color: #1f2937;
         cursor: pointer;
@@ -230,49 +234,48 @@ function getCandidateImage($candidate) {
         background-position: right 15px center;
         background-size: 20px;
     }
-    
+
     .election-select:focus {
         outline: none;
         border-color: #2c7a7b;
         box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
     }
-    
+
     body.dark-theme .election-select {
         background-color: #2d2d3d;
         border-color: #3d3d4d;
         color: #f3f4f6;
         -webkit-text-fill-color: #f3f4f6;
     }
-    
-    /* Position Card */
+
+    /* ---------- Position Card ---------- */
     .position-card {
-        background: white;
+        background: #ffffff;
         border-radius: 20px;
         margin-bottom: 40px;
         overflow: hidden;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
     body.dark-theme .position-card {
         background: #1e1e2e;
         border-color: #3d3d4d;
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
-    
-    /* Position header — light gray, teal accent icon */
+
     .position-header {
         background: #f9fafb;
         padding: 18px 25px;
         border-bottom: 1px solid #e5e7eb;
     }
-    
+
     body.dark-theme .position-header {
         background: #2d2d3d;
         border-bottom-color: #3d3d4d;
     }
-    
+
     .position-title {
         font-size: 22px;
         font-weight: 700;
@@ -281,31 +284,31 @@ function getCandidateImage($candidate) {
         align-items: center;
         gap: 12px;
     }
-    
+
     body.dark-theme .position-title { color: #f3f4f6; }
-    
+
     .position-title i {
         color: #2c7a7b;
         font-size: 24px;
     }
-    
+
     .position-description {
         color: #6b7280;
         font-size: 14px;
         margin-top: 5px;
         margin-left: 36px;
     }
-    
+
     body.dark-theme .position-description { color: #9ca3af; }
-    
-    /* Candidate Grid */
+
+    /* ---------- Candidate Grid ---------- */
     .candidates-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 20px;
         padding: 25px;
     }
-    
+
     .candidate-item {
         background: #f9fafb;
         border: 2px solid #e5e7eb;
@@ -317,12 +320,12 @@ function getCandidateImage($candidate) {
         position: relative;
         overflow: hidden;
     }
-    
+
     body.dark-theme .candidate-item {
         background: #2d2d3d;
         border-color: #3d3d4d;
     }
-    
+
     .candidate-item::before {
         content: '';
         position: absolute;
@@ -334,75 +337,74 @@ function getCandidateImage($candidate) {
         transform: scaleX(0);
         transition: transform 0.3s;
     }
-    
+
     .candidate-item:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         border-color: #2c7a7b;
     }
-    
+
     .candidate-item:hover::before {
         transform: scaleX(1);
     }
-    
-    /* Selected state — teal only when chosen */
+
     .candidate-item.selected {
         background-color: #2c7a7b;
         border-color: #2c7a7b;
         color: white;
         box-shadow: 0 8px 20px rgba(44, 122, 123, 0.3);
     }
-    
+
     .candidate-image {
         width: 100px;
         height: 100px;
         border-radius: 50%;
         object-fit: cover;
         margin: 0 auto 15px;
-        border: 3px solid white;
+        border: 3px solid #ffffff;
         box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         transition: transform 0.3s;
         background: #f4f7f9;
         display: block;
     }
-    
+
     body.dark-theme .candidate-image {
         border-color: #3d3d4d;
     }
-    
+
     .candidate-item:hover .candidate-image {
         transform: scale(1.05);
     }
-    
+
     .candidate-item.selected .candidate-image {
         border-color: #fbbf24;
     }
-    
+
     .candidate-name {
         font-size: 18px;
         font-weight: 700;
         margin-bottom: 5px;
         color: #1f2937;
     }
-    
+
     body.dark-theme .candidate-name { color: #f3f4f6; }
-    
+
     .candidate-item.selected .candidate-name {
         color: white;
     }
-    
+
     .candidate-party {
         font-size: 12px;
         color: #6b7280;
         margin-top: 5px;
     }
-    
+
     body.dark-theme .candidate-party { color: #9ca3af; }
-    
+
     .candidate-item.selected .candidate-party {
         color: rgba(255, 255, 255, 0.8);
     }
-    
+
     .selected-badge {
         position: absolute;
         top: 10px;
@@ -420,30 +422,30 @@ function getCandidateImage($candidate) {
         transform: scale(0);
         transition: all 0.3s;
     }
-    
+
     .candidate-item.selected .selected-badge {
         opacity: 1;
         transform: scale(1);
     }
-    
-    /* Submit Section — white card, teal button */
+
+    /* ---------- Submit Section ---------- */
     .submit-section {
-        background: white;
+        background: #ffffff;
         border-radius: 16px;
         padding: 25px;
         text-align: center;
         margin-top: 20px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
     body.dark-theme .submit-section {
         background: #1e1e2e;
         border-color: #3d3d4d;
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
-    
+
     .submit-btn {
         background-color: #2c7a7b;
         color: white;
@@ -459,20 +461,20 @@ function getCandidateImage($candidate) {
         gap: 12px;
         font-family: inherit;
     }
-    
+
     .submit-btn:hover {
         background-color: #236162;
         transform: translateY(-2px);
         box-shadow: 0 10px 30px rgba(44, 122, 123, 0.4);
     }
-    
+
     .submit-btn:disabled {
         opacity: 0.6;
         cursor: not-allowed;
         transform: none;
     }
-    
-    /* Messages */
+
+    /* ---------- Messages ---------- */
     .message {
         padding: 15px 20px;
         border-radius: 12px;
@@ -482,41 +484,41 @@ function getCandidateImage($candidate) {
         gap: 12px;
         font-size: 14px;
     }
-    
+
     .message.success {
         background: #d1fae5;
         color: #065f46;
         border-left: 4px solid #10b981;
     }
-    
+
     body.dark-theme .message.success {
         background: #064e3b;
         color: #a7f3d0;
     }
-    
+
     .message.error {
         background: #fee2e2;
         color: #991b1b;
         border-left: 4px solid #dc2626;
     }
-    
+
     body.dark-theme .message.error {
         background: #7f1d1d;
         color: #fecaca;
     }
-    
+
     .message.info {
         background: #eff6ff;
         color: #1e40af;
         border-left: 4px solid #3b82f6;
     }
-    
+
     body.dark-theme .message.info {
         background: #1e3a8a;
         color: #dbeafe;
     }
-    
-    /* Responsive */
+
+    /* ---------- Responsive ---------- */
     @media (max-width: 768px) {
         .vote-hero { padding: 25px; }
         .vote-hero h2 { font-size: 24px; }
@@ -529,14 +531,12 @@ function getCandidateImage($candidate) {
 </style>
 
 <div class="vote-container">
-    <!-- Hero Section -->
     <div class="vote-hero">
         <i class="fas fa-vote-yea"></i>
         <h2>Cast Your Vote</h2>
         <p>Your voice matters. Select your preferred candidates for each position.</p>
     </div>
-    
-    <!-- Election Selector -->
+
     <div class="election-selector-wrapper">
         <div class="selector-label">
             <i class="fas fa-calendar-alt"></i>
@@ -551,38 +551,36 @@ function getCandidateImage($candidate) {
             <?php endforeach; ?>
         </select>
     </div>
-    
-    <!-- Messages -->
+
     <?php if (!empty($errorMessage)): ?>
         <div class="message error"><i class="fas fa-exclamation-circle"></i> <span><?php echo htmlspecialchars($errorMessage); ?></span></div>
     <?php endif; ?>
-    
+
     <?php if (!empty($successMessage)): ?>
         <div class="message success"><i class="fas fa-check-circle"></i> <span><?php echo htmlspecialchars($successMessage); ?></span></div>
     <?php endif; ?>
-    
-    <!-- Voting Form -->
+
     <?php if ($showVoteForm && $electionId && $election): ?>
         <form method="post" action="vote.php?election_id=<?php echo $electionId; ?>" id="voteForm">
             <?php
             $postsStmt = $conn->prepare("SELECT id, postname FROM election_posts WHERE election_id = ? ORDER BY postname");
             $postsStmt->execute([$electionId]);
             $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            foreach ($posts as $index => $post):
+
+            foreach ($posts as $post):
                 $postName = $post['postname'];
                 $postKey = strtolower(str_replace(' ', '_', $postName));
-                
+
                 $candidateStmt = $conn->prepare("
                     SELECT id, name, profile_photo
-                    FROM contesters 
-                    WHERE postname = ? AND election_id = ? 
+                    FROM contesters
+                    WHERE postname = ? AND election_id = ?
                     ORDER BY name
                 ");
                 $candidateStmt->execute([$postName, $electionId]);
                 $candidates = $candidateStmt->fetchAll(PDO::FETCH_ASSOC);
                 ?>
-                
+
                 <div class="position-card">
                     <div class="position-header">
                         <div class="position-title">
@@ -593,7 +591,7 @@ function getCandidateImage($candidate) {
                             Select one candidate for this position
                         </div>
                     </div>
-                    
+
                     <div class="candidates-grid" id="candidate-group-<?php echo $postKey; ?>">
                         <?php if (empty($candidates)): ?>
                             <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #9ca3af;">
@@ -617,7 +615,7 @@ function getCandidateImage($candidate) {
                     <input type="hidden" name="<?php echo $postKey; ?>" id="hidden-<?php echo $postKey; ?>" value="">
                 </div>
             <?php endforeach; ?>
-            
+
             <div class="submit-section">
                 <button type="submit" name="submit" class="submit-btn" id="submitBtn">
                     <i class="fas fa-check-double"></i>
@@ -629,14 +627,14 @@ function getCandidateImage($candidate) {
             </div>
         </form>
     <?php endif; ?>
-    
+
     <?php if (!$electionId && !empty($openElections)): ?>
         <div class="message info">
             <i class="fas fa-info-circle"></i>
             <span>Please select an election from the dropdown above to cast your vote.</span>
         </div>
     <?php endif; ?>
-    
+
     <?php if (empty($openElections)): ?>
         <div class="message info">
             <i class="fas fa-calendar-times"></i>
@@ -647,28 +645,28 @@ function getCandidateImage($candidate) {
 
 <script>
     let selectedCandidates = {};
-    
+
     function selectCandidate(postKey, candidateId, element) {
         const container = document.getElementById('candidate-group-' + postKey);
         const cards = container.querySelectorAll('.candidate-item');
         cards.forEach(card => {
             card.classList.remove('selected');
         });
-        
+
         element.classList.add('selected');
         selectedCandidates[postKey] = candidateId;
-        
+
         const hiddenInput = document.getElementById('hidden-' + postKey);
         if (hiddenInput) {
             hiddenInput.value = candidateId;
         }
     }
-    
+
     document.getElementById('voteForm')?.addEventListener('submit', function(e) {
         const hiddenInputs = document.querySelectorAll('input[type="hidden"][id^="hidden-"]');
         let allSelected = true;
         let missingSelections = [];
-        
+
         hiddenInputs.forEach(input => {
             if (!input.value) {
                 allSelected = false;
@@ -676,17 +674,17 @@ function getCandidateImage($candidate) {
                 missingSelections.push(postKey.replace(/_/g, ' '));
             }
         });
-        
+
         if (!allSelected) {
             e.preventDefault();
             alert('Please select a candidate for all positions:\n\n- ' + missingSelections.join('\n- '));
             return false;
         }
-        
+
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> <span>Submitting...</span>';
         submitBtn.disabled = true;
-        
+
         return true;
     });
 </script>
