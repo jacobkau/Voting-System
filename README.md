@@ -509,5 +509,5 @@ For questions or licensing inquiries: wittyhighbrowtechnologies@gmail.com
 | 1.0.0 | 2026-10-08 | Initial release |
 ---
 
- BUILT BY WITTY HIGBROW TECHNOLOGIES
+BUILT BY Witty Highbrow Technologies
 ---
