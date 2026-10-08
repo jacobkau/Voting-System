@@ -1,6 +1,13 @@
 <?php
 session_start();
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 include("conn.php");
+
+// Cloudinary helpers (uploadToCloudinary)
+require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
     header("Location: login.php");
@@ -17,31 +24,17 @@ $userStmt->execute([$username]);
 $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 $userId = $user ? $user['id'] : null;
 
-// Make sure contesters table has BLOB columns for profile photos
-try {
-    $checkColumns = $conn->query("SHOW COLUMNS FROM contesters LIKE 'profile_photo_blob'");
-    if ($checkColumns->rowCount() == 0) {
-        $conn->exec("ALTER TABLE contesters ADD COLUMN profile_photo_blob LONGBLOB");
-        $conn->exec("ALTER TABLE contesters ADD COLUMN profile_photo_type VARCHAR(10)");
-        $conn->exec("ALTER TABLE contesters ADD COLUMN profile_photo_name VARCHAR(255)");
-        error_log("Added BLOB columns to contesters table");
-    }
-} catch (PDOException $e) {
-    error_log("Note: " . $e->getMessage());
-}
-
-// Fetch Elections
+// Fetch active elections
 $electionsStmt = $conn->prepare("SELECT id, title FROM elections WHERE status = 'active'");
 $electionsStmt->execute();
 $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Handle Form Submission
+// Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $electionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : null;
-    $postName = isset($_POST['postname']) ? $_POST['postname'] : null;
-    $bio = isset($_POST['bio']) ? $_POST['bio'] : "";
-    
-    // Validate inputs
+    $postName = isset($_POST['postname']) ? trim($_POST['postname']) : null;
+    $bio = isset($_POST['bio']) ? trim($_POST['bio']) : "";
+
     if ($electionId === null || $postName === null) {
         $message = "Please select an election and a position.";
         $messageType = "error";
@@ -49,49 +42,50 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $message = "Please upload a profile photo.";
         $messageType = "error";
     } else {
-        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
+        $allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         $fileExt = strtolower(pathinfo($_FILES['profile_photo']['name'], PATHINFO_EXTENSION));
-        
+
         if (!in_array($fileExt, $allowedTypes)) {
-            $message = "Invalid file type. Only JPG, PNG, and GIF are allowed.";
+            $message = "Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.";
             $messageType = "error";
         } elseif ($_FILES['profile_photo']['size'] > 2 * 1024 * 1024) {
             $message = "File is too large. Maximum size is 2MB.";
             $messageType = "error";
         } else {
-            // Read file content for database storage
-            $profilePhotoBlob = file_get_contents($_FILES['profile_photo']['tmp_name']);
-            $profilePhotoType = $fileExt;
-            $profilePhotoName = $_FILES['profile_photo']['name'];
-            
-            // Check if user has already applied for ANY post in this election
+            // Check existing application for this election
             $checkExistingStmt = $conn->prepare("SELECT postname FROM contesters WHERE election_id = ? AND user_id = ?");
             $checkExistingStmt->execute([$electionId, $userId]);
             $existingApplication = $checkExistingStmt->fetch(PDO::FETCH_ASSOC);
-            
+
             if ($existingApplication) {
                 $message = "You have already applied for the position of '" . htmlspecialchars($existingApplication['postname']) . "' in this election. You cannot apply for multiple positions in the same election.";
                 $messageType = "error";
             } else {
-                // Check if user has already applied for the same post in the same election
+                // Check for same post
                 $checkStmt = $conn->prepare("SELECT 1 FROM contesters WHERE election_id = ? AND postname = ? AND user_id = ?");
                 $checkStmt->execute([$electionId, $postName, $userId]);
-                
+
                 if ($checkStmt->rowCount() > 0) {
                     $message = "You have already applied for this position in this election.";
                     $messageType = "error";
                 } else {
-                    // Insert data into contesters table with BLOB image
-                    $insertStmt = $conn->prepare("INSERT INTO contesters (election_id, postname, user_id, name, bio, profile_photo_blob, profile_photo_type, profile_photo_name, votes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)");
-                    
-                    if ($insertStmt->execute([$electionId, $postName, $userId, $username, $bio, $profilePhotoBlob, $profilePhotoType, $profilePhotoName])) {
-                        $message = "✓ Application submitted successfully! You are now a candidate for " . htmlspecialchars($postName) . ".";
-                        $messageType = "success";
-                        // Clear form data after successful submission
-                        $_POST = array();
-                    } else {
-                        $message = "Error submitting application. Please try again.";
+                    // Upload to Cloudinary
+                    $profilePhotoUrl = uploadToCloudinary($_FILES['profile_photo']['tmp_name'], 'candidates');
+
+                    if (!$profilePhotoUrl) {
+                        $message = "Failed to upload profile photo. Please try again.";
                         $messageType = "error";
+                    } else {
+                        $insertStmt = $conn->prepare("INSERT INTO contesters (election_id, postname, user_id, name, bio, profile_photo, votes) VALUES (?, ?, ?, ?, ?, ?, 0)");
+
+                        if ($insertStmt->execute([$electionId, $postName, $userId, $username, $bio, $profilePhotoUrl])) {
+                            $message = "Application submitted successfully. You are now a candidate for " . htmlspecialchars($postName) . ".";
+                            $messageType = "success";
+                            $_POST = array();
+                        } else {
+                            $message = "Error submitting application. Please try again.";
+                            $messageType = "error";
+                        }
                     }
                 }
             }
@@ -100,7 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Get selected election ID for displaying posts
-$selectedElectionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : null;
+$selectedElectionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : (isset($_GET['election_id']) ? intval($_GET['election_id']) : null);
 $availablePosts = [];
 
 if ($selectedElectionId) {
@@ -117,86 +111,142 @@ if ($selectedElectionId) {
 <?php include("header.php"); ?>
 
 <style>
-    .apply-container { 
-        max-width: 700px; 
-        margin: 40px auto; 
-        background-color: white; 
-        padding: 35px; 
-        border-radius: 20px; 
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); 
+    .apply-container {
+        max-width: 700px;
+        margin: 40px auto;
+        background-color: #ffffff;
+        padding: 35px;
+        border-radius: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        border: 1px solid #e5e7eb;
+        transition: background-color 0.3s ease, border-color 0.3s ease;
     }
-    
+
+    body.dark-theme .apply-container {
+        background-color: #1e1e2e;
+        border-color: #3d3d4d;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    }
+
     .apply-container h2 {
-        color: #333;
+        color: #1f2937;
         margin-bottom: 10px;
         text-align: center;
         font-size: 28px;
+        transition: color 0.3s ease;
     }
-    
+
+    body.dark-theme .apply-container h2 { color: #f3f4f6; }
+
+    .apply-container h2 i { color: #2c7a7b; margin-right: 8px; }
+
     .apply-container .subtitle {
         text-align: center;
-        color: #666;
+        color: #6b7280;
         margin-bottom: 30px;
         font-size: 14px;
     }
-    
-    .form-group {
-        margin-bottom: 25px;
-    }
-    
+
+    body.dark-theme .apply-container .subtitle { color: #9ca3af; }
+
+    .form-group { margin-bottom: 25px; }
+
     label {
         font-weight: 600;
-        color: #333;
+        color: #374151;
         margin-bottom: 8px;
         display: block;
+        font-size: 14px;
     }
-    
+
+    body.dark-theme label { color: #e5e7eb; }
+
+    label i { color: #2c7a7b; margin-right: 6px; }
+
     .required:after {
         content: " *";
         color: #dc2626;
     }
-    
-    select, textarea, input[type="file"] { 
-        width: 100%; 
-        padding: 12px 15px; 
-        border: 2px solid #e5e7eb; 
-        border-radius: 12px; 
+
+    /* -------- Input visibility fix -------- */
+    select, textarea, input[type="file"] {
+        width: 100%;
+        padding: 12px 15px;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
         font-size: 14px;
         transition: all 0.3s;
         font-family: inherit;
         box-sizing: border-box;
-        background: #f9fafb;
+        background: #ffffff;
+        color: #1f2937;
+        -webkit-text-fill-color: #1f2937;
     }
-    
-    select:focus, textarea:focus {
+
+    select::placeholder, textarea::placeholder {
+        color: #9ca3af;
+        opacity: 1;
+    }
+
+    select:focus, textarea:focus, input[type="file"]:focus {
         outline: none;
-        border-color: #667eea;
-        background: white;
-        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        border-color: #2c7a7b;
+        box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
     }
-    
+
+    body.dark-theme select,
+    body.dark-theme textarea,
+    body.dark-theme input[type="file"] {
+        background: #2d2d3d;
+        border-color: #3d3d4d;
+        color: #f3f4f6;
+        -webkit-text-fill-color: #f3f4f6;
+    }
+
+    body.dark-theme select::placeholder,
+    body.dark-theme textarea::placeholder {
+        color: #6b7280;
+    }
+
+    select option {
+        background: #ffffff;
+        color: #1f2937;
+    }
+
+    body.dark-theme select option {
+        background: #2d2d3d;
+        color: #f3f4f6;
+    }
+    /* ------------------------------------- */
+
     textarea {
         resize: vertical;
         min-height: 120px;
     }
-    
+
     input[type="file"] {
         padding: 10px 15px;
         background: #f9fafb;
     }
-    
+
+    body.dark-theme input[type="file"] {
+        background: #2d2d3d;
+    }
+
     .file-hint {
         font-size: 12px;
         color: #9ca3af;
         margin-top: 5px;
     }
-    
-    .submit-btn { 
+
+    body.dark-theme .file-hint { color: #6b7280; }
+
+    .submit-btn {
         width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white; 
+        background-color: #2c7a7b;
+        color: white;
         padding: 14px 20px;
-        border: none; 
+        border: none;
         border-radius: 12px;
         font-size: 16px;
         font-weight: 600;
@@ -208,61 +258,61 @@ if ($selectedElectionId) {
         align-items: center;
         justify-content: center;
         gap: 10px;
+        font-family: inherit;
     }
-    
-    .submit-btn:hover { 
+
+    .submit-btn:hover {
+        background-color: #236162;
         transform: translateY(-2px);
-        box-shadow: 0 10px 25px rgba(102,126,234,0.4);
+        box-shadow: 0 10px 25px rgba(44, 122, 123, 0.4);
     }
-    
-    .submit-btn:active {
-        transform: translateY(0);
-    }
-    
+
+    .submit-btn:active { transform: translateY(0); }
+
     .submit-btn.loading {
         opacity: 0.7;
         cursor: not-allowed;
         transform: none;
     }
-    
+
     .submit-btn.loading:hover {
         transform: none;
         box-shadow: none;
     }
-    
+
     .submit-btn .spinner {
         display: none;
         width: 20px;
         height: 20px;
-        border: 2px solid rgba(255,255,255,0.3);
+        border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         border-top-color: white;
         animation: spin 0.8s linear infinite;
     }
-    
-    .submit-btn.loading .spinner {
-        display: inline-block;
-    }
-    
-    @keyframes spin {
-        to { transform: rotate(360deg); }
-    }
-    
+
+    .submit-btn.loading .spinner { display: inline-block; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .loading-posts {
         text-align: center;
         padding: 20px;
-        color: #667eea;
+        color: #2c7a7b;
         background: #f9fafb;
         border-radius: 12px;
         margin-top: 5px;
     }
-    
+
+    body.dark-theme .loading-posts {
+        background: #2d2d3d;
+    }
+
     .loading-posts i {
         font-size: 24px;
         margin-bottom: 10px;
         display: block;
     }
-    
+
     .message {
         padding: 15px 20px;
         border-radius: 12px;
@@ -271,85 +321,107 @@ if ($selectedElectionId) {
         display: flex;
         align-items: center;
         gap: 12px;
+        font-size: 14px;
     }
-    
+
     .message.success {
         background-color: #d1fae5;
         color: #065f46;
         border-left: 4px solid #10b981;
     }
-    
+
+    body.dark-theme .message.success {
+        background-color: #064e3b;
+        color: #a7f3d0;
+    }
+
     .message.error {
         background-color: #fee2e2;
         color: #991b1b;
         border-left: 4px solid #dc2626;
     }
-    
+
+    body.dark-theme .message.error {
+        background-color: #7f1d1d;
+        color: #fecaca;
+    }
+
     .info-box {
-        background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+        background: #eff6ff;
         padding: 20px;
         border-radius: 12px;
         margin-bottom: 30px;
         font-size: 14px;
-        color: #3730a3;
-        border-left: 4px solid #6366f1;
+        color: #1e40af;
+        border-left: 4px solid #3b82f6;
+        transition: background-color 0.3s ease, color 0.3s ease;
     }
-    
+
+    body.dark-theme .info-box {
+        background: #1e3a8a;
+        color: #dbeafe;
+    }
+
     .info-box h4 {
         margin-bottom: 12px;
         display: flex;
         align-items: center;
         gap: 8px;
+        font-size: 15px;
     }
-    
+
+    .info-box h4 i { color: #2c7a7b; }
+
+    body.dark-theme .info-box h4 i { color: #93c5fd; }
+
     .info-box ul {
         margin-left: 25px;
         margin-top: 5px;
     }
-    
+
     .info-box li {
         margin: 8px 0;
     }
-    
+
+    .info-box strong { font-weight: 700; }
+
     @media (max-width: 768px) {
-        .apply-container { 
+        .apply-container {
             margin: 20px;
             padding: 20px;
         }
-        .apply-container h2 {
-            font-size: 24px;
-        }
+        .apply-container h2 { font-size: 24px; }
     }
 </style>
 
 <div class="apply-container">
-    <h2>Apply for Candidacy</h2>
+    <h2><i class="fas fa-user-plus"></i> Apply for Candidacy</h2>
     <div class="subtitle">Register as a candidate for an election position</div>
-    
+
     <?php if ($message): ?>
         <div class="message <?php echo $messageType; ?>">
             <i class="fas <?php echo $messageType == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
-            <?php echo $message; ?>
+            <span><?php echo htmlspecialchars($message); ?></span>
         </div>
     <?php endif; ?>
-    
+
     <div class="info-box">
         <h4><i class="fas fa-info-circle"></i> Important Information:</h4>
         <ul>
             <li>You must be registered for an election before applying</li>
-            <li>Each candidate needs a profile photo (JPG, PNG, GIF, max 2MB)</li>
+            <li>Each candidate needs a profile photo (JPG, PNG, GIF, WEBP, max 2MB)</li>
             <li>Provide a clear bio and manifesto for voters</li>
-            <li><strong>⚠️ You can only apply for ONE position per election</strong></li>
+            <li><strong>You can only apply for ONE position per election</strong></li>
         </ul>
     </div>
-    
+
     <form method="post" enctype="multipart/form-data" id="applicationForm">
         <div class="form-group">
             <label for="profile_photo" class="required"><i class="fas fa-camera"></i> Profile Photo:</label>
             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
-            <div class="file-hint"><i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF (Max 2MB). Your photo will be stored securely in the database.</div>
+            <div class="file-hint"><i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
         </div>
-        
+
         <div class="form-group">
             <label for="election_id" class="required"><i class="fas fa-calendar-alt"></i> Select Election:</label>
             <select name="election_id" id="election_id" onchange="fetchPosts(this.value);" required>
@@ -383,42 +455,39 @@ if ($selectedElectionId) {
             <textarea name="bio" id="bio" rows="5" placeholder="Tell voters about yourself, your qualifications, experience, and goals if elected..."></textarea>
             <div class="file-hint"><i class="fas fa-lightbulb"></i> Be clear and convincing. This will be visible to all voters.</div>
         </div>
-        
+
         <button type="submit" class="submit-btn" id="submitBtn">
-            <span class="btn-text">Submit Application</span>
+            <span class="btn-text"><i class="fas fa-paper-plane"></i> Submit Application</span>
             <span class="spinner"></span>
         </button>
     </form>
 </div>
 
 <script>
-// Wait for DOM to fully load before attaching event listeners
 document.addEventListener('DOMContentLoaded', function() {
-    // Function to fetch posts for an election
     window.fetchPosts = function(electionId) {
         const postSelect = document.getElementById('postname');
         const postsLoading = document.getElementById('postsLoading');
-        
+
         if (!postSelect) return;
-        
+
         if (electionId === "") {
             postSelect.innerHTML = '<option value="">Select Election First</option>';
             postSelect.disabled = true;
             if (postsLoading) postsLoading.style.display = 'none';
             return;
         }
-        
-        // Show loading state for posts dropdown
+
         postSelect.style.display = 'none';
         if (postsLoading) postsLoading.style.display = 'block';
         postSelect.disabled = true;
-        
+
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function() {
             if (xhr.readyState == 4) {
                 postSelect.style.display = 'block';
                 if (postsLoading) postsLoading.style.display = 'none';
-                
+
                 if (xhr.status == 200) {
                     postSelect.innerHTML = xhr.responseText;
                     postSelect.disabled = false;
@@ -431,118 +500,104 @@ document.addEventListener('DOMContentLoaded', function() {
         xhr.open('GET', 'get_posts.php?election_id=' + electionId, true);
         xhr.send();
     };
-    
-    // Form submission with loading state
+
     const form = document.getElementById('applicationForm');
     const submitBtn = document.getElementById('submitBtn');
     const fileInput = document.getElementById('profile_photo');
     const electionSelect = document.getElementById('election_id');
     const postSelect = document.getElementById('postname');
-    
+
     if (form && submitBtn) {
         form.addEventListener('submit', function(e) {
-            // Validate file is selected
             if (!fileInput || !fileInput.files || !fileInput.files[0]) {
                 e.preventDefault();
                 showError('Please upload a profile photo.');
                 return false;
             }
-            
-            // Validate election is selected
+
             if (!electionSelect || !electionSelect.value) {
                 e.preventDefault();
                 showError('Please select an election.');
                 return false;
             }
-            
-            // Validate position is selected
+
             if (!postSelect || !postSelect.value || postSelect.disabled) {
                 e.preventDefault();
                 showError('Please select a position.');
                 return false;
             }
-            
-            // Show loading state
+
             submitBtn.classList.add('loading');
             submitBtn.disabled = true;
-            
+
             return true;
         });
     }
-    
+
     function showError(message) {
-        // Remove any existing error message
         const existingError = document.querySelector('.message.error');
         if (existingError) existingError.remove();
-        
-        // Create new error message
+
         const errorDiv = document.createElement('div');
         errorDiv.className = 'message error';
-        errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + message;
-        
-        // Insert at the top of the form
+        errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + message + '</span>';
+
         const formContainer = document.querySelector('.apply-container');
         const form = document.getElementById('applicationForm');
         formContainer.insertBefore(errorDiv, form);
-        
-        // Remove after 5 seconds
+
         setTimeout(() => {
-            if (errorDiv && errorDiv.parentNode) {
-                errorDiv.remove();
-            }
+            if (errorDiv && errorDiv.parentNode) errorDiv.remove();
         }, 5000);
     }
-    
-    // File validation with live feedback
+
     if (fileInput) {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             const fileHint = document.querySelector('.file-hint');
-            
+
             if (file) {
-                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
                 const isValidType = validTypes.includes(file.type);
                 const isValidSize = file.size <= 2 * 1024 * 1024;
-                
+
                 if (!isValidType) {
-                    alert('Invalid file type. Only JPG, PNG, and GIF are allowed.');
+                    alert('Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.');
                     this.value = '';
                     if (fileHint) {
                         fileHint.style.color = '#dc2626';
-                        fileHint.innerHTML = '❌ Invalid file type. Please upload JPG, PNG, or GIF.';
+                        fileHint.innerHTML = '<i class="fas fa-times-circle"></i> Invalid file type. Please upload JPG, PNG, GIF, or WEBP.';
                     }
                 } else if (!isValidSize) {
                     alert('File is too large. Maximum size is 2MB.');
                     this.value = '';
                     if (fileHint) {
                         fileHint.style.color = '#dc2626';
-                        fileHint.innerHTML = '❌ File too large. Maximum size is 2MB.';
+                        fileHint.innerHTML = '<i class="fas fa-times-circle"></i> File too large. Maximum size is 2MB.';
                     }
                 } else {
                     if (fileHint) {
                         fileHint.style.color = '#10b981';
-                        fileHint.innerHTML = '✓ File accepted: ' + file.name;
+                        fileHint.innerHTML = '<i class="fas fa-check-circle"></i> File accepted: ' + file.name;
                     }
                     setTimeout(() => {
                         if (fileHint) {
-                            fileHint.style.color = '#9ca3af';
-                            fileHint.innerHTML = '<i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF (Max 2MB). Your photo will be stored securely in the database.';
+                            fileHint.style.color = '';
+                            fileHint.innerHTML = '<i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.';
                         }
                     }, 3000);
                 }
             }
         });
     }
-    
-    // Reset loading state if user navigates back
+
     window.addEventListener('pageshow', function() {
         if (submitBtn) {
             submitBtn.classList.remove('loading');
             submitBtn.disabled = false;
         }
     });
-    
-    // If election is pre-selected, load its posts
+
     if (electionSelect && electionSelect.value) {
         fetchPosts(electionSelect.value);
     }
