@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 include("conn.php");
 
-// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, Configuration)
+// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, defaultAvatarUrl)
 require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
@@ -15,11 +15,12 @@ if (!isset($_SESSION['admin_id'])) {
 
 $adminId = $_SESSION['admin_id'];
 
-// Helper: resolve an image URL (Cloudinary URL or legacy filename)
-function resolveImageUrl($value, $folder = 'faces', $default = 'faces/default.jpg') {
-    if (empty($value)) return $default;
-    if (preg_match('#^https?://#i', $value)) return $value;
-    return $folder . '/' . $value;
+// Helper: resolve an image URL — Cloudinary only, fall back to system default
+function resolveImageUrl($value) {
+    if (!empty($value) && preg_match('#^https?://#i', $value)) {
+        return $value;
+    }
+    return defaultAvatarUrl();
 }
 
 // Fetch Admin Details
@@ -48,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_settings'])) {
     $newPassword = $_POST['password'];
     $removePhoto = isset($_POST['remove_photo']) && $_POST['remove_photo'] === '1';
 
-    $newProfilePhotoUrl = $profilePhoto; // default: keep current
+    $newProfilePhotoUrl = $profilePhoto;
     $oldPublicIdToDelete = null;
 
     try {
@@ -56,7 +57,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_settings'])) {
         if (!empty($_FILES['profile_photo']['name']) && $_FILES['profile_photo']['error'] === UPLOAD_ERR_OK) {
             $uploadedUrl = uploadToCloudinary($_FILES['profile_photo']['tmp_name'], 'admins');
             if ($uploadedUrl) {
-                // Mark old photo for deletion (if it was a Cloudinary URL)
                 if (!empty($profilePhoto)) {
                     $oldPublicIdToDelete = extractPublicIdFromUrl($profilePhoto);
                 }
@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_settings'])) {
                 $successMsg = "No changes were made.";
             }
 
-            // Delete old Cloudinary image AFTER successful DB update (best-effort)
+            // Delete old Cloudinary image after successful DB update
             if ($oldPublicIdToDelete) {
                 try {
                     $upload = new \Cloudinary\Api\Upload\UploadApi();
@@ -116,8 +116,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_settings'])) {
     }
 }
 
-// Resolve the display URL for the current photo
-$profilePhotoDisplay = resolveImageUrl($profilePhoto, 'faces', 'faces/default.jpg');
+// Resolve display URL (Cloudinary only, falls back to system default)
+$profilePhotoDisplay = resolveImageUrl($profilePhoto);
 ?>
 
 <style>
@@ -140,6 +140,7 @@ $profilePhotoDisplay = resolveImageUrl($profilePhoto, 'faces', 'faces/default.jp
     .current-photo img {
         width: 120px; height: 120px; border-radius: 50%; object-fit: cover;
         border: 4px solid #2c7a7b; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        background: #f4f7f9;
     }
     .remove-photo {
         display: flex; align-items: center; gap: 8px;
@@ -161,8 +162,7 @@ $profilePhotoDisplay = resolveImageUrl($profilePhoto, 'faces', 'faces/default.jp
 
 <form method="post" enctype="multipart/form-data">
     <div class="current-photo">
-        <img src="<?php echo htmlspecialchars($profilePhotoDisplay); ?>" alt="Admin Photo"
-             onerror="this.src='faces/default.jpg'">
+        <img src="<?php echo htmlspecialchars($profilePhotoDisplay); ?>" alt="Admin Photo">
     </div>
 
     <label for="username">Username:</label>
