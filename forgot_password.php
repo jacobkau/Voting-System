@@ -11,31 +11,84 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
+/**
+ * Send a password reset email via EmailJS.
+ * Returns true on success, false on failure.
+ */
+function sendPasswordResetEmail(string $email, string $username, string $resetLink): bool {
+    $serviceId  = getenv('EMAILJS_SERVICE_ID');
+    $templateId = getenv('EMAILJS_TEMPLATE_ID');
+    $publicKey  = getenv('EMAILJS_PUBLIC_KEY');
+    $privateKey = getenv('EMAILJS_PRIVATE_KEY');
+
+    if (!$serviceId || !$templateId || !$publicKey) {
+        error_log("EmailJS: missing required environment variables.");
+        return false;
+    }
+
+    $payload = [
+        'service_id'      => $serviceId,
+        'template_id'     => $templateId,
+        'user_id'         => $publicKey,
+        'template_params' => [
+            'user_name'  => $username,
+            'user_email' => $email,
+            'reset_link' => $resetLink,
+            'expiry'     => '1 hour'
+        ]
+    ];
+
+    if ($privateKey) {
+        $payload['accessToken'] = $privateKey;
+    }
+
+    $ch = curl_init('https://api.emailjs.com/api/v1.0/email/send');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !$curlError) {
+        return true;
+    }
+
+    error_log("EmailJS error: HTTP {$httpCode} — " . ($response ?: $curlError));
+    return false;
+}
+
 // Handle AJAX request
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
     header('Content-Type: application/json');
-    
+
     $email = trim($_POST['email']);
     $response = ['success' => false, 'message' => ''];
-    
+
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $response['message'] = 'Invalid email format.';
         echo json_encode($response);
         exit();
     }
-    
+
     try {
         $stmt = $conn->prepare("SELECT id, username FROM users WHERE email = ?");
         $stmt->execute([$email]);
-        
+
         if ($stmt->rowCount() == 1) {
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-            $user_id = $user['id'];
+            $user     = $stmt->fetch(PDO::FETCH_ASSOC);
+            $user_id  = $user['id'];
             $username = $user['username'];
-            
-            $token = bin2hex(random_bytes(32));
+
+            $token  = bin2hex(random_bytes(32));
             $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
-            
+
             $conn->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NOT NULL,
@@ -44,76 +97,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             )");
-            
+
             $insertStmt = $conn->prepare("INSERT INTO password_reset_tokens (user_id, token, expiry) VALUES (?, ?, ?)");
             $insertStmt->execute([$user_id, $token, $expiry]);
-            
-            $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+
+            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
             $host = $_SERVER['HTTP_HOST'];
-            $uri = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+            $uri  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
             $reset_link = "$protocol://$host$uri/test_reset.php?token=$token";
-            
-            // ---------- Email sending ----------
-            $emailSent = false;
-            
-            if (function_exists('sendEmailWithResend')) {
-                $result = sendEmailWithResend($email, $username, $reset_link);
-                if ($result['success']) {
-                    $emailSent = true;
-                }
-            }
-            
-            if (!$emailSent && class_exists('SendGrid\Mail\Mail')) {
-                try {
-                    $sendgridApiKey = getenv('SENDGRID_API_KEY');
-                    if ($sendgridApiKey) {
-                        $emailObj = new \SendGrid\Mail\Mail();
-                        $fromEmail = getenv('FROM_EMAIL') ?: 'noreply@' . $_SERVER['HTTP_HOST'];
-                        $fromName = getenv('FROM_NAME') ?: 'Voting System';
-                        $emailObj->setFrom($fromEmail, $fromName);
-                        $emailObj->setSubject("Password Reset Request");
-                        $emailObj->addTo($email, $username);
-                        
-                        $htmlContent = "
-                        <html>
-                        <body>
-                            <h2>Password Reset</h2>
-                            <p>Hello $username,</p>
-                            <p>Click the link below to reset your password:</p>
-                            <p><a href='$reset_link'>$reset_link</a></p>
-                            <p>This link expires in 1 hour.</p>
-                            <p>If you didn't request this, please ignore this email.</p>
-                        </body>
-                        </html>
-                        ";
-                        $emailObj->addContent("text/html", $htmlContent);
-                        
-                        $sendgrid = new \SendGrid($sendgridApiKey);
-                        $sendgridResponse = $sendgrid->send($emailObj);
-                        
-                        if ($sendgridResponse->statusCode() == 202) {
-                            $emailSent = true;
-                        }
-                    }
-                } catch (Exception $e) {
-                    error_log("SendGrid error: " . $e->getMessage());
-                }
-            }
-            
-            if (!$emailSent) {
-                $subject = "Password Reset Request";
-                $body = "<h2>Password Reset</h2><p>Hello $username,</p><p><a href='$reset_link'>$reset_link</a></p><p>Expires in 1 hour.</p>";
-                $headers = "MIME-Version: 1.0\r\nContent-type:text/html;charset=UTF-8\r\nFrom: noreply@" . $_SERVER['HTTP_HOST'] . "\r\n";
-                $emailSent = mail($email, $subject, $body, $headers);
-            }
-            
-            if ($emailSent) {
+
+            // Send via EmailJS
+            if (sendPasswordResetEmail($email, $username, $reset_link)) {
                 $response['success'] = true;
                 $response['message'] = 'Reset link sent! Check your email.';
             } else {
                 $response['message'] = 'Email sending failed. Please try again.';
             }
         } else {
+            // Don't reveal whether the email exists
             $response['success'] = true;
             $response['message'] = 'If that email exists in our records, a reset link has been sent.';
         }
@@ -121,7 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
         error_log("Password reset error: " . $e->getMessage());
         $response['message'] = 'An error occurred. Please try again.';
     }
-    
+
     echo json_encode($response);
     exit();
 }
@@ -139,7 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -149,13 +150,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             transition: background-color 0.3s ease;
         }
 
-        body.light-theme {
-            background-color: #2c7a7b;
-        }
-
-        body.dark-theme {
-            background-color: #1e293b;
-        }
+        body.light-theme { background-color: #2c7a7b; }
+        body.dark-theme  { background-color: #1e293b; }
 
         .container {
             max-width: 480px;
@@ -168,9 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             transition: background 0.3s ease;
         }
 
-        body.dark-theme .container {
-            background: #1e1e2e;
-        }
+        body.dark-theme .container { background: #1e1e2e; }
 
         @keyframes fadeInUp {
             from { opacity: 0; transform: translateY(30px); }
@@ -186,9 +180,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             transition: color 0.3s ease;
         }
 
-        body.dark-theme h1 {
-            color: #f3f4f6;
-        }
+        body.dark-theme h1 { color: #f3f4f6; }
 
         h1 i {
             color: #2c7a7b;
@@ -200,12 +192,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #6b7280;
             margin-bottom: 35px;
             font-size: 14px;
-            transition: color 0.3s ease;
         }
 
-        body.dark-theme .subtitle {
-            color: #9ca3af;
-        }
+        body.dark-theme .subtitle { color: #9ca3af; }
 
         .message {
             padding: 14px 18px;
@@ -250,12 +239,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #374151;
             margin-bottom: 8px;
             font-size: 14px;
-            transition: color 0.3s ease;
         }
 
-        body.dark-theme label {
-            color: #e5e7eb;
-        }
+        body.dark-theme label { color: #e5e7eb; }
 
         label i {
             color: #2c7a7b;
@@ -322,7 +308,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-top: 1px solid #e5e7eb;
             font-size: 14px;
             color: #6b7280;
-            transition: all 0.3s ease;
         }
 
         body.dark-theme .links {
@@ -350,9 +335,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-top: 6px;
         }
 
-        body.dark-theme small {
-            color: #6b7280;
-        }
+        body.dark-theme small { color: #6b7280; }
 
         .spinner {
             display: none;
@@ -366,21 +349,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
 
         button.loading .spinner { display: inline-block; }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .theme-toggle-container {
             text-align: center;
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
-            transition: all 0.3s ease;
         }
 
-        body.dark-theme .theme-toggle-container {
-            border-top-color: #3d3d4d;
-        }
+        body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
 
         .theme-toggle-btn {
             background: none;
@@ -417,12 +395,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
     <div class="container">
         <h1><i class="fas fa-envelope"></i> Forgot Password</h1>
         <p class="subtitle">Enter your email to receive a password reset link</p>
-        
+
         <div id="messageBox" class="message">
             <i class="fas"></i>
             <span id="messageText"></span>
         </div>
-        
+
         <form id="resetForm">
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
@@ -434,13 +412,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 <span><i class="fas fa-paper-plane"></i> Send Reset Link</span>
             </button>
         </form>
-        
+
         <div class="links">
             <a href="login.php"><i class="fas fa-sign-in-alt"></i> Login</a>
             <span>|</span>
             <a href="register.php"><i class="fas fa-user-plus"></i> Register</a>
         </div>
-        
+
         <div class="theme-toggle-container">
             <button id="themeToggleBtn" class="theme-toggle-btn">
                 <i class="fas fa-moon"></i>
@@ -448,10 +426,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             </button>
         </div>
     </div>
-    
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // ---------- Theme management ----------
+        // Theme management
         function setTheme(theme) {
             const themeBtn = document.getElementById('themeToggleBtn');
             if (theme === 'light') {
@@ -471,11 +449,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             }
         }
 
-        // Load saved theme (default: light to match login/register)
         const savedTheme = localStorage.getItem('voting_theme') || 'light';
         setTheme(savedTheme);
 
-        // Theme toggle button
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function() {
@@ -484,53 +460,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             });
         }
 
-        // ---------- Form submission ----------
+        // Form submission
         document.getElementById('resetForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
+
             const email = document.getElementById('email');
             const submitBtn = document.getElementById('submitBtn');
-            
+
             if (email.value.trim() === '') {
                 showMessage('Please enter your email address.', 'error');
                 return;
             }
-            
+
             submitBtn.classList.add('loading');
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> <span>Sending...</span>';
-            
+
             try {
                 const formData = new FormData();
                 formData.append('ajax', '1');
                 formData.append('email', email.value);
-                
-                const response = await fetch('test_reset.php', {
+
+                const response = await fetch('forgot_password.php', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const data = await response.json();
                 showMessage(data.message, data.success ? 'success' : 'error');
-                
             } catch (error) {
                 showMessage('An error occurred. Please try again.', 'error');
             }
-            
+
             submitBtn.classList.remove('loading');
             submitBtn.disabled = false;
             submitBtn.innerHTML = '<span><i class="fas fa-paper-plane"></i> Send Reset Link</span>';
         });
-        
+
         function showMessage(text, type) {
             const messageBox = document.getElementById('messageBox');
             const messageText = document.getElementById('messageText');
             const icon = messageBox.querySelector('i');
-            
+
             messageText.textContent = text;
             messageBox.className = 'message show ' + type;
             icon.className = 'fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle');
-            
+
             setTimeout(() => {
                 messageBox.classList.remove('show');
             }, 10000);
