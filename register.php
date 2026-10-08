@@ -6,6 +6,9 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
+// Cloudinary helper (uploadToCloudinary)
+require_once __DIR__ . '/cloudinary.php';
+
 // Function to create user_elections table if it doesn't exist
 function createUserElectionsTable($conn) {
     try {
@@ -36,7 +39,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST['email']);
     $password = trim($_POST['password']);
     $selectedElections = isset($_POST['elections']) ? $_POST['elections'] : [];
-    $profilePhoto = $_FILES['profile_photo'];
+    $profilePhoto = $_FILES['profile_photo'] ?? null;
 
     if (empty($username) || empty($name) || empty($email) || empty($password) || empty($selectedElections)) {
         $message = "All fields are required, including selecting at least one election.";
@@ -44,37 +47,40 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else {
         $passwordHash = password_hash($password, PASSWORD_DEFAULT);
         
-        // Handle profile photo - convert to BLOB for database storage
-        $profilePhotoBlob = null;
-        $profilePhotoType = null;
+        // Handle profile photo — upload to Cloudinary
+        $profilePhotoUrl = null;
 
         if (!empty($profilePhoto['name']) && $profilePhoto['error'] === UPLOAD_ERR_OK) {
-            $allowedTypes = ['jpg', 'jpeg', 'png', 'gif'];
+            $allowedTypes = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
             $fileExt = strtolower(pathinfo($profilePhoto['name'], PATHINFO_EXTENSION));
 
             if (!in_array($fileExt, $allowedTypes)) {
-                $message = "Invalid image type. Only JPG, PNG, and GIF are allowed.";
+                $message = "Invalid image type. Only JPG, PNG, GIF, and WEBP are allowed.";
                 $messageType = "error";
             } elseif ($profilePhoto['size'] > 2 * 1024 * 1024) {
                 $message = "File is too large. Maximum size is 2MB.";
                 $messageType = "error";
             } else {
-                $profilePhotoBlob = file_get_contents($profilePhoto['tmp_name']);
-                $profilePhotoType = $fileExt;
+                $uploadedUrl = uploadToCloudinary($profilePhoto['tmp_name'], 'users');
+                if ($uploadedUrl) {
+                    $profilePhotoUrl = $uploadedUrl;
+                } else {
+                    $message = "Failed to upload profile photo. Please try again.";
+                    $messageType = "error";
+                }
             }
         }
 
         if (empty($message)) {
             try {
-                // Check if we need to add BLOB columns to users table
+                // Ensure the profile_photo column exists on users
                 try {
-                    $checkColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_photo_blob'");
+                    $checkColumn = $conn->query("SHOW COLUMNS FROM users LIKE 'profile_photo'");
                     if ($checkColumn->rowCount() == 0) {
-                        $conn->exec("ALTER TABLE users ADD COLUMN profile_photo_blob LONGBLOB");
-                        $conn->exec("ALTER TABLE users ADD COLUMN profile_photo_type VARCHAR(10)");
+                        $conn->exec("ALTER TABLE users ADD COLUMN profile_photo VARCHAR(500) DEFAULT NULL");
                     }
                 } catch (PDOException $e) {
-                    error_log("Note: " . $e->getMessage());
+                    error_log("Column check note: " . $e->getMessage());
                 }
 
                 // Check if user already exists
@@ -85,10 +91,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $message = "Username or Email already exists.";
                     $messageType = "error";
                 } else {
-                    // Insert user
-                    $insertUserStmt = $conn->prepare("INSERT INTO users (username, name, email, password, profile_photo_blob, profile_photo_type) VALUES (?, ?, ?, ?, ?, ?)");
+                    // Insert user with Cloudinary URL
+                    $insertUserStmt = $conn->prepare("INSERT INTO users (username, name, email, password, profile_photo) VALUES (?, ?, ?, ?, ?)");
                     
-                    if ($insertUserStmt->execute([$username, $name, $email, $passwordHash, $profilePhotoBlob, $profilePhotoType])) {
+                    if ($insertUserStmt->execute([$username, $name, $email, $passwordHash, $profilePhotoUrl])) {
                         $userId = $conn->lastInsertId();
 
                         // Insert user's election registrations
@@ -190,7 +196,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     
     .form-label i {
         margin-right: 8px;
-        color: #667eea;
+        color: #2c7a7b;
     }
     
     .required:after {
@@ -221,8 +227,8 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     .form-input:focus,
     .form-input-file:focus {
         outline: none;
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: #2c7a7b;
+        box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         background-color: white;
     }
     
@@ -272,12 +278,12 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     
     .form-check:hover {
         background: #f3f4f6;
-        border-color: #667eea;
+        border-color: #2c7a7b;
     }
     
     body.dark-theme .form-check:hover {
         background: #3d3d4d;
-        border-color: #667eea;
+        border-color: #2c7a7b;
     }
     
     .form-check-input {
@@ -330,7 +336,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     
     .submit-btn {
         width: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-color: #2c7a7b; /* calm teal */
         color: white;
         padding: 14px 20px;
         border: none;
@@ -347,8 +353,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     .submit-btn:hover {
+        background-color: #236162;
         transform: translateY(-2px);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 10px 25px rgba(44, 122, 123, 0.4);
     }
     
     .submit-btn.loading {
@@ -423,7 +430,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
     
     .login-link a {
-        color: #667eea;
+        color: #2c7a7b;
         text-decoration: none;
     }
     
@@ -493,7 +500,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 <i class="fas fa-camera"></i> Profile Photo
             </label>
             <input type="file" name="profile_photo" id="profile_photo" class="form-input-file" accept="image/*">
-            <div class="file-hint">Optional: JPG, PNG, GIF (Max 2MB)</div>
+            <div class="file-hint">Optional: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded securely to Cloudinary.</div>
         </div>
         
         <div class="form-group">
@@ -584,9 +591,9 @@ document.addEventListener('DOMContentLoaded', function() {
         fileInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (file) {
-                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+                const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
                 if (!validTypes.includes(file.type)) {
-                    alert('Invalid file type. Only JPG, PNG, and GIF are allowed.');
+                    alert('Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.');
                     this.value = '';
                 } else if (file.size > 2 * 1024 * 1024) {
                     alert('File is too large. Maximum size is 2MB.');
