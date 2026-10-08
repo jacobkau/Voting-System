@@ -56,7 +56,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             // ---------- Email sending ----------
             $emailSent = false;
             
-            // Try Resend first (if available)
             if (function_exists('sendEmailWithResend')) {
                 $result = sendEmailWithResend($email, $username, $reset_link);
                 if ($result['success']) {
@@ -64,7 +63,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 }
             }
             
-            // If Resend failed or not available, try SendGrid
             if (!$emailSent && class_exists('SendGrid\Mail\Mail')) {
                 try {
                     $sendgridApiKey = getenv('SENDGRID_API_KEY');
@@ -102,7 +100,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 }
             }
             
-            // Fallback to PHP mail (last resort)
             if (!$emailSent) {
                 $subject = "Password Reset Request";
                 $body = "<h2>Password Reset</h2><p>Hello $username,</p><p><a href='$reset_link'>$reset_link</a></p><p>Expires in 1 hour.</p>";
@@ -117,7 +114,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 $response['message'] = 'Email sending failed. Please try again.';
             }
         } else {
-            // Don't reveal whether email exists — generic message for security
             $response['success'] = true;
             $response['message'] = 'If that email exists in our records, a reset link has been sent.';
         }
@@ -150,6 +146,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             min-height: 100vh;
             margin: 0;
             padding: 20px;
+            transition: background-color 0.3s ease;
+        }
+
+        body.light-theme {
+            background-color: #2c7a7b;
+        }
+
+        body.dark-theme {
+            background-color: #1e293b;
         }
 
         .container {
@@ -160,6 +165,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-radius: 24px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             animation: fadeInUp 0.5s ease-out;
+            transition: background 0.3s ease;
+        }
+
+        body.dark-theme .container {
+            background: #1e1e2e;
         }
 
         @keyframes fadeInUp {
@@ -173,6 +183,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-bottom: 10px;
             font-size: 28px;
             font-weight: 700;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-theme h1 {
+            color: #f3f4f6;
         }
 
         h1 i {
@@ -185,6 +200,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #6b7280;
             margin-bottom: 35px;
             font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-theme .subtitle {
+            color: #9ca3af;
         }
 
         .message {
@@ -206,10 +226,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-left: 4px solid #10b981;
         }
 
+        body.dark-theme .message.success {
+            background: #064e3b;
+            color: #a7f3d0;
+        }
+
         .message.error {
             background: #fee2e2;
             color: #991b1b;
             border-left: 4px solid #dc2626;
+        }
+
+        body.dark-theme .message.error {
+            background: #7f1d1d;
+            color: #fecaca;
         }
 
         .form-group { margin-bottom: 20px; }
@@ -220,6 +250,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #374151;
             margin-bottom: 8px;
             font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-theme label {
+            color: #e5e7eb;
         }
 
         label i {
@@ -238,16 +273,22 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             background: white;
         }
 
+        body.dark-theme input[type="email"] {
+            background: #2d2d3d;
+            border-color: #3d3d4d;
+            color: #f3f4f6;
+        }
+
         input[type="email"]:focus {
             outline: none;
             border-color: #2c7a7b;
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
 
-        button {
+        button[type="submit"] {
             width: 100%;
             padding: 14px;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             color: white;
             border: none;
             border-radius: 12px;
@@ -262,50 +303,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             gap: 10px;
         }
 
-        button:hover:not(:disabled) {
+        button[type="submit"]:hover:not(:disabled) {
             background-color: #236162;
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
         }
 
-        button:disabled {
+        button[type="submit"]:disabled {
             opacity: 0.7;
             cursor: not-allowed;
             transform: none;
-        }
-           .theme-toggle-container {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
-        }
-        
-        body.dark-theme .theme-toggle-container {
-            border-top-color: #3d3d4d;
-        }
-        
-        .theme-toggle-btn {
-            background: none;
-            border: 1px solid #e5e7eb;
-            padding: 8px 16px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.3s;
-            color: #6b7280;
-        }
-        
-        body.dark-theme .theme-toggle-btn {
-            border-color: #3d3d4d;
-            color: #9ca3af;
-        }
-        
-        .theme-toggle-btn:hover {
-            background: rgba(44, 122, 123, 0.1);
-            border-color: #2c7a7b;
         }
 
         .links {
@@ -315,6 +322,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-top: 1px solid #e5e7eb;
             font-size: 14px;
             color: #6b7280;
+            transition: all 0.3s ease;
+        }
+
+        body.dark-theme .links {
+            border-top-color: #3d3d4d;
+            color: #9ca3af;
         }
 
         .links a {
@@ -337,6 +350,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-top: 6px;
         }
 
+        body.dark-theme small {
+            color: #6b7280;
+        }
+
         .spinner {
             display: none;
             width: 20px;
@@ -351,6 +368,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
 
         @keyframes spin {
             to { transform: rotate(360deg); }
+        }
+
+        .theme-toggle-container {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+
+        body.dark-theme .theme-toggle-container {
+            border-top-color: #3d3d4d;
+        }
+
+        .theme-toggle-btn {
+            background: none;
+            border: 1px solid #e5e7eb;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            color: #6b7280;
+            font-family: inherit;
+        }
+
+        body.dark-theme .theme-toggle-btn {
+            border-color: #3d3d4d;
+            color: #9ca3af;
+        }
+
+        .theme-toggle-btn:hover {
+            background: rgba(44, 122, 123, 0.1);
+            border-color: #2c7a7b;
         }
 
         @media (max-width: 480px) {
@@ -386,70 +440,102 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             <span>|</span>
             <a href="register.php"><i class="fas fa-user-plus"></i> Register</a>
         </div>
-        <br>
-         <div class="theme-toggle-container">
-                <button id="themeToggleBtn" class="theme-toggle-btn">
-                    <i class="fas fa-moon"></i>
-                    <span>Switch to Dark Mode</span>
-                </button>
-            </div>
+        
+        <div class="theme-toggle-container">
+            <button id="themeToggleBtn" class="theme-toggle-btn">
+                <i class="fas fa-moon"></i>
+                <span>Switch to Dark Mode</span>
+            </button>
+        </div>
     </div>
     
     <script>
-    document.getElementById('resetForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const email = document.getElementById('email');
-        const submitBtn = document.getElementById('submitBtn');
-        
-        // Validate
-        if (email.value.trim() === '') {
-            showMessage('Please enter your email address.', 'error');
-            return;
+    document.addEventListener('DOMContentLoaded', function() {
+        // ---------- Theme management ----------
+        function setTheme(theme) {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+                document.body.classList.remove('dark-theme');
+                localStorage.setItem('voting_theme', 'light');
+                if (themeBtn) {
+                    themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Switch to Dark Mode</span>';
+                }
+            } else {
+                document.body.classList.remove('light-theme');
+                document.body.classList.add('dark-theme');
+                localStorage.setItem('voting_theme', 'dark');
+                if (themeBtn) {
+                    themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Switch to Light Mode</span>';
+                }
+            }
         }
-        
-        // Show loading
-        submitBtn.classList.add('loading');
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner"></span> <span>Sending...</span>';
-        
-        try {
-            const formData = new FormData();
-            formData.append('ajax', '1');
-            formData.append('email', email.value);
-            
-            const response = await fetch('test_reset.php', {
-                method: 'POST',
-                body: formData
+
+        // Load saved theme (default: light to match login/register)
+        const savedTheme = localStorage.getItem('voting_theme') || 'light';
+        setTheme(savedTheme);
+
+        // Theme toggle button
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', function() {
+                const isLight = document.body.classList.contains('light-theme');
+                setTheme(isLight ? 'dark' : 'light');
             });
-            
-            const data = await response.json();
-            showMessage(data.message, data.success ? 'success' : 'error');
-            
-        } catch (error) {
-            showMessage('An error occurred. Please try again.', 'error');
         }
+
+        // ---------- Form submission ----------
+        document.getElementById('resetForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            if (email.value.trim() === '') {
+                showMessage('Please enter your email address.', 'error');
+                return;
+            }
+            
+            submitBtn.classList.add('loading');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> <span>Sending...</span>';
+            
+            try {
+                const formData = new FormData();
+                formData.append('ajax', '1');
+                formData.append('email', email.value);
+                
+                const response = await fetch('test_reset.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                showMessage(data.message, data.success ? 'success' : 'error');
+                
+            } catch (error) {
+                showMessage('An error occurred. Please try again.', 'error');
+            }
+            
+            submitBtn.classList.remove('loading');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<span><i class="fas fa-paper-plane"></i> Send Reset Link</span>';
+        });
         
-        // Reset button
-        submitBtn.classList.remove('loading');
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = '<span><i class="fas fa-paper-plane"></i> Send Reset Link</span>';
+        function showMessage(text, type) {
+            const messageBox = document.getElementById('messageBox');
+            const messageText = document.getElementById('messageText');
+            const icon = messageBox.querySelector('i');
+            
+            messageText.textContent = text;
+            messageBox.className = 'message show ' + type;
+            icon.className = 'fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle');
+            
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, 10000);
+        }
     });
-    
-    function showMessage(text, type) {
-        const messageBox = document.getElementById('messageBox');
-        const messageText = document.getElementById('messageText');
-        const icon = messageBox.querySelector('i');
-        
-        messageText.textContent = text;
-        messageBox.className = 'message show ' + type;
-        icon.className = 'fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle');
-        
-        // Auto hide after 10 seconds
-        setTimeout(() => {
-            messageBox.classList.remove('show');
-        }, 10000);
-    }
     </script>
 </body>
 </html>
