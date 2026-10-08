@@ -1,6 +1,3 @@
-Got it — here's the raw `README.md` for direct copy-paste. No commentary around it.
-
-```markdown
 # Witty Voting System
 
 An online voting management system built with PHP, MySQL, and Cloudinary. It provides secure election management, voter registration, candidate applications, and real-time results — with a themeable UI (light/dark mode) and email-based password recovery.
