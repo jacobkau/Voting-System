@@ -104,7 +104,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
             $host = $_SERVER['HTTP_HOST'];
             $uri  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-            $reset_link = "$protocol://$host$uri/test_reset.php?token=$token";
+            $reset_link = "$protocol://$host$uri/reset_password.php?token=$token";
 
             // Send via EmailJS
             if (sendPasswordResetEmail($email, $username, $reset_link)) {
