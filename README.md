@@ -507,6 +507,7 @@ For questions or licensing inquiries: wittyhighbrowtechnologies@gmail.com
 | Version | Date | Notes |
 |---|---|---|
 | 1.0.0 | 2026-10-08 | Initial release |
+---
 
- ###BUILT BY WITTY HIGBROW TECHNOLOGIES
+ BUILT BY WITTY HIGBROW TECHNOLOGIES
 ---
