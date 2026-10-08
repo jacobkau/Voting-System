@@ -192,6 +192,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #6b7280;
             margin-bottom: 35px;
             font-size: 14px;
+            transition: color 0.3s ease;
         }
 
         body.dark-theme .subtitle { color: #9ca3af; }
@@ -239,6 +240,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #374151;
             margin-bottom: 8px;
             font-size: 14px;
+            transition: color 0.3s ease;
         }
 
         body.dark-theme label { color: #e5e7eb; }
@@ -248,6 +250,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-right: 8px;
         }
 
+        /* -------- Input -------- */
         input[type="email"] {
             width: 100%;
             padding: 14px 16px;
@@ -256,13 +259,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             font-size: 15px;
             font-family: inherit;
             transition: all 0.3s;
-            background: white;
+            background: #ffffff;
+            color: #1f2937; /* always readable on the light background */
+            -webkit-text-fill-color: #1f2937; /* override autofill */
         }
 
-        body.dark-theme input[type="email"] {
-            background: #2d2d3d;
-            border-color: #3d3d4d;
-            color: #f3f4f6;
+        input[type="email"]::placeholder {
+            color: #9ca3af;
+            opacity: 1;
         }
 
         input[type="email"]:focus {
@@ -270,6 +274,35 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-color: #2c7a7b;
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
+
+        /* Dark theme input */
+        body.dark-theme input[type="email"] {
+            background: #2d2d3d;
+            border-color: #3d3d4d;
+            color: #f3f4f6;
+            -webkit-text-fill-color: #f3f4f6;
+        }
+
+        body.dark-theme input[type="email"]::placeholder {
+            color: #6b7280;
+        }
+
+        /* Browser autofill override (Chrome / Edge / Safari) */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #1f2937;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        body.dark-theme input:-webkit-autofill,
+        body.dark-theme input:-webkit-autofill:hover,
+        body.dark-theme input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f3f4f6;
+            -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
+        }
+        /* ------------------------ */
 
         button[type="submit"] {
             width: 100%;
@@ -308,6 +341,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             border-top: 1px solid #e5e7eb;
             font-size: 14px;
             color: #6b7280;
+            transition: all 0.3s ease;
         }
 
         body.dark-theme .links {
@@ -333,6 +367,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             font-size: 12px;
             display: block;
             margin-top: 6px;
+            transition: color 0.3s ease;
         }
 
         body.dark-theme small { color: #6b7280; }
@@ -356,6 +391,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
         }
 
         body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
@@ -429,7 +465,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
 
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Theme management
+        // ---------- Theme management ----------
         function setTheme(theme) {
             const themeBtn = document.getElementById('themeToggleBtn');
             if (theme === 'light') {
@@ -460,7 +496,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             });
         }
 
-        // Form submission
+        // ---------- Form submission ----------
         document.getElementById('resetForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
