@@ -62,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -70,14 +70,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             padding: 20px;
         }
         
-        /* Light Theme Support */
-        body.light-theme {
-            background-color: #2c7a7b;
-        }
-        
-        body.dark-theme {
-            background-color: #1e293b; /* dark slate */
-        }
+        body.light-theme { background-color: #2c7a7b; }
+        body.dark-theme  { background-color: #1e293b; }
         
         .login-container {
             width: 100%;
@@ -86,14 +80,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(30px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
         
         .login-form-wrapper {
@@ -104,9 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             transition: background 0.3s ease;
         }
         
-        body.dark-theme .login-form-wrapper {
-            background: #1e1e2e;
-        }
+        body.dark-theme .login-form-wrapper { background: #1e1e2e; }
         
         .login-title {
             text-align: center;
@@ -116,9 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             font-weight: 700;
         }
         
-        body.dark-theme .login-title {
-            color: #f3f4f6;
-        }
+        body.dark-theme .login-title { color: #f3f4f6; }
         
         .login-subtitle {
             text-align: center;
@@ -127,13 +111,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             font-size: 14px;
         }
         
-        body.dark-theme .login-subtitle {
-            color: #9ca3af;
-        }
+        body.dark-theme .login-subtitle { color: #9ca3af; }
         
-        .form-group {
-            margin-bottom: 25px;
-        }
+        .form-group { margin-bottom: 25px; }
         
         .form-label {
             display: block;
@@ -143,15 +123,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             font-size: 14px;
         }
         
-        body.dark-theme .form-label {
-            color: #e5e7eb;
-        }
+        body.dark-theme .form-label { color: #e5e7eb; }
         
         .form-label i {
             margin-right: 8px;
             color: #2c7a7b;
         }
         
+        /* -------- Input (fixed visibility) -------- */
         .form-input {
             width: 100%;
             padding: 14px 16px;
@@ -161,23 +140,52 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             transition: all 0.3s;
             font-family: inherit;
             background: white;
+            color: #1f2937;
+            -webkit-text-fill-color: #1f2937;
         }
-        
+
+        .form-input::placeholder {
+            color: #9ca3af;
+            opacity: 1;
+        }
+
         body.dark-theme .form-input {
             background: #2d2d3d;
             border-color: #3d3d4d;
             color: #f3f4f6;
+            -webkit-text-fill-color: #f3f4f6;
         }
-        
+
+        body.dark-theme .form-input::placeholder {
+            color: #6b7280;
+        }
+
         .form-input:focus {
             outline: none;
             border-color: #2c7a7b;
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
+
+        /* Autofill overrides */
+        .form-input:-webkit-autofill,
+        .form-input:-webkit-autofill:hover,
+        .form-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #1f2937;
+            -webkit-box-shadow: 0 0 0px 1000px #ffffff inset;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        body.dark-theme .form-input:-webkit-autofill,
+        body.dark-theme .form-input:-webkit-autofill:hover,
+        body.dark-theme .form-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f3f4f6;
+            -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
+        }
+        /* ---------------------------------------- */
         
         .form-button {
             width: 100%;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             color: white;
             padding: 14px 20px;
             border: none;
@@ -191,6 +199,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             align-items: center;
             justify-content: center;
             gap: 10px;
+            font-family: inherit;
         }
         
         .form-button:hover {
@@ -199,9 +208,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             box-shadow: 0 10px 25px rgba(44, 122, 123, 0.4);
         }
         
-        .form-button:active {
-            transform: translateY(0);
-        }
+        .form-button:active { transform: translateY(0); }
         
         .form-button.loading {
             opacity: 0.8;
@@ -224,13 +231,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             animation: spin 0.8s linear infinite;
         }
         
-        .form-button.loading .spinner {
-            display: inline-block;
-        }
+        .form-button.loading .spinner { display: inline-block; }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         .error-message {
             background-color: #fee2e2;
@@ -245,14 +248,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             border-left: 4px solid #dc2626;
         }
         
-        .error-message i {
-            font-size: 16px;
+        body.dark-theme .error-message {
+            background-color: #7f1d1d;
+            color: #fecaca;
+            border-left-color: #dc2626;
         }
         
-        .error-message a {
-            color: #991b1b;
-            font-weight: 600;
-        }
+        .error-message i { font-size: 16px; }
+        .error-message a { color: #991b1b; font-weight: 600; }
+        
+        body.dark-theme .error-message a { color: #fecaca; }
         
         .success-message {
             background-color: #d1fae5;
@@ -265,6 +270,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             align-items: center;
             gap: 10px;
             border-left: 4px solid #10b981;
+        }
+        
+        body.dark-theme .success-message {
+            background-color: #064e3b;
+            color: #a7f3d0;
         }
         
         .divider {
@@ -283,9 +293,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             background: #e5e7eb;
         }
         
-        body.dark-theme .divider::before {
-            background: #3d3d4d;
-        }
+        body.dark-theme .divider::before { background: #3d3d4d; }
         
         .divider span {
             background: white;
@@ -324,9 +332,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             border-top: 1px solid #e5e7eb;
         }
         
-        body.dark-theme .theme-toggle-container {
-            border-top-color: #3d3d4d;
-        }
+        body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
         
         .theme-toggle-btn {
             background: none;
@@ -340,6 +346,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             gap: 8px;
             transition: all 0.3s;
             color: #6b7280;
+            font-family: inherit;
         }
         
         body.dark-theme .theme-toggle-btn {
@@ -353,12 +360,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         @media (max-width: 480px) {
-            .login-form-wrapper {
-                padding: 30px 25px;
-            }
-            .login-title {
-                font-size: 28px;
-            }
+            .login-form-wrapper { padding: 30px 25px; }
+            .login-title { font-size: 28px; }
         }
     </style>
 </head>
@@ -417,7 +420,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             </form>
             
             <div class="theme-toggle-container">
-                <button id="themeToggleBtn" class="theme-toggle-btn">
+                <button id="themeToggleBtn" class="theme-toggle-btn" type="button">
                     <i class="fas fa-moon"></i>
                     <span>Switch to Dark Mode</span>
                 </button>
@@ -434,46 +437,38 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         
         // Theme management
         function setTheme(theme) {
+            const themeBtn = document.getElementById('themeToggleBtn');
             if (theme === 'light') {
                 document.body.classList.add('light-theme');
                 document.body.classList.remove('dark-theme');
                 localStorage.setItem('voting_theme', 'light');
-                const themeBtn = document.getElementById('themeToggleBtn');
                 if (themeBtn) {
-                    themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Switch to Dark Mode</span>';
+                    themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Switch to Dark Mode</span>';
                 }
             } else {
                 document.body.classList.remove('light-theme');
                 document.body.classList.add('dark-theme');
                 localStorage.setItem('voting_theme', 'dark');
-                const themeBtn = document.getElementById('themeToggleBtn');
                 if (themeBtn) {
-                    themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Switch to Light Mode</span>';
+                    themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Switch to Light Mode</span>';
                 }
             }
         }
         
-        // Load saved theme
         const savedTheme = localStorage.getItem('voting_theme') || 'light';
         setTheme(savedTheme);
         
-        // Theme toggle button
         const themeToggleBtn = document.getElementById('themeToggleBtn');
         if (themeToggleBtn) {
             themeToggleBtn.addEventListener('click', function() {
                 const isLight = document.body.classList.contains('light-theme');
-                if (isLight) {
-                    setTheme('dark');
-                } else {
-                    setTheme('light');
-                }
+                setTheme(isLight ? 'dark' : 'light');
             });
         }
         
         // Form submission with loading state
         if (form && loginBtn) {
             form.addEventListener('submit', function(e) {
-                // Validate fields
                 if (!usernameInput.value.trim()) {
                     e.preventDefault();
                     showError('Please enter your username.');
@@ -486,7 +481,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
                     return false;
                 }
                 
-                // Show loading state
                 loginBtn.classList.add('loading');
                 loginBtn.disabled = true;
                 
@@ -495,26 +489,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
         }
         
         function showError(message) {
-            // Remove any existing error message
             const existingError = document.querySelector('.error-message');
-            if (existingError) {
-                existingError.remove();
-            }
+            if (existingError) existingError.remove();
             
-            // Create new error message
             const errorDiv = document.createElement('div');
             errorDiv.className = 'error-message';
             errorDiv.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>' + message + '</span>';
             
-            // Insert after the subtitle
             const subtitle = document.querySelector('.login-subtitle');
             subtitle.insertAdjacentElement('afterend', errorDiv);
             
-            // Remove after 5 seconds
             setTimeout(function() {
-                if (errorDiv && errorDiv.parentNode) {
-                    errorDiv.remove();
-                }
+                if (errorDiv && errorDiv.parentNode) errorDiv.remove();
             }, 5000);
         }
         
