@@ -15,6 +15,19 @@ Configuration::instance([
 ]);
 
 /**
+ * System-wide default avatar, loaded from the environment (Render dashboard).
+ * Falls back to an inline placeholder URL if the env var is not set.
+ */
+function defaultAvatarUrl(): string {
+    $url = getenv('DEFAULT_AVATAR_URL');
+    if (!empty($url)) {
+        return $url;
+    }
+    // Fallback: a simple grey silhouette (in case env var is missing)
+    return 'https://res.cloudinary.com/demo/image/upload/v1/samples/people/kitchen-bar.jpg';
+}
+
+/**
  * Upload an image to Cloudinary and return the secure URL.
  */
 function uploadToCloudinary($fileTmpPath, $folder = 'candidates') {
@@ -54,4 +67,17 @@ function deleteFromCloudinary($url) {
         error_log("Cloudinary delete error: " . $e->getMessage());
         return false;
     }
+}
+
+/**
+ * Extract the Cloudinary public_id from a URL (for deletion).
+ */
+function extractPublicIdFromUrl($url) {
+    if (empty($url)) return null;
+    $parts = explode('/upload/', $url);
+    if (count($parts) < 2) return null;
+    $path = $parts[1];
+    $path = preg_replace('#^v\d+/#', '', $path);
+    $path = preg_replace('#\.[a-zA-Z0-9]+$#', '', $path);
+    return $path;
 }
