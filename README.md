@@ -147,7 +147,7 @@ witty-voting-system/
 
 ```bash
 git clone <your-repo-url>
-cd witty-voting-system
+cd Voting-System
 composer install
 ```
 
@@ -196,7 +196,7 @@ ADMIN_INVITE_CODE=some_long_random_string
 
 ### 5. Create your first admin
 
-Visit reg.php and enter your ADMIN_INVITE_CODE, or insert directly:
+Visit includes/reg.php and enter your ADMIN_INVITE_CODE, or insert directly:
 
 ```sql
 INSERT INTO admin (username, password, name, email)
@@ -274,7 +274,7 @@ mysql -h <host> -u <user> -p<pass> <db> < schema.sql
 
 ## Database
 
-See schema.sql for the full schema. Key tables:
+ Key tables:
 
 | Table | Purpose |
 |---|---|
@@ -344,7 +344,7 @@ Password resets are sent via EmailJS's HTTP API.
 
 ### Testing
 
-Visit /test_reset.php (no token) to see a status panel and a test email form.
+Visit /reset_password.php (no token) to see a status panel and a test email form.
 
 ---
 
@@ -487,7 +487,7 @@ Whitespace before <?php or an include that outputs. Remove blank lines.
 
 This project is proprietary. All rights reserved by Jacob Witty.
 
-For questions or licensing inquiries: jacobwitty@example.com
+For questions or licensing inquiries: wittyhighbrowtechnologies@gmail.com
 
 ---
 
@@ -507,4 +507,6 @@ For questions or licensing inquiries: jacobwitty@example.com
 | Version | Date | Notes |
 |---|---|---|
 | 1.0.0 | 2026-10-08 | Initial release |
-```
+
+ ###BUILT BY WITTY HIGBROW TECHNOLOGIES
+---
