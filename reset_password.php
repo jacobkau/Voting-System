@@ -7,10 +7,6 @@ ini_set('display_startup_errors', 1);
 // Include database connection
 include("conn.php");
 
-// Load mail configuration if exists
-if (file_exists(__DIR__ . '/mail_config.php')) {
-    require_once __DIR__ . '/mail_config.php';
-}
 
 // Load SendGrid autoloader if exists
 if (file_exists(__DIR__ . '/vendor/autoload.php')) {
