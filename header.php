@@ -4,9 +4,22 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Cloudinary helpers
+require_once __DIR__ . '/cloudinary.php';
+
 // Get user info for display
-$userName = isset($_SESSION['username']) ? $_SESSION['username'] : 'Guest';
+$userName = $_SESSION['username'] ?? 'Guest';
 $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
+
+// Resolve the user's avatar (Cloudinary URL or system default)
+$headerAvatarUrl = defaultAvatarUrl();
+if ($isLoggedIn && !empty($_SESSION['profile_photo'])) {
+    // profile_photo in session may be a Cloudinary URL, a data: URI (legacy BLOB), or empty
+    $sessionPhoto = $_SESSION['profile_photo'];
+    if (preg_match('#^(https?://|data:image/)#i', $sessionPhoto)) {
+        $headerAvatarUrl = $sessionPhoto;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -19,59 +32,35 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
         
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            background-color: #2c7a7b;
             min-height: 100vh;
             padding-top: 70px;
-            transition: all 0.3s ease;
+            transition: background-color 0.3s ease;
         }
         
-        /* Light Theme */
-        body.light-theme {
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        }
+        body.light-theme { background-color: #2c7a7b; }
+        body.dark-theme  { background-color: #1e293b; }
         
-        body.light-theme .navbar {
-            background: rgba(255,255,255,0.95);
-            color: #333;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        body.light-theme .navbar a {
-            color: #333;
-        }
-        
-        body.light-theme .navbar a:hover {
-            background-color: rgba(0,0,0,0.1);
-        }
-        
-        /* Dark Theme */
-        body.dark-theme {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-        }
-        
-        body.dark-theme .navbar {
-            background: rgba(0,0,0,0.9);
-            color: white;
-        }
-        
-        /* Fixed Navbar */
+        /* Navbar */
         .navbar { 
-            background: rgba(0,0,0,0.2); 
+            background-color: #236162;
             color: white; 
             padding: 12px 30px; 
             display: flex; 
             justify-content: space-between; 
             align-items: center; 
             flex-wrap: wrap; 
-            backdrop-filter: blur(10px);
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
         }
+        
+        body.light-theme .navbar { background-color: #236162; }
+        body.dark-theme  .navbar { background-color: #0f172a; }
         
         .navbar .title h1 { 
             margin: 0; 
@@ -81,9 +70,7 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
             gap: 10px;
         }
         
-        .navbar .title h1 i {
-            font-size: 1.5rem;
-        }
+        .navbar .title h1 i { font-size: 1.5rem; }
         
         .navbar .links { 
             display: flex; 
@@ -105,34 +92,36 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
         }
         
         .navbar a:hover, .navbar a.active { 
-            background-color: rgba(255,255,255,0.2); 
-            transform: translateY(-2px);
+            background-color: rgba(255,255,255,0.15); 
         }
         
-        /* Help button special styling */
+        /* Avatar in navbar */
+        .nav-avatar {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255,255,255,0.6);
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
         .help-link {
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.25);
         }
         
-        .help-link:hover {
-            background: rgba(255,255,255,0.3);
-            transform: scale(1.05);
-        }
+        .help-link:hover { background: rgba(255,255,255,0.2); }
         
-        /* Logout button */
         .logout-link {
             background: rgba(220, 38, 38, 0.2);
             border: 1px solid rgba(220, 38, 38, 0.3);
         }
         
-        .logout-link:hover {
-            background: rgba(220, 38, 38, 0.4);
-        }
+        .logout-link:hover { background: rgba(220, 38, 38, 0.35); }
         
-        /* Theme Toggle Button */
         .theme-toggle {
-            background: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.15);
             border: none;
             color: white;
             padding: 8px 14px;
@@ -146,21 +135,8 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
             font-family: inherit;
         }
         
-        .theme-toggle:hover {
-            background: rgba(255,255,255,0.3);
-            transform: translateY(-2px);
-        }
+        .theme-toggle:hover { background: rgba(255,255,255,0.25); }
         
-        body.light-theme .theme-toggle {
-            background: rgba(0,0,0,0.1);
-            color: #333;
-        }
-        
-        body.light-theme .theme-toggle:hover {
-            background: rgba(0,0,0,0.2);
-        }
-        
-        /* User info badge - only shown when logged in */
         .user-info {
             background: rgba(255,255,255,0.15);
             padding: 6px 12px;
@@ -172,114 +148,41 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
             margin-left: 5px;
         }
         
-        body.light-theme .user-info {
-            background: rgba(0,0,0,0.1);
-        }
-        
-        /* Mobile responsive - Desktop First */
+        /* Mobile responsive */
         @media (max-width: 1024px) {
-            .navbar .title h1 {
-                font-size: 1.1rem;
-            }
-            .navbar a, .theme-toggle {
-                padding: 6px 10px;
-                font-size: 13px;
-            }
+            .navbar .title h1 { font-size: 1.1rem; }
+            .navbar a, .theme-toggle { padding: 6px 10px; font-size: 13px; }
         }
         
         @media (max-width: 768px) {
-            body {
-                padding-top: 120px;
-            }
-            
+            body { padding-top: 120px; }
             .navbar { 
                 flex-direction: column; 
                 text-align: center; 
                 gap: 12px; 
                 padding: 12px 20px;
             }
-            
-            .navbar .links {
-                justify-content: center;
-                width: 100%;
-            }
-            
-            .navbar a, .theme-toggle {
-                padding: 8px 12px;
-                font-size: 12px;
-            }
-            
-            .user-info {
-                margin-left: 0;
-                width: 100%;
-                justify-content: center;
-            }
+            .navbar .links { justify-content: center; width: 100%; }
+            .navbar a, .theme-toggle { padding: 8px 12px; font-size: 12px; }
+            .user-info { margin-left: 0; width: 100%; justify-content: center; }
         }
         
         @media (max-width: 600px) {
-            body {
-                padding-top: 140px;
-            }
-            
-            .navbar .links {
-                gap: 8px;
-            }
-            
-            .navbar a span, .theme-toggle span {
-                display: none;
-            }
-            
-            .navbar a i, .theme-toggle i {
-                margin: 0;
-                font-size: 16px;
-            }
-            
-            .user-info span {
-                display: inline;
-                font-size: 12px;
-            }
-            
-            .user-info i {
-                display: inline-block;
-            }
+            body { padding-top: 140px; }
+            .navbar .links { gap: 8px; }
+            .navbar a span, .theme-toggle span { display: none; }
+            .navbar a i, .theme-toggle i { margin: 0; font-size: 16px; }
+            .user-info span { display: inline; font-size: 12px; }
+            .user-info i { display: inline-block; }
         }
         
         @media (max-width: 480px) {
-            body {
-                padding-top: 160px;
-            }
-            
-            .navbar {
-                padding: 10px 15px;
-            }
-            
-            .navbar .title h1 {
-                font-size: 1rem;
-            }
-            
-            .navbar .links {
-                gap: 5px;
-            }
+            body { padding-top: 160px; }
+            .navbar { padding: 10px 15px; }
+            .navbar .title h1 { font-size: 1rem; }
+            .navbar .links { gap: 5px; }
         }
         
-        /* Scroll effect for navbar */
-        .navbar.scrolled {
-            background: rgba(0,0,0,0.95);
-            backdrop-filter: blur(5px);
-            padding: 8px 30px;
-        }
-        
-        body.light-theme .navbar.scrolled {
-            background: rgba(255,255,255,0.98);
-        }
-        
-        @media (max-width: 768px) {
-            .navbar.scrolled {
-                padding: 8px 20px;
-            }
-        }
-        
-        /* Main content container */
         .main-content {
             max-width: 1400px;
             margin: 0 auto;
@@ -298,9 +201,11 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
             </div>
             
             <?php if ($isLoggedIn): ?>
-                <!-- Logged In User - Show all links -->
                 <div class="links">
-                    <a href="profile.php"><i class="fas fa-user-circle"></i> <span>Profile</span></a>
+                    <a href="profile.php" class="user-info">
+                        <img src="<?php echo htmlspecialchars($headerAvatarUrl); ?>" alt="Avatar" class="nav-avatar">
+                        <span><?php echo htmlspecialchars($userName); ?></span>
+                    </a>
                     <a href="vote.php"><i class="fas fa-check-circle"></i> <span>Vote</span></a>
                     <a href="apply.php"><i class="fas fa-user-plus"></i> <span>Candidacy</span></a>
                     <a href="contest.php"><i class="fas fa-users"></i> <span>Contesters</span></a>
@@ -308,28 +213,24 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
                     <a href="index.php"><i class="fas fa-chart-bar"></i> <span>Results</span></a>
                     <a href="help.php" class="help-link"><i class="fas fa-question-circle"></i> <span>Help</span></a>
                     
-                    <!-- Theme Toggle Button -->
-                    <button id="themeToggle" class="theme-toggle">
+                    <button id="themeToggle" class="theme-toggle" type="button">
                         <i class="fas fa-sun"></i>
                         <span>Light</span>
                     </button>
                     
                     <a href="logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> <span>Logout</span></a>
                 </div>
-                
             <?php else: ?>
-                <!-- Not Logged In - Show only public links -->
                 <div class="links">
                     <a href="index.php"><i class="fas fa-chart-bar"></i> <span>Results</span></a>
                     <a href="help.php" class="help-link"><i class="fas fa-question-circle"></i> <span>Help</span></a>
                     
-                    <!-- Theme Toggle Button -->
-                    <button id="themeToggle" class="theme-toggle">
+                    <button id="themeToggle" class="theme-toggle" type="button">
                         <i class="fas fa-sun"></i>
                         <span>Light</span>
                     </button>
                     
-                    <a href="login.php" style="background: rgba(99, 102, 241, 0.8);"><i class="fas fa-sign-in-alt"></i> <span>Login</span></a>
+                    <a href="login.php" style="background: rgba(255,255,255,0.2);"><i class="fas fa-sign-in-alt"></i> <span>Login</span></a>
                 </div>
             <?php endif; ?>
         </div>
@@ -337,13 +238,10 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
     
     <div class="main-content">
         <script>
-        // Theme management
         (function() {
-            // Get saved theme or default to 'dark'
-            const savedTheme = localStorage.getItem('voting_theme') || 'dark';
+            const savedTheme = localStorage.getItem('voting_theme') || 'light';
             document.body.classList.add(savedTheme + '-theme');
             
-            // Update theme toggle button icon and text
             function updateThemeButton() {
                 const isLight = document.body.classList.contains('light-theme');
                 const themeBtn = document.getElementById('themeToggle');
@@ -356,7 +254,6 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
                 }
             }
             
-            // Toggle theme function
             window.toggleTheme = function() {
                 if (document.body.classList.contains('light-theme')) {
                     document.body.classList.remove('light-theme');
@@ -370,24 +267,11 @@ $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] 
                 updateThemeButton();
             };
             
-            // Add event listener when DOM is ready
             document.addEventListener('DOMContentLoaded', function() {
                 updateThemeButton();
                 const themeBtn = document.getElementById('themeToggle');
                 if (themeBtn) {
                     themeBtn.addEventListener('click', toggleTheme);
-                }
-                
-                // Navbar scroll effect
-                const navbar = document.getElementById('navbar');
-                if (navbar) {
-                    window.addEventListener('scroll', function() {
-                        if (window.scrollY > 50) {
-                            navbar.classList.add('scrolled');
-                        } else {
-                            navbar.classList.remove('scrolled');
-                        }
-                    });
                 }
             });
         })();
