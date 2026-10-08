@@ -4,24 +4,21 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 include("conn.php");
 
-// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, Configuration)
+// Cloudinary helpers (extractPublicIdFromUrl, defaultAvatarUrl)
 require_once __DIR__ . '/../cloudinary.php';
 
-// Admin Authentication (optional - remove if not needed)
+// Admin Authentication
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
     header("Location: login.php");
     exit();
 }
 
-// Helper: build a displayable image URL from either a Cloudinary URL or a legacy filename
-function resolveImageUrl($value, $folder = 'faces', $default = 'faces/default.jpg') {
-    if (empty($value)) {
-        return $default;
+// Helper: resolve to a Cloudinary URL or the system default
+function resolveImageUrl($value) {
+    if (!empty($value) && preg_match('#^https?://#i', $value)) {
+        return $value;
     }
-    if (preg_match('#^https?://#i', $value)) {
-        return $value; // Cloudinary or other remote URL
-    }
-    return $folder . '/' . $value; // legacy local file
+    return defaultAvatarUrl();
 }
 
 // Handle AJAX request for user info
@@ -79,19 +76,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         if (!empty($user['profile_photo_blob'])) {
             $profilePhotoBlob = base64_encode($user['profile_photo_blob']);
             $profilePhotoType = $user['profile_photo_type'];
-        } elseif (!empty($user['profile_photo'])) {
-            // Could be Cloudinary URL or legacy filename — resolve to a usable URL
-            $profilePhoto = resolveImageUrl($user['profile_photo'], 'faces', 'faces/default.jpg');
-        }
-        
-        // Fall back to a contester photo if user has none (and it's a Cloudinary URL)
-        if (empty($profilePhoto) && empty($profilePhotoBlob) && !empty($contests)) {
-            foreach ($contests as $c) {
-                if (!empty($c['contester_photo'])) {
-                    $profilePhoto = resolveImageUrl($c['contester_photo'], 'faces', 'faces/default.jpg');
-                    break;
-                }
-            }
+        } else {
+            // Always returns a valid URL: Cloudinary or the system default
+            $profilePhoto = resolveImageUrl($user['profile_photo']);
         }
         
         echo json_encode([
@@ -129,7 +116,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     try {
         $conn->beginTransaction();
         
-        // Collect Cloudinary URLs from contester rows so we can delete them after DB cleanup
+        // Collect Cloudinary URLs from contester rows
         $cloudinaryUrls = [];
         try {
             $photoStmt = $conn->prepare("SELECT profile_photo FROM contesters WHERE user_id = ?");
@@ -161,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         
         $conn->commit();
         
-        // After successful DB commit, delete images from Cloudinary (best-effort)
+        // After successful DB commit, delete images from Cloudinary
         foreach ($cloudinaryUrls as $url) {
             $publicId = extractPublicIdFromUrl($url);
             if ($publicId) {
@@ -332,22 +319,10 @@ try {
             margin: 2px;
         }
 
-        .btn-view {
-            background: #2c7a7b; /* calm teal */
-        }
-
-        .btn-edit {
-            background: #ffc107;
-            color: #333;
-        }
-
-        .btn-delete {
-            background: #dc3545;
-        }
-
-        .btn-register {
-            background: #28a745;
-        }
+        .btn-view { background: #2c7a7b; }
+        .btn-edit { background: #ffc107; color: #333; }
+        .btn-delete { background: #dc3545; }
+        .btn-register { background: #28a745; }
 
         .btn:hover {
             transform: translateY(-1px);
@@ -385,18 +360,12 @@ try {
         }
 
         @keyframes slideDown {
-            from {
-                transform: translateY(-50px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
 
         .modal-header {
-            background: #2c7a7b; /* calm teal */
+            background: #2c7a7b;
             color: white;
             padding: 20px 25px;
             display: flex;
@@ -418,9 +387,7 @@ try {
             line-height: 20px;
         }
 
-        .close:hover {
-            opacity: 0.8;
-        }
+        .close:hover { opacity: 0.8; }
 
         .modal-body {
             padding: 25px;
@@ -428,9 +395,7 @@ try {
             overflow-y: auto;
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
+        .form-group { margin-bottom: 15px; }
 
         .form-group label {
             display: block;
@@ -453,7 +418,7 @@ try {
         }
 
         .submit-btn {
-            background: #2c7a7b; /* calm teal */
+            background: #2c7a7b;
             color: white;
             padding: 12px 20px;
             border: none;
@@ -463,9 +428,7 @@ try {
             font-size: 16px;
         }
 
-        .submit-btn:hover {
-            background: #236162;
-        }
+        .submit-btn:hover { background: #236162; }
 
         .profile-photo {
             text-align: center;
@@ -479,6 +442,7 @@ try {
             object-fit: cover;
             border: 4px solid #2c7a7b;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            background: #f4f7f9;
         }
 
         .info-section {
@@ -487,9 +451,7 @@ try {
             border-bottom: 1px solid #e0e0e0;
         }
 
-        .info-section:last-child {
-            border-bottom: none;
-        }
+        .info-section:last-child { border-bottom: none; }
 
         .info-section strong {
             color: #2c7a7b;
@@ -516,20 +478,9 @@ try {
             margin-left: 8px;
         }
 
-        .status-active {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-upcoming {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        .status-completed {
-            background: #f8d7da;
-            color: #721c24;
-        }
+        .status-active { background: #d4edda; color: #155724; }
+        .status-upcoming { background: #fff3cd; color: #856404; }
+        .status-completed { background: #f8d7da; color: #721c24; }
 
         .loading {
             text-align: center;
@@ -587,16 +538,9 @@ try {
         }
 
         @media screen and (max-width: 768px) {
-            .content {
-                padding: 15px;
-            }
-            th, td {
-                padding: 10px 12px;
-            }
-            .btn {
-                padding: 4px 8px;
-                font-size: 10px;
-            }
+            .content { padding: 15px; }
+            th, td { padding: 10px 12px; }
+            .btn { padding: 4px 8px; font-size: 10px; }
         }
     </style>
 </head>
@@ -767,15 +711,12 @@ try {
     function displayUserInfo(data) {
         const modalBody = document.getElementById('modalBody');
         
-        // Resolve profile photo: Cloudinary URL, base64 blob, or fallback
+        // data.profile_photo is always a valid Cloudinary URL (user's photo or system default)
         let profilePhotoHtml = '';
         if (data.profile_photo_blob) {
             profilePhotoHtml = `<img src="data:image/${data.profile_photo_type};base64,${data.profile_photo_blob}" alt="Profile Photo">`;
-        } else if (data.profile_photo && data.profile_photo !== '') {
-            // data.profile_photo is already a usable URL (Cloudinary or resolved legacy path)
-            profilePhotoHtml = `<img src="${escapeHtml(data.profile_photo)}" alt="Profile Photo" onerror="this.src='faces/default.jpg'">`;
         } else {
-            profilePhotoHtml = `<img src="faces/default.jpg" alt="Default Profile Photo">`;
+            profilePhotoHtml = `<img src="${escapeHtml(data.profile_photo)}" alt="Profile Photo">`;
         }
         
         let registrationsHtml = '';
