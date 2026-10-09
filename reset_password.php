@@ -15,6 +15,7 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
 
 // Handle password reset via token
 if (isset($_GET['token']) && !isset($_POST['ajax'])) {
+    verifyCsrf();
     $token = $_GET['token'];
     
     try {
@@ -349,6 +350,7 @@ if (isset($_GET['token']) && !isset($_POST['ajax'])) {
                     </div>
 
                     <form id="resetForm">
+                        <?= csrfField() ?>
                         <input type="hidden" name="user_id" value="<?php echo $userId; ?>">
                         <input type="hidden" name="token" value="<?php echo htmlspecialchars($token); ?>">
 
