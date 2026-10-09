@@ -490,7 +490,7 @@ try {
 </style>
 
 <div class="applications-container">
-    <h1><i class="fas fa-file-alt"></i> My Applications</h1>
+    <h1> My Applications</h1>
     <div class="subtitle">View your election registrations and candidacy applications</div>
 
     <?php if (!empty($message)): ?>
@@ -501,11 +501,10 @@ try {
     <?php endif; ?>
 
     <div class="section">
-        <h2><i class="fas fa-vote-yea"></i> My Election Activities</h2>
+        <h2>My Election Activities</h2>
 
         <?php if (empty($finalElections)): ?>
             <div class="no-data">
-                <i class="fas fa-inbox"></i>
                 <p>You are not registered for any elections.</p>
                 <p>You haven't applied for any candidacy positions yet.</p>
                 <a href="apply.php" class="register-link"><i class="fas fa-user-plus"></i> Apply for Candidacy</a>
@@ -516,10 +515,9 @@ try {
                     <li>
                         <div class="election-header">
                             <div class="election-title">
-                                <i class="fas fa-poll"></i>
                                 <?php echo htmlspecialchars($election['election_title']); ?>
                                 <?php if (!empty($election['contested_posts'])): ?>
-                                    <span class="badge-contesting"><i class="fas fa-check-circle"></i> Contesting</span>
+                                    <span class="badge-contesting"> Contesting</span>
                                 <?php endif; ?>
                             </div>
                             <div>
@@ -533,18 +531,17 @@ try {
                         <?php if (!empty($election['contested_posts'])): ?>
                             <div style="margin-top: 15px;">
                                 <strong style="color: #374151; display: block; margin-bottom: 10px;">
-                                    <i class="fas fa-user-tie" style="color: #2c7a7b;"></i> My Candidacy Applications:
+                                    My Candidacy Applications:
                                 </strong>
                                 <ul class="contest-posts">
                                     <?php foreach ($election['contested_posts'] as $post): ?>
                                         <li class="contest-post-item">
                                             <div class="post-info">
-                                                <i class="fas fa-trophy post-icon"></i>
                                                 <span class="post-name"><?php echo htmlspecialchars($post['postname']); ?></span>
                                             </div>
                                             <button class="unapply-btn" data-election-id="<?php echo $election['election_id']; ?>" data-postname="<?php echo htmlspecialchars($post['postname']); ?>" data-post-id="<?php echo $post['id']; ?>">
                                                 <span class="spinner"></span>
-                                                <span class="btn-text"><i class="fas fa-times-circle"></i> Withdraw Application</span>
+                                                <span class="btn-text">Withdraw Application</span>
                                             </button>
                                         </li>
                                     <?php endforeach; ?>
