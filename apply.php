@@ -395,7 +395,7 @@ if ($selectedElectionId) {
 </style>
 
 <div class="apply-container">
-    <h2><i class="fas fa-user-plus"></i> Apply for Candidacy</h2>
+    <h2> Apply for Candidacy</h2>
     <div class="subtitle">Register as a candidate for an election position</div>
 
     <?php if ($message): ?>
@@ -417,13 +417,13 @@ if ($selectedElectionId) {
 
     <form method="post" enctype="multipart/form-data" id="applicationForm">
         <div class="form-group">
-            <label for="profile_photo" class="required"><i class="fas fa-camera"></i> Profile Photo:</label>
+            <label for="profile_photo" class="required">Profile Photo:</label>
             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
-            <div class="file-hint"><i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
+            <div class="file-hint"><i class="fas fa-info-circle"></i> Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB).</div>
         </div>
 
         <div class="form-group">
-            <label for="election_id" class="required"><i class="fas fa-calendar-alt"></i> Select Election:</label>
+            <label for="election_id" class="required"> Select Election:</label>
             <select name="election_id" id="election_id" onchange="fetchPosts(this.value);" required>
                 <option value="">-- Select Election --</option>
                 <?php foreach ($elections as $election): ?>
@@ -435,7 +435,7 @@ if ($selectedElectionId) {
         </div>
 
         <div class="form-group">
-            <label for="postname" class="required"><i class="fas fa-briefcase"></i> Select Position:</label>
+            <label for="postname" class="required"> Select Position:</label>
             <select name="postname" id="postname" required>
                 <option value="">Select Election First</option>
                 <?php foreach ($availablePosts as $post): ?>
@@ -451,13 +451,13 @@ if ($selectedElectionId) {
         </div>
 
         <div class="form-group">
-            <label for="bio"><i class="fas fa-file-alt"></i> Bio and Manifesto:</label>
+            <label for="bio"> Bio and Manifesto:</label>
             <textarea name="bio" id="bio" rows="5" placeholder="Tell voters about yourself, your qualifications, experience, and goals if elected..."></textarea>
-            <div class="file-hint"><i class="fas fa-lightbulb"></i> Be clear and convincing. This will be visible to all voters.</div>
+            <div class="file-hint"> Be clear and convincing. This will be visible to all voters.</div>
         </div>
 
         <button type="submit" class="submit-btn" id="submitBtn">
-            <span class="btn-text"><i class="fas fa-paper-plane"></i> Submit Application</span>
+            <span class="btn-text"> Submit Application</span>
             <span class="spinner"></span>
         </button>
     </form>
