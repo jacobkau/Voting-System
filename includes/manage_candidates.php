@@ -61,6 +61,7 @@ if ($selectedElectionId) {
 
 // Handle Candidate Addition
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == "add_candidate") {
+    verifyCsrf();
     $userId = intval($_POST['name']);
     $electionId = intval($_POST['election_id']);
     $position = trim($_POST['position']);
@@ -199,6 +200,7 @@ try {
         <div class="form-container">
             <h3>Add Candidate</h3>
             <form id="add-candidate-form" enctype="multipart/form-data" method="POST">
+                 <?= csrfField() ?>
                 <select name="election_id" id="election-select" required onchange="this.form.submit();">
                     <option value="">Select Election</option>
                     <?php foreach ($elections as $election): ?>
