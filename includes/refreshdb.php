@@ -57,6 +57,7 @@ if (isset($_GET['election_id'])) {
 
 // Option 1: Delete Only Votes (Keep candidates, posts, registrations)
 if (isset($_POST['delete_only_votes'])) {
+    verifyCsrf();
     $electionId = intval($_POST['election_id']);
     
     try {
@@ -106,6 +107,7 @@ if (isset($_POST['delete_votes_and_candidates'])) {
     $electionId = intval($_POST['election_id']);
     
     if (!isset($_POST['confirm_delete']) || $_POST['confirm_delete'] !== 'yes') {
+        verifyCsrf();
         $message = "Please confirm deletion by checking the confirmation box.";
         $messageType = "error";
     } else {
@@ -163,6 +165,7 @@ if (isset($_POST['complete_reset'])) {
     $electionId = intval($_POST['election_id']);
     
     if (!isset($_POST['confirm_complete']) || $_POST['confirm_complete'] !== 'yes') {
+        verifyCsrf();
         $message = "Please confirm complete reset by checking the confirmation box.";
         $messageType = "error";
     } else {
@@ -224,6 +227,7 @@ if (isset($_POST['complete_reset'])) {
 
 // Delete Single Vote
 if (isset($_POST['delete_single_vote']) && isset($_POST['vote_id'])) {
+    verifyCsrf();
     $voteId = intval($_POST['vote_id']);
     $electionId = intval($_POST['election_id']);
     
@@ -398,6 +402,7 @@ if (isset($_POST['delete_single_vote']) && isset($_POST['vote_id'])) {
                     <h4><i class="fas fa-trash-alt"></i> Option 1: Delete Only Votes</h4>
                     <p>Keep all candidates, user registrations, and election posts. Only remove cast votes.</p>
                     <form method="post" onsubmit="return confirm('Delete ONLY votes? Candidates will remain.')">
+                         <?= csrfField() ?>
                         <input type="hidden" name="election_id" value="<?php echo $selectedElection['id']; ?>">
                         <button type="submit" name="delete_only_votes" class="btn btn-warning">
                             <i class="fas fa-trash"></i> Delete Only Votes (<?php echo $electionStats['total_votes']; ?> votes)
@@ -410,6 +415,7 @@ if (isset($_POST['delete_single_vote']) && isset($_POST['vote_id'])) {
                     <h4><i class="fas fa-trash-alt"></i> Option 2: Delete Votes & Candidates</h4>
                     <p>Remove all votes and candidates. Keep election posts and user registrations.</p>
                     <form method="post" onsubmit="return confirm('Delete votes AND candidates? This cannot be undone!')">
+                        <?= csrfField() ?>
                         <input type="hidden" name="election_id" value="<?php echo $selectedElection['id']; ?>">
                         <label class="confirm-checkbox">
                             <input type="checkbox" name="confirm_delete" value="yes" required>
@@ -426,6 +432,7 @@ if (isset($_POST['delete_single_vote']) && isset($_POST['vote_id'])) {
                     <h4><i class="fas fa-sync-alt"></i> Option 3: Complete Reset</h4>
                     <p>Delete EVERYTHING: votes, candidates, registrations, and election posts.</p>
                     <form method="post" onsubmit="return confirm('COMPLETE RESET: Delete all votes, candidates, registrations, and posts? This cannot be undone!')">
+                         <?= csrfField() ?>
                         <input type="hidden" name="election_id" value="<?php echo $selectedElection['id']; ?>">
                         <label class="confirm-checkbox">
                             <input type="checkbox" name="confirm_complete" value="yes" required>
@@ -485,6 +492,7 @@ if (isset($_POST['delete_single_vote']) && isset($_POST['vote_id'])) {
                                         <td><?php echo date('M d, Y H:i', strtotime($vote['voted_at'])); ?></td>
                                         <td>
                                             <form method="post" onsubmit="return confirm('Delete this vote?')">
+                                                 <?= csrfField() ?>   
                                                 <input type="hidden" name="vote_id" value="<?php echo $vote['id']; ?>">
                                                 <input type="hidden" name="election_id" value="<?php echo $selectedElection['id']; ?>">
                                                 <button type="submit" name="delete_single_vote" class="delete-vote-btn">
