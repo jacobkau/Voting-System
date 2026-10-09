@@ -11,6 +11,95 @@ if (file_exists(__DIR__ . '/vendor/autoload.php')) {
     require_once __DIR__ . '/vendor/autoload.php';
 }
 
+// ============================================================
+// Rate limiting configuration
+// ============================================================
+const RL_EMAIL_MAX       = 3;   
+const RL_EMAIL_WINDOW    = 900;
+const RL_IP_MAX          = 10;  
+const RL_IP_WINDOW       = 3600;
+const RL_COOLDOWN        = 60; 
+const RL_MAX_ACTIVE_TOKEN = 3;  
+
+/**
+ * Get the client IP, honoring proxy headers used by Render/Cloudflare.
+ */
+function clientIp(): string {
+    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP'] as $key) {
+        if (!empty($_SERVER[$key])) {
+            $parts = explode(',', $_SERVER[$key]);
+            $ip = trim($parts[0]);
+            if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                return $ip;
+            }
+        }
+    }
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+/**
+ * Check whether the given email/IP has exceeded the reset limits.
+ * Returns ['allowed' => bool, 'reason' => string].
+ */
+function checkResetRateLimit(PDO $conn, string $email, string $ip): array {
+    // 1. Cooldown for this specific email
+    $stmt = $conn->prepare("
+        SELECT TIMESTAMPDIFF(SECOND, MAX(attempted_at), NOW()) AS elapsed
+        FROM password_reset_attempts
+        WHERE email = ?
+    ");
+    $stmt->execute([$email]);
+    $elapsed = $stmt->fetchColumn();
+
+    if ($elapsed !== null && $elapsed !== false && $elapsed < RL_COOLDOWN) {
+        $wait = RL_COOLDOWN - (int)$elapsed;
+        return ['allowed' => false, 'reason' => "Please wait {$wait} seconds before requesting another reset link."];
+    }
+
+    // 2. Per-email count in window
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) FROM password_reset_attempts
+        WHERE email = ?
+          AND attempted_at > (NOW() - INTERVAL ? SECOND)
+    ");
+    $stmt->execute([$email, RL_EMAIL_WINDOW]);
+    if ((int)$stmt->fetchColumn() >= RL_EMAIL_MAX) {
+        return ['allowed' => false, 'reason' => 'Too many reset requests for this email. Please try again later.'];
+    }
+
+    // 3. Per-IP count in window
+    $stmt = $conn->prepare("
+        SELECT COUNT(*) FROM password_reset_attempts
+        WHERE ip_address = ?
+          AND attempted_at > (NOW() - INTERVAL ? SECOND)
+    ");
+    $stmt->execute([$ip, RL_IP_WINDOW]);
+    if ((int)$stmt->fetchColumn() >= RL_IP_MAX) {
+        return ['allowed' => false, 'reason' => 'Too many reset requests from your network. Please try again later.'];
+    }
+
+    return ['allowed' => true, 'reason' => ''];
+}
+
+/**
+ * Log an attempt (called after limits pass, regardless of whether email exists —
+ * so we don't leak existence via rate-limit responses).
+ */
+function logResetAttempt(PDO $conn, string $email, string $ip): void {
+    $stmt = $conn->prepare("INSERT INTO password_reset_attempts (email, ip_address) VALUES (?, ?)");
+    $stmt->execute([$email, $ip]);
+}
+
+/**
+ * Delete expired tokens and old attempt rows. Cheap, run on every request.
+ */
+function cleanupResetTables(PDO $conn): void {
+    // Remove expired tokens
+    $conn->exec("DELETE FROM password_reset_tokens WHERE expiry < NOW()");
+    // Keep attempt log for 24h
+    $conn->exec("DELETE FROM password_reset_attempts WHERE attempted_at < (NOW() - INTERVAL 1 DAY)");
+}
+
 /**
  * Send a password reset email via EmailJS.
  * Returns true on success, false on failure.
@@ -64,12 +153,15 @@ function sendPasswordResetEmail(string $email, string $username, string $resetLi
     return false;
 }
 
+// ============================================================
 // Handle AJAX request
+// ============================================================
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
     verifyCsrf();
     header('Content-Type: application/json');
 
     $email = trim($_POST['email']);
+    $ip    = clientIp();
     $response = ['success' => false, 'message' => ''];
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
@@ -79,6 +171,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
     }
 
     try {
+        // Housekeeping first — keeps tables lean
+        cleanupResetTables($conn);
+
+        // Rate limit check
+        $limit = checkResetRateLimit($conn, $email, $ip);
+        if (!$limit['allowed']) {
+            $response['message'] = $limit['reason'];
+            echo json_encode($response);
+            exit();
+        }
+
+        // Log the attempt now — before we know if the email exists —
+        // so responses look identical whether the account exists or not.
+        logResetAttempt($conn, $email, $ip);
+
         $stmt = $conn->prepare("SELECT id, username FROM users WHERE email = ?");
         $stmt->execute([$email]);
 
@@ -87,27 +194,39 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             $user_id  = $user['id'];
             $username = $user['username'];
 
+            // ---- Cap active tokens per user ----
+            // Count non-expired tokens; delete the oldest if we're at the cap.
+            $countStmt = $conn->prepare("
+                SELECT COUNT(*) FROM password_reset_tokens
+                WHERE user_id = ? AND expiry > NOW()
+            ");
+            $countStmt->execute([$user_id]);
+            $activeCount = (int)$countStmt->fetchColumn();
+
+            if ($activeCount >= RL_MAX_ACTIVE_TOKEN) {
+                // Delete oldest active tokens to make room
+                $conn->prepare("
+                    DELETE FROM password_reset_tokens
+                    WHERE user_id = ?
+                      AND expiry > NOW()
+                    ORDER BY created_at ASC
+                    LIMIT ?
+                ")->execute([$user_id, $activeCount - RL_MAX_ACTIVE_TOKEN + 1]);
+            }
+
+            // ---- Generate new token ----
             $token  = bin2hex(random_bytes(32));
             $expiry = date('Y-m-d H:i:s', strtotime('+1 hour'));
-
-            $conn->exec("CREATE TABLE IF NOT EXISTS password_reset_tokens (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                user_id INT NOT NULL,
-                token VARCHAR(255) NOT NULL UNIQUE,
-                expiry DATETIME NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-            )");
 
             $insertStmt = $conn->prepare("INSERT INTO password_reset_tokens (user_id, token, expiry) VALUES (?, ?, ?)");
             $insertStmt->execute([$user_id, $token, $expiry]);
 
-            $protocol = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? "https" : "http";
-            $host = $_SERVER['HTTP_HOST'];
+            // ---- Build reset link (force HTTPS) ----
+            $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
             $uri  = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
-            $reset_link = "$protocol://$host$uri/reset_password.php?token=$token";
+            $reset_link = "https://$host$uri/reset_password.php?token=$token";
 
-            // Send via EmailJS
+            // ---- Send ----
             if (sendPasswordResetEmail($email, $username, $reset_link)) {
                 $response['success'] = true;
                 $response['message'] = 'Reset link sent! Check your email.';
@@ -251,7 +370,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             margin-right: 8px;
         }
 
-        /* -------- Input -------- */
         input[type="email"] {
             width: 100%;
             padding: 14px 16px;
@@ -261,8 +379,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             font-family: inherit;
             transition: all 0.3s;
             background: #ffffff;
-            color: #1f2937; /* always readable on the light background */
-            -webkit-text-fill-color: #1f2937; /* override autofill */
+            color: #1f2937;
+            -webkit-text-fill-color: #1f2937;
         }
 
         input[type="email"]::placeholder {
@@ -276,7 +394,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
 
-        /* Dark theme input */
         body.dark-theme input[type="email"] {
             background: #2d2d3d;
             border-color: #3d3d4d;
@@ -288,7 +405,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             color: #6b7280;
         }
 
-        /* Browser autofill override (Chrome / Edge / Safari) */
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus {
@@ -303,7 +419,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
             -webkit-text-fill-color: #f3f4f6;
             -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
         }
-        /* ------------------------ */
 
         button[type="submit"] {
             width: 100%;
@@ -518,6 +633,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
                 const formData = new FormData();
                 formData.append('ajax', '1');
                 formData.append('email', email.value);
+                // Include the CSRF token from the form
+                const csrfInput = document.querySelector('input[name="csrf_token"]');
+                if (csrfInput) {
+                    formData.append('csrf_token', csrfInput.value);
+                }
 
                 const response = await fetch('forgot_password.php', {
                     method: 'POST',
