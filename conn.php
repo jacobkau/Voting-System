@@ -1,7 +1,47 @@
 <?php
-// conn.php - Safe, hidden credentials with proper PHP MySQL SSL attributes
 
+// ============================================================
+// 0. ENFORCE HTTPS - Redirect all HTTP traffic to HTTPS
+// ============================================================
+// Skip enforcement for CLI (cron jobs, scripts) and local development
+if (php_sapi_name() !== 'cli') {
+
+    // Detect HTTPS - works behind Render's proxy (X-Forwarded-Proto)
+    $isHttps = (
+        (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
+        (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+        (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') ||
+        (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false)
+    );
+
+    if (!$isHttps) {
+        // Build the HTTPS URL preserving host, path, and query string
+        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+
+        // Safety: only redirect if we have a valid host
+        if (!empty($host)) {
+            $redirectUrl = 'https://' . $host . $requestUri;
+
+            // 301 = permanent redirect (better for SEO and caching)
+            header('Location: ' . $redirectUrl, true, 301);
+            exit;
+        }
+    }
+
+    // ============================================================
+    // 0b. SECURITY HEADERS (recommended alongside HTTPS)
+    // ============================================================
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
+// ============================================================
 // 1. Fetch the secret link from Render's environment settings
+// ============================================================
 $uri = getenv('AIVEN_DATABASE_URL');
 
 if (!$uri) {
@@ -30,7 +70,7 @@ $options = [
 try {
     $user = $fields["user"] ?? 'avnadmin';
     $pass = $fields["pass"] ?? '';
-    
+
     // 5. Connect securely using the options array
     $db = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
