@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
-// Cloudinary helpers (defaultAvatarUrl)
+// Cloudinary helpers 
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -19,36 +19,35 @@ $message = "";
 $messageType = "";
 
 try {
-    // Get user ID
     $userStmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
     $userStmt->execute([$username]);
     $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-    
+
     if (!$user) {
         throw new Exception("User not found.");
     }
-    
+
     $userId = $user['id'];
-    
+
     // Handle Unapply Request
     if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['unapply'])) {
         $electionId = intval($_POST['election_id']);
         $postname = trim($_POST['postname']);
-        
+
         try {
             $conn->beginTransaction();
-            
+
             $deleteStmt = $conn->prepare("DELETE FROM contesters WHERE user_id = ? AND election_id = ? AND postname = ?");
             $deleteStmt->execute([$userId, $electionId, $postname]);
-            
+
             $logStmt = $conn->prepare("INSERT INTO event_log (username, event_type, event_description) VALUES (?, 'Withdraw Application', ?)");
             $logStmt->execute([$username, "Withdrew application for $postname in election ID: $electionId"]);
-            
+
             $conn->commit();
-            
+
             $message = "Your application for '" . htmlspecialchars($postname) . "' has been withdrawn successfully.";
             $messageType = "success";
-            
+
         } catch (PDOException $e) {
             $conn->rollBack();
             error_log("Unapply error: " . $e->getMessage());
@@ -56,17 +55,17 @@ try {
             $messageType = "error";
         }
     }
-    
+
     // Fetch User's Registered Elections
     $registeredStmt = $conn->prepare("SELECT ue.election_id, e.title AS election_title, e.status FROM user_elections ue JOIN elections e ON ue.election_id = e.id WHERE ue.user_id = ?");
     $registeredStmt->execute([$userId]);
     $registeredElections = $registeredStmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Fetch User's Contester Applications
     $applicationsStmt = $conn->prepare("SELECT id, election_id, postname FROM contesters WHERE user_id = ?");
     $applicationsStmt->execute([$userId]);
     $applications = $applicationsStmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Merge Applications into Registered Elections
     $mergedElections = [];
     foreach ($registeredElections as $election) {
@@ -76,7 +75,7 @@ try {
             $mergedElections[$electionId]['contested_posts'] = [];
         }
     }
-    
+
     foreach ($applications as $application) {
         $electionId = $application['election_id'];
         if (isset($mergedElections[$electionId])) {
@@ -88,7 +87,7 @@ try {
             $electionInfo = $conn->prepare("SELECT title, status FROM elections WHERE id = ?");
             $electionInfo->execute([$electionId]);
             $electionData = $electionInfo->fetch(PDO::FETCH_ASSOC);
-            
+
             if (!isset($mergedElections[$electionId])) {
                 $mergedElections[$electionId] = [
                     'election_id' => $electionId,
@@ -103,9 +102,9 @@ try {
             ];
         }
     }
-    
+
     $finalElections = array_values($mergedElections);
-    
+
 } catch (Exception $e) {
     error_log("Error in my_applications.php: " . $e->getMessage());
     $message = "Error loading your applications. Please try again later.";
@@ -119,81 +118,101 @@ try {
 <style>
     .applications-container {
         max-width: 1000px;
-        margin: 40px auto;
+        margin: 0 auto 40px;
+        padding: 0 20px;
+    }
+
+    .applications-hero {
+        background-color: #2c7a7b;
+        border-radius: 16px;
+        padding: 22px 26px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(44, 122, 123, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    body.dark-theme .applications-hero {
+        background-color: #0f172a;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .applications-hero-icon {
+        font-size: 26px;
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .applications-hero-text {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .applications-hero-text h1 {
+        font-size: 20px;
+        margin-bottom: 4px;
+        font-weight: 700;
+    }
+
+    .applications-hero-text p {
+        font-size: 13px;
+        opacity: 0.9;
+        line-height: 1.5;
+    }
+
+    /* Section card */
+    .applications-card {
         background-color: #ffffff;
-        padding: 35px;
-        border-radius: 20px;
+        padding: 24px;
+        border-radius: 14px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
 
-    body.dark-theme .applications-container {
+    body.dark-theme .applications-card {
         background-color: #1e1e2e;
         border-color: #3d3d4d;
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
 
-    .applications-container h1 {
-        color: #1f2937;
-        margin-bottom: 10px;
-        text-align: center;
-        font-size: 32px;
-        transition: color 0.3s ease;
-    }
-
-    body.dark-theme .applications-container h1 { color: #f3f4f6; }
-
-    .applications-container h1 i {
-        color: #2c7a7b;
-        margin-right: 10px;
-    }
-
-    .applications-container .subtitle {
-        text-align: center;
-        color: #6b7280;
-        margin-bottom: 30px;
-        font-size: 14px;
-    }
-
-    body.dark-theme .applications-container .subtitle { color: #9ca3af; }
-
-    .section {
-        border: 1px solid #e5e7eb;
-        padding: 25px;
-        margin-bottom: 25px;
-        border-radius: 16px;
-        background: #f9fafb;
-        transition: background-color 0.3s ease, border-color 0.3s ease;
-    }
-
-    body.dark-theme .section {
-        background: #2d2d3d;
-        border-color: #3d3d4d;
-    }
-
-    .section h2 {
-        color: #1f2937;
-        margin-top: 0;
-        margin-bottom: 20px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid #e5e7eb;
-        font-size: 22px;
+    .section-header {
         display: flex;
         align-items: center;
         gap: 10px;
-        transition: color 0.3s ease, border-color 0.3s ease;
+        margin-bottom: 18px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #e5e7eb;
+        transition: border-color 0.3s ease;
     }
 
-    body.dark-theme .section h2 {
-        color: #f3f4f6;
-        border-bottom-color: #3d3d4d;
-    }
+    body.dark-theme .section-header { border-bottom-color: #3d3d4d; }
 
-    .section h2 i {
+    .section-header i {
         color: #2c7a7b;
+        font-size: 16px;
     }
 
+    .section-header h2 {
+        color: #1f2937;
+        font-size: 16px;
+        font-weight: 700;
+        margin: 0;
+        transition: color 0.3s ease;
+    }
+
+    body.dark-theme .section-header h2 { color: #f3f4f6; }
+
+    /* Election list */
     .election-list {
         list-style: none;
         padding: 0;
@@ -201,22 +220,26 @@ try {
     }
 
     .election-list li {
-        background-color: #ffffff;
-        margin-bottom: 20px;
-        padding: 20px;
+        background-color: #f9fafb;
+        margin-bottom: 14px;
+        padding: 16px;
         border-radius: 12px;
-        border-left: 4px solid #2c7a7b;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        transition: all 0.3s;
+        border-left: 3px solid #2c7a7b;
+        transition: background-color 0.3s ease, box-shadow 0.2s ease;
     }
 
+    .election-list li:last-child { margin-bottom: 0; }
+
     body.dark-theme .election-list li {
-        background-color: #1e1e2e;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        background-color: #2d2d3d;
     }
 
     .election-list li:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    body.dark-theme .election-list li:hover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
 
     .election-header {
@@ -225,33 +248,35 @@ try {
         align-items: center;
         flex-wrap: wrap;
         gap: 10px;
-        margin-bottom: 15px;
+        margin-bottom: 12px;
     }
 
     .election-title {
-        font-size: 20px;
+        font-size: 15px;
         font-weight: 700;
         color: #1f2937;
         margin: 0;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         flex-wrap: wrap;
     }
 
     body.dark-theme .election-title { color: #f3f4f6; }
 
-    .election-title i {
-        color: #2c7a7b;
+    .election-status {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
     }
 
-    .election-status {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-    }
+    .election-status i { font-size: 10px; }
 
     .status-active {
         background: #d1fae5;
@@ -284,12 +309,17 @@ try {
     }
 
     .badge-contesting {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         background: #e6f4f4;
         color: #2c7a7b;
-        padding: 4px 12px;
+        padding: 3px 10px;
         border-radius: 20px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
     }
 
     body.dark-theme .badge-contesting {
@@ -297,51 +327,63 @@ try {
         color: #a7f3d0;
     }
 
+    .badge-contesting i { font-size: 10px; }
+
+    /* Contested posts */
+    .contest-posts-label {
+        color: #6b7280;
+        display: block;
+        margin-bottom: 8px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-weight: 600;
+    }
+
+    body.dark-theme .contest-posts-label { color: #9ca3af; }
+
     .contest-posts {
         list-style: none;
         padding: 0;
-        margin: 15px 0 0 0;
+        margin: 0;
     }
 
     .contest-post-item {
-        background: #f3f4f6;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
         border-radius: 10px;
-        padding: 12px 15px;
-        margin-bottom: 10px;
+        padding: 10px 14px;
+        margin-bottom: 8px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 15px;
-        transition: all 0.3s;
+        gap: 10px;
+        transition: all 0.2s;
     }
+
+    .contest-post-item:last-child { margin-bottom: 0; }
 
     body.dark-theme .contest-post-item {
-        background: #2d2d3d;
-    }
-
-    .contest-post-item:hover {
-        background: #e5e7eb;
-    }
-
-    body.dark-theme .contest-post-item:hover {
-        background: #3d3d4d;
+        background: #1e1e2e;
+        border-color: #3d3d4d;
     }
 
     .post-info {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
     }
 
     .post-icon {
         color: #2c7a7b;
-        font-size: 18px;
+        font-size: 14px;
     }
 
     .post-name {
         font-weight: 600;
         color: #374151;
+        font-size: 13px;
     }
 
     body.dark-theme .post-name { color: #e5e7eb; }
@@ -350,22 +392,22 @@ try {
         background-color: #dc2626;
         color: white;
         border: none;
-        padding: 8px 16px;
+        padding: 6px 12px;
         border-radius: 8px;
         cursor: pointer;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
-        transition: all 0.3s;
+        transition: all 0.2s;
         display: inline-flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
         font-family: inherit;
     }
 
     .unapply-btn:hover {
         background-color: #b91c1c;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
     }
 
     .unapply-btn.loading {
@@ -381,8 +423,8 @@ try {
 
     .unapply-btn .spinner {
         display: none;
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
         border: 2px solid rgba(255, 255, 255, 0.3);
         border-radius: 50%;
         border-top-color: white;
@@ -394,19 +436,19 @@ try {
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .message {
-        padding: 15px 20px;
+        padding: 12px 18px;
         border-radius: 12px;
-        margin-bottom: 25px;
+        margin-bottom: 20px;
         display: flex;
         align-items: center;
-        gap: 12px;
-        font-size: 14px;
+        gap: 10px;
+        font-size: 13px;
     }
 
     .message.success {
         background-color: #d1fae5;
         color: #065f46;
-        border-left: 4px solid #10b981;
+        border-left: 3px solid #10b981;
     }
 
     body.dark-theme .message.success {
@@ -417,7 +459,7 @@ try {
     .message.error {
         background-color: #fee2e2;
         color: #991b1b;
-        border-left: 4px solid #dc2626;
+        border-left: 3px solid #dc2626;
     }
 
     body.dark-theme .message.error {
@@ -427,57 +469,76 @@ try {
 
     .no-data {
         text-align: center;
-        padding: 50px;
+        padding: 40px 20px;
         color: #9ca3af;
     }
 
     .no-data i {
-        font-size: 48px;
-        margin-bottom: 15px;
+        font-size: 40px;
+        margin-bottom: 12px;
         display: block;
         color: #d1d5db;
     }
 
     body.dark-theme .no-data i { color: #4b5563; }
 
+    .no-data p {
+        font-size: 13px;
+        margin-bottom: 6px;
+    }
+
     .register-link {
-        display: inline-block;
-        margin-top: 15px;
-        color: #2c7a7b;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 14px;
+        padding: 9px 18px;
+        background-color: #2c7a7b;
+        color: white;
         text-decoration: none;
-        font-weight: 500;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 13px;
+        transition: all 0.2s;
     }
 
     .register-link:hover {
-        color: #236162;
-        text-decoration: underline;
+        background-color: #236162;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(44, 122, 123, 0.3);
     }
 
     .apply-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
         color: #2c7a7b;
-        font-size: 13px;
+        font-size: 12px;
         text-decoration: none;
+        font-weight: 600;
+        margin-top: 6px;
     }
 
     .apply-link:hover { text-decoration: underline; }
 
     .info-text {
         color: #6b7280;
-        margin-top: 15px;
-        font-size: 14px;
+        margin: 10px 0 4px 0;
+        font-size: 13px;
     }
 
     body.dark-theme .info-text { color: #9ca3af; }
 
-    .info-text i { color: #2c7a7b; }
+    .info-text i { color: #2c7a7b; margin-right: 5px; }
 
     @media (max-width: 768px) {
-        .applications-container {
-            margin: 20px;
-            padding: 20px;
-        }
-        .applications-container h1 { font-size: 24px; }
-        .election-title { font-size: 18px; }
+        .applications-container { padding: 0 15px; }
+        .applications-hero { padding: 18px 20px; gap: 14px; }
+        .applications-hero-icon { width: 42px; height: 42px; font-size: 22px; }
+        .applications-hero-text h1 { font-size: 18px; }
+        .applications-hero-text p { font-size: 12px; }
+        .applications-card { padding: 18px; }
+        .election-title { font-size: 14px; }
         .contest-post-item {
             flex-direction: column;
             align-items: flex-start;
@@ -490,24 +551,37 @@ try {
 </style>
 
 <div class="applications-container">
-    <h1> My Applications</h1>
-    <div class="subtitle">View your election registrations and candidacy applications</div>
+    <!-- Compact hero -->
+    <div class="applications-hero">
+        <div class="applications-hero-icon">
+            <i class="fas fa-file-alt"></i>
+        </div>
+        <div class="applications-hero-text">
+            <h1>My Applications</h1>
+            <p>View your election registrations and candidacy applications</p>
+        </div>
+    </div>
 
     <?php if (!empty($message)): ?>
         <div class="message <?php echo $messageType; ?>">
             <i class="fas <?php echo $messageType == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
-            <span><?php echo $message; ?></span>
+            <span><?php echo htmlspecialchars($message); ?></span>
         </div>
     <?php endif; ?>
 
-    <div class="section">
-        <h2>My Election Activities</h2>
+    <div class="applications-card">
+        <div class="section-header">
+            <h2>My Election Activities</h2>
+        </div>
 
         <?php if (empty($finalElections)): ?>
             <div class="no-data">
+                <i class="fas fa-inbox"></i>
                 <p>You are not registered for any elections.</p>
                 <p>You haven't applied for any candidacy positions yet.</p>
-                <a href="apply.php" class="register-link"><i class="fas fa-user-plus"></i> Apply for Candidacy</a>
+                <a href="apply.php" class="register-link">
+                    <i class="fas fa-user-plus"></i> Apply for Candidacy
+                </a>
             </div>
         <?php else: ?>
             <ul class="election-list">
@@ -517,7 +591,9 @@ try {
                             <div class="election-title">
                                 <?php echo htmlspecialchars($election['election_title']); ?>
                                 <?php if (!empty($election['contested_posts'])): ?>
-                                    <span class="badge-contesting"> Contesting</span>
+                                    <span class="badge-contesting">
+                                        <i class="fas fa-check-circle"></i> Contesting
+                                    </span>
                                 <?php endif; ?>
                             </div>
                             <div>
@@ -529,19 +605,18 @@ try {
                         </div>
 
                         <?php if (!empty($election['contested_posts'])): ?>
-                            <div style="margin-top: 15px;">
-                                <strong style="color: #374151; display: block; margin-bottom: 10px;">
-                                    My Candidacy Applications:
-                                </strong>
+                            <div style="margin-top: 12px;">
+                                <span class="contest-posts-label">My Candidacy Applications:</span>
                                 <ul class="contest-posts">
                                     <?php foreach ($election['contested_posts'] as $post): ?>
                                         <li class="contest-post-item">
                                             <div class="post-info">
+                                                <i class="fas fa-user-tie post-icon"></i>
                                                 <span class="post-name"><?php echo htmlspecialchars($post['postname']); ?></span>
                                             </div>
                                             <button class="unapply-btn" data-election-id="<?php echo $election['election_id']; ?>" data-postname="<?php echo htmlspecialchars($post['postname']); ?>" data-post-id="<?php echo $post['id']; ?>">
                                                 <span class="spinner"></span>
-                                                <span class="btn-text">Withdraw Application</span>
+                                                <span class="btn-text"><i class="fas fa-times-circle"></i> Withdraw</span>
                                             </button>
                                         </li>
                                     <?php endforeach; ?>
@@ -552,7 +627,7 @@ try {
                                 <i class="fas fa-info-circle"></i> You are registered as a voter for this election but not contesting any position.
                             </p>
                             <a href="apply.php?election_id=<?php echo $election['election_id']; ?>" class="apply-link">
-                                <i class="fas fa-user-plus"></i> Apply for a position
+                                Apply for a position
                             </a>
                         <?php endif; ?>
                     </li>
