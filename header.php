@@ -69,6 +69,10 @@ function navActive($file, $currentPage) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Witty Voting System | Users</title>
+    <meta name="keywords" content="portfolio, projects, web development, design">
+    <meta name="author" content="Jacob witty">
+    <link rel="icon" href="/logo.jpg" type="image/x-icon">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
