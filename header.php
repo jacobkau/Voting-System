@@ -4,6 +4,11 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Ensure DB connection is available for avatar lookups
+if (!isset($conn)) {
+    include __DIR__ . '/conn.php';
+}
+
 // Cloudinary helpers
 require_once __DIR__ . '/cloudinary.php';
 
@@ -11,12 +16,39 @@ require_once __DIR__ . '/cloudinary.php';
 $userName = $_SESSION['username'] ?? 'Guest';
 $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
 
-// Resolve the user's avatar (Cloudinary URL or system default)
+// Resolve the user's avatar — always prefer the DB value,
+// fall back to the session, then to the system default.
 $headerAvatarUrl = defaultAvatarUrl();
-if ($isLoggedIn && !empty($_SESSION['profile_photo'])) {
-    $sessionPhoto = $_SESSION['profile_photo'];
-    if (preg_match('#^(https?://|data:image/)#i', $sessionPhoto)) {
-        $headerAvatarUrl = $sessionPhoto;
+
+if ($isLoggedIn) {
+    $resolvedAvatar = null;
+
+    // 1. Try the DB (authoritative source)
+    if (!empty($_SESSION['user_id']) && isset($conn)) {
+        try {
+            $avatarStmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
+            $avatarStmt->execute([$_SESSION['user_id']]);
+            $avatarRow = $avatarStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($avatarRow && !empty($avatarRow['profile_photo']) && preg_match('#^https?://#i', $avatarRow['profile_photo'])) {
+                $resolvedAvatar = $avatarRow['profile_photo'];
+                $_SESSION['profile_photo'] = $resolvedAvatar; // keep session in sync
+            }
+        } catch (PDOException $e) {
+            error_log("Header avatar fetch error: " . $e->getMessage());
+        }
+    }
+
+    // 2. Fall back to the session if the DB didn't return a valid URL
+    if (empty($resolvedAvatar) && !empty($_SESSION['profile_photo'])) {
+        $sessionPhoto = $_SESSION['profile_photo'];
+        if (preg_match('#^https?://#i', $sessionPhoto)) {
+            $resolvedAvatar = $sessionPhoto;
+        }
+    }
+
+    if (!empty($resolvedAvatar)) {
+        $headerAvatarUrl = $resolvedAvatar;
     }
 }
 
@@ -244,6 +276,7 @@ function navActive($file, $currentPage) {
             border: 2px solid;
             display: inline-block;
             vertical-align: middle;
+            background: #f4f7f9;
         }
 
         .theme-toggle {
