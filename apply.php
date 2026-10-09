@@ -30,6 +30,7 @@ $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    verifyCsrf();
     $electionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : null;
     $postName = isset($_POST['postname']) ? trim($_POST['postname']) : null;
     $bio = isset($_POST['bio']) ? trim($_POST['bio']) : "";
@@ -413,6 +414,7 @@ if ($selectedElectionId) {
     </div>
 
     <form method="post" enctype="multipart/form-data" id="applicationForm">
+         <?= csrfField() ?>
         <div class="form-group">
             <label for="profile_photo" class="required">Profile Photo:</label>
             <input type="file" name="profile_photo" id="profile_photo" accept="image/*" required>
