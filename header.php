@@ -68,7 +68,6 @@ function navActive($file, $currentPage) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        /* Height of the fixed top row — used by body padding + sticky offset */
         :root {
             --top-row-height: 68px;
         }
@@ -99,11 +98,15 @@ function navActive($file, $currentPage) {
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         }
 
-        body.light-theme .navbar a {
+        /* Link defaults in light theme */
+        body.light-theme .nav-top a,
+        body.light-theme .nav-bottom a {
             color: #4b5563;
+            text-decoration: none;
         }
 
-        body.light-theme .navbar a:hover {
+        body.light-theme .nav-top a:hover,
+        body.light-theme .nav-bottom a:hover {
             background-color: #f3f4f6;
             color: #2c7a7b;
         }
@@ -176,11 +179,14 @@ function navActive($file, $currentPage) {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
-        body.dark-theme .navbar a {
+        body.dark-theme .nav-top a,
+        body.dark-theme .nav-bottom a {
             color: #cbd5e1;
+            text-decoration: none;
         }
 
-        body.dark-theme .navbar a:hover {
+        body.dark-theme .nav-top a:hover,
+        body.dark-theme .nav-bottom a:hover {
             background-color: rgba(255, 255, 255, 0.08);
             color: #ffffff;
         }
@@ -263,6 +269,26 @@ function navActive($file, $currentPage) {
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        /* ---------- All nav links (top + bottom) ---------- */
+        .nav-top a,
+        .nav-bottom a {
+            text-decoration: none;
+            padding: 8px 14px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            color: #4b5563; /* default — overridden by theme rules */
+        }
+
+        .nav-top a:hover,
+        .nav-bottom a:hover {
+            text-decoration: none;
+        }
+
         /* Brand */
         .brand {
             display: flex;
@@ -270,6 +296,11 @@ function navActive($file, $currentPage) {
             gap: 12px;
             text-decoration: none;
             color: inherit;
+            padding: 0;
+        }
+
+        .brand:hover {
+            background-color: transparent !important;
         }
 
         .brand-logo {
@@ -286,6 +317,7 @@ function navActive($file, $currentPage) {
             font-weight: 700;
             margin: 0;
             line-height: 1.2;
+            color: inherit;
         }
 
         .brand-text p {
@@ -293,6 +325,7 @@ function navActive($file, $currentPage) {
             opacity: 0.7;
             margin-top: 2px;
             line-height: 1.2;
+            color: inherit;
         }
 
         /* Right side of top row */
@@ -301,19 +334,6 @@ function navActive($file, $currentPage) {
             align-items: center;
             gap: 8px;
             flex-wrap: wrap;
-        }
-
-        /* Links */
-        .navbar a {
-            text-decoration: none;
-            padding: 8px 14px;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            font-size: 14px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap;
         }
 
         .nav-avatar {
@@ -352,11 +372,22 @@ function navActive($file, $currentPage) {
             transition: all 0.2s ease;
         }
 
+        /* Login button (logged out state) */
+        .login-btn {
+            background-color: #2c7a7b;
+            color: white !important;
+        }
+
+        .login-btn:hover {
+            background-color: #236162 !important;
+            color: white !important;
+        }
+
         /* ---------- Mobile ---------- */
         @media (max-width: 1024px) {
             :root { --top-row-height: 62px; }
             .brand-text h1 { font-size: 1.05rem; }
-            .navbar a, .theme-toggle { padding: 6px 10px; font-size: 13px; }
+            .nav-top a, .nav-bottom a, .theme-toggle { padding: 6px 10px; font-size: 13px; }
         }
 
         @media (max-width: 900px) {
@@ -390,7 +421,7 @@ function navActive($file, $currentPage) {
                 width: 100%;
             }
 
-            .navbar a, .theme-toggle { padding: 8px 12px; font-size: 12px; }
+            .nav-top a, .nav-bottom a, .theme-toggle { padding: 8px 12px; font-size: 12px; }
 
             .nav-bottom {
                 justify-content: center;
@@ -456,14 +487,14 @@ function navActive($file, $currentPage) {
                         <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                     </a>
                 <?php else: ?>
-                    <a href="login.php" style="background-color: #2c7a7b; color: white;">
+                    <a href="login.php" class="login-btn">
                         <i class="fas fa-sign-in-alt"></i> <span>Login</span>
                     </a>
                 <?php endif; ?>
             </div>
         </div>
 
-        <!-- Bottom row: sticky, scrolls with page then pins below top row -->
+        <!-- Bottom row: sticky -->
         <div class="nav-bottom">
             <?php if ($isLoggedIn): ?>
                 <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
