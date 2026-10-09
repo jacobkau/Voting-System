@@ -1,18 +1,36 @@
 <?php
+// =====================================================================
+// conn.php — database, session, CSRF, HTTPS enforcement
+// =====================================================================
 
+if (defined('CONN_LOADED')) {
+    return;
+}
+define('CONN_LOADED', true);
+
+// =====================================================================
+// SESSION
+// =====================================================================
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// =====================================================================
+// CSRF HELPERS
+// =====================================================================
 require_once __DIR__ . '/csrf.php';
 
 // =====================================================================
 // HTTPS ENFORCEMENT
-// =====================================================================
-// Skip enforcement for CLI (e.g., cron jobs, artisan, migrations)
-if (php_sapi_name() !== 'cli') {
+// ---------------------------------------------------------------------
 
-    // 1. Detect whether the current request is already HTTPS
+if (php_sapi_name() !== 'cli'
+    && !headers_sent()
+    && empty($GLOBALS['__https_enforced'])) {
+
+    $GLOBALS['__https_enforced'] = true;
+
+    // Detect HTTPS, honoring proxies (Render, Cloudflare, etc.)
     $isHttps =
         (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
         || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
@@ -23,19 +41,16 @@ if (php_sapi_name() !== 'cli') {
         || (!empty($_SERVER['HTTP_CF_VISITOR'])
             && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
 
-    // 2. If not HTTPS, redirect permanently (301) to the HTTPS version
     if (!$isHttps) {
-        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+        $host       = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
         $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-        $redirect = 'https://' . $host . $requestUri;
 
         header('HTTP/1.1 301 Moved Permanently');
-        header('Location: ' . $redirect);
+        header('Location: https://' . $host . $requestUri);
         exit;
     }
 
-    // 3. Send HSTS header (browsers remember to always use HTTPS)
-    // Only send if we're on HTTPS. Start with a short max-age; raise it after testing.
+    // HSTS — tell browsers to always use HTTPS for this domain
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
 
@@ -57,16 +72,16 @@ if (!$fields || !isset($fields["host"])) {
     die("Database Connection Error: Secure configuration string is corrupted.");
 }
 
-// 3. Cleanly build the basic MySQL DSN (No SSL text inside the string)
-$dsn = "mysql:host=" . $fields["host"];
+// 3. Cleanly build the basic MySQL DSN (no SSL text inside the string)
+$dsn  = "mysql:host=" . $fields["host"];
 $dsn .= ";port=" . ($fields["port"] ?? '27643');
 $dsn .= ";dbname=defaultdb;charset=utf8mb4";
 
 // 4. Pass the SSL certificate correctly using PHP PDO Array options
 $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::MYSQL_ATTR_SSL_CA => __DIR__ . '/ca.pem',
-    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true    // Forces certificate verification
+    PDO::ATTR_ERRMODE                      => PDO::ERRMODE_EXCEPTION,
+    PDO::MYSQL_ATTR_SSL_CA                 => __DIR__ . '/ca.pem',
+    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true, 
 ];
 
 try {
@@ -74,11 +89,11 @@ try {
     $pass = $fields["pass"] ?? '';
 
     // 5. Connect securely using the options array
-    $db = new PDO($dsn, $user, $pass, $options);
+    $db   = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
 
 } catch (Exception $e) {
-    // If it still fails, let's see the error temporarily so we can fix it!
     die("Database Connection Error: " . $e->getMessage());
 }
-?>
+
+ ?> 
