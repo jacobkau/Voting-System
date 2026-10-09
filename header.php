@@ -1,10 +1,8 @@
 <?php
-// header.php - Common header for all pages
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Ensure DB connection is available for avatar lookups
 if (!isset($conn)) {
     include __DIR__ . '/conn.php';
 }
@@ -22,6 +20,7 @@ $headerAvatarUrl = defaultAvatarUrl();
 if ($isLoggedIn) {
     $resolvedAvatar = null;
 
+    // 1. DB lookup 
     if (!empty($_SESSION['user_id']) && isset($conn)) {
         try {
             $avatarStmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
@@ -37,6 +36,7 @@ if ($isLoggedIn) {
         }
     }
 
+    // 2. Session fallback
     if (empty($resolvedAvatar) && !empty($_SESSION['profile_photo'])) {
         $sessionPhoto = $_SESSION['profile_photo'];
         if (preg_match('#^https?://#i', $sessionPhoto)) {
@@ -49,12 +49,16 @@ if ($isLoggedIn) {
     }
 }
 
-// System logo
-$systemLogoUrl = getenv('SYSTEM_LOGO_URL') ?: defaultAvatarUrl();
+// logo URL
+$logoUrl = getenv('SYSTEM_LOGO_URL');
+if (empty($logoUrl) || !preg_match('#^https?://#i', $logoUrl)) {
+    $logoUrl = '';
+}
 
-// Current page for active link detection
+// Determine current page filename for active link detection
 $currentPage = basename($_SERVER['PHP_SELF']);
 
+// Helper to output the active class
 function navActive($file, $currentPage) {
     return $file === $currentPage ? ' active' : '';
 }
@@ -68,58 +72,42 @@ function navActive($file, $currentPage) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        :root {
-            --top-row-height: 68px;
-        }
-
-        /* ---------- Base ---------- */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
-            padding-top: var(--top-row-height);
+            padding-top: 76px;
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        /* ---------- Light theme ---------- */
         body.light-theme {
             background-color: #f4f7f9;
             color: #1f2937;
         }
 
-        body.light-theme .nav-top {
+        body.light-theme .navbar {
             background-color: #ffffff;
             color: #1f2937;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
             border-bottom: 1px solid #e5e7eb;
         }
 
-        body.light-theme .nav-bottom {
-            background-color: #ffffff;
-            border-bottom: 1px solid #e5e7eb;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-        }
+        body.light-theme .navbar .brand-name { color: #1f2937; }
+        body.light-theme .navbar .brand-icon { color: #2c7a7b; }
 
-        /* Link defaults in light theme */
-        body.light-theme .nav-top a,
-        body.light-theme .nav-bottom a {
-            color: #4b5563;
-            text-decoration: none;
-        }
+        body.light-theme .navbar a { color: #4b5563; }
 
-        body.light-theme .nav-top a:hover,
-        body.light-theme .nav-bottom a:hover {
+        body.light-theme .navbar a:hover {
             background-color: #f3f4f6;
             color: #2c7a7b;
         }
 
-        body.light-theme .nav-bottom a.active {
+        body.light-theme .navbar a.active {
             background-color: #e6f4f4;
             color: #2c7a7b;
             font-weight: 600;
         }
 
-        body.light-theme .nav-avatar {
-            border-color: #2c7a7b;
-        }
+        body.light-theme .nav-avatar { border-color: #2c7a7b; }
 
         body.light-theme .help-link {
             background: #f9fafb;
@@ -138,9 +126,7 @@ function navActive($file, $currentPage) {
             color: #b91c1c;
         }
 
-        body.light-theme .logout-link:hover {
-            background: #fee2e2;
-        }
+        body.light-theme .logout-link:hover { background: #fee2e2; }
 
         body.light-theme .theme-toggle {
             background: #f3f4f6;
@@ -157,41 +143,34 @@ function navActive($file, $currentPage) {
             color: #2c7a7b;
         }
 
-        body.light-theme .user-info:hover {
-            background: #d1ebeb;
+        body.light-theme .user-info:hover { background: #d1ebeb; }
+
+        body.light-theme .nav-divider {
+            background: #e5e7eb;
         }
 
-        /* ---------- Dark theme ---------- */
         body.dark-theme {
             background-color: #1e293b;
             color: #f3f4f6;
         }
 
-        body.dark-theme .nav-top {
+        body.dark-theme .navbar {
             background-color: #0f172a;
             color: #f3f4f6;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
         }
 
-        body.dark-theme .nav-bottom {
-            background-color: #0f172a;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-        }
+        body.dark-theme .navbar .brand-name { color: #f3f4f6; }
+        body.dark-theme .navbar .brand-icon { color: #2c7a7b; }
 
-        body.dark-theme .nav-top a,
-        body.dark-theme .nav-bottom a {
-            color: #cbd5e1;
-            text-decoration: none;
-        }
+        body.dark-theme .navbar a { color: #cbd5e1; }
 
-        body.dark-theme .nav-top a:hover,
-        body.dark-theme .nav-bottom a:hover {
+        body.dark-theme .navbar a:hover {
             background-color: rgba(255, 255, 255, 0.08);
             color: #ffffff;
         }
 
-        body.dark-theme .nav-bottom a.active {
+        body.dark-theme .navbar a.active {
             background-color: rgba(44, 122, 123, 0.3);
             color: #ffffff;
             font-weight: 600;
@@ -206,9 +185,7 @@ function navActive($file, $currentPage) {
             border: 1px solid rgba(255, 255, 255, 0.15);
         }
 
-        body.dark-theme .help-link:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
+        body.dark-theme .help-link:hover { background: rgba(255, 255, 255, 0.15); }
 
         body.dark-theme .logout-link {
             background: rgba(220, 38, 38, 0.2);
@@ -216,129 +193,104 @@ function navActive($file, $currentPage) {
             color: #fecaca;
         }
 
-        body.dark-theme .logout-link:hover {
-            background: rgba(220, 38, 38, 0.35);
-        }
+        body.dark-theme .logout-link:hover { background: rgba(220, 38, 38, 0.35); }
 
         body.dark-theme .theme-toggle {
             background: rgba(255, 255, 255, 0.1);
             color: #f3f4f6;
         }
 
-        body.dark-theme .theme-toggle:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
+        body.dark-theme .theme-toggle:hover { background: rgba(255, 255, 255, 0.2); }
 
         body.dark-theme .user-info {
             background: rgba(255, 255, 255, 0.1);
             color: #f3f4f6;
         }
 
-        body.dark-theme .user-info:hover {
-            background: rgba(255, 255, 255, 0.18);
+        body.dark-theme .user-info:hover { background: rgba(255, 255, 255, 0.18); }
+
+        body.dark-theme .nav-divider {
+            background: rgba(255, 255, 255, 0.1);
         }
 
-        /* ---------- Top row: FIXED ---------- */
-        .nav-top {
+        .navbar {
+            padding: 12px 30px;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 20px;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            z-index: 1001;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-            padding: 12px 30px;
-            height: var(--top-row-height);
-            transition: background-color 0.3s ease, color 0.3s ease;
+            z-index: 1000;
+            transition: all 0.3s ease;
         }
 
-        /* ---------- Bottom row: STICKY below top row ---------- */
-        .nav-bottom {
-            position: sticky;
-            top: var(--top-row-height);
-            z-index: 1000;
+        .navbar .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+
+        .navbar .brand-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: #ffffff;
+            display: block;
+        }
+
+        .navbar .brand-icon {
+            font-size: 1.6rem;
+            display: none; 
+        }
+
+        .navbar .brand-name {
+            font-size: 1.05rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .navbar .nav-center {
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-wrap: wrap;
             gap: 4px;
-            padding: 8px 30px;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            flex-wrap: wrap;
         }
 
-        /* ---------- All nav links (top + bottom) ---------- */
-        .nav-top a,
-        .nav-bottom a {
+        .navbar .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-shrink: 0;
+        }
+
+        .navbar a,
+        .navbar .theme-toggle,
+        .navbar .user-info {
             text-decoration: none;
-            padding: 8px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
             transition: all 0.2s ease;
-            font-size: 14px;
+            font-size: 13px;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
+            gap: 7px;
             white-space: nowrap;
-            color: #4b5563; /* default — overridden by theme rules */
-        }
-
-        .nav-top a:hover,
-        .nav-bottom a:hover {
-            text-decoration: none;
-        }
-
-        /* Brand */
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            text-decoration: none;
-            color: inherit;
-            padding: 0;
-        }
-
-        .brand:hover {
-            background-color: transparent !important;
-        }
-
-        .brand-logo {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            object-fit: cover;
-            background: #f4f7f9;
-            display: inline-block;
-        }
-
-        .brand-text h1 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin: 0;
-            line-height: 1.2;
-            color: inherit;
-        }
-
-        .brand-text p {
-            font-size: 11px;
-            opacity: 0.7;
-            margin-top: 2px;
-            line-height: 1.2;
-            color: inherit;
-        }
-
-        /* Right side of top row */
-        .nav-top-right {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
+            font-family: inherit;
+            border: none;
+            cursor: pointer;
         }
 
         .nav-avatar {
-            width: 26px;
-            height: 26px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid;
@@ -347,115 +299,82 @@ function navActive($file, $currentPage) {
             background: #f4f7f9;
         }
 
-        .theme-toggle {
-            border: none;
-            padding: 8px 14px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            font-family: inherit;
-            white-space: nowrap;
-        }
-
         .user-info {
-            padding: 6px 12px;
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 13px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
             font-weight: 500;
-            transition: all 0.2s ease;
         }
 
-        /* Login button (logged out state) */
-        .login-btn {
-            background-color: #2c7a7b;
-            color: white !important;
+        .nav-divider {
+            width: 1px;
+            height: 24px;
+            margin: 0 2px;
+            flex-shrink: 0;
         }
 
-        .login-btn:hover {
-            background-color: #236162 !important;
-            color: white !important;
-        }
-
-        /* ---------- Mobile ---------- */
-        @media (max-width: 1024px) {
-            :root { --top-row-height: 62px; }
-            .brand-text h1 { font-size: 1.05rem; }
-            .nav-top a, .nav-bottom a, .theme-toggle { padding: 6px 10px; font-size: 13px; }
+        @media (max-width: 1100px) {
+            .navbar { padding: 10px 20px; gap: 12px; }
+            .navbar .brand-name { font-size: 0.95rem; }
+            .navbar a,
+            .navbar .theme-toggle,
+            .navbar .user-info { padding: 7px 10px; font-size: 12px; }
         }
 
         @media (max-width: 900px) {
-            .nav-bottom {
-                gap: 3px;
-                padding: 6px 15px;
-            }
-            .nav-bottom a {
-                padding: 6px 9px;
-                font-size: 12px;
-            }
-            .nav-bottom a i { font-size: 13px; }
+            .navbar .brand-name { display: none; }
+            .navbar .nav-center a span { display: none; }
+            .navbar .nav-center a { padding: 8px 10px; }
+            .navbar .nav-center a i { margin: 0; font-size: 15px; }
         }
 
         @media (max-width: 768px) {
-            :root { --top-row-height: 110px; }
+            body { padding-top: 130px; }
 
-            .nav-top {
-                flex-direction: column;
+            .navbar {
+                grid-template-columns: 1fr;
+                justify-items: center;
                 text-align: center;
-                gap: 8px;
-                padding: 10px 20px;
-                height: auto;
-                min-height: var(--top-row-height);
+                gap: 10px;
+                padding: 12px 16px;
             }
 
-            .brand { justify-content: center; }
+            .navbar .brand-name { display: inline; font-size: 1rem; }
+            .navbar .brand { justify-content: center; }
 
-            .nav-top-right {
-                justify-content: center;
+            .navbar .nav-center {
                 width: 100%;
-            }
-
-            .nav-top a, .nav-bottom a, .theme-toggle { padding: 8px 12px; font-size: 12px; }
-
-            .nav-bottom {
                 justify-content: center;
                 gap: 4px;
-                padding: 8px 15px;
             }
+
+            .navbar .nav-center a span { display: inline; }
+
+            .navbar .nav-right {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .nav-divider { display: none; }
         }
 
         @media (max-width: 600px) {
-            :root { --top-row-height: 118px; }
+            body { padding-top: 150px; }
 
-            .nav-bottom a span,
-            .theme-toggle span {
-                display: none;
-            }
-            .nav-bottom a i,
-            .theme-toggle i {
-                margin: 0;
-                font-size: 15px;
-            }
-
-            .nav-top-right .user-info span {
-                display: inline;
-                font-size: 12px;
-            }
+            .navbar .nav-center a span { display: none; }
+            .navbar .nav-center a i { margin: 0; font-size: 15px; }
+            .navbar .theme-toggle span { display: none; }
+            .navbar .logout-link span { display: none; }
+            .navbar .user-info span { display: inline; font-size: 12px; }
         }
 
         @media (max-width: 480px) {
-            :root { --top-row-height: 112px; }
-            .nav-top { padding: 10px 15px; }
-            .brand-logo { width: 34px; height: 34px; }
-            .brand-text h1 { font-size: 0.95rem; }
-            .brand-text p { display: none; }
-            .nav-bottom { padding: 6px 10px; gap: 3px; }
+            body { padding-top: 165px; }
+            .navbar { padding: 10px 12px; }
+            .navbar .brand-logo { width: 30px; height: 30px; }
+            .navbar .brand-name { font-size: 0.9rem; }
         }
 
         .main-content {
@@ -467,67 +386,74 @@ function navActive($file, $currentPage) {
 </head>
 <body>
     <header>
-        <!-- Top row: always fixed -->
-        <div class="nav-top">
+        <div class="navbar" id="navbar">
             <a href="index.php" class="brand">
-                <img src="<?php echo htmlspecialchars($systemLogoUrl); ?>" alt="Logo" class="brand-logo">
-                <div class="brand-text">
-                    <h1>Witty Voting System</h1>
-                    <p>Manage elections and cast your vote</p>
-                </div>
+                <?php if (!empty($logoUrl)): ?>
+                    <img src="<?php echo htmlspecialchars($logoUrl); ?>" alt="Logo" class="brand-logo">
+                <?php else: ?>
+                    <i class="fas fa-vote-yea brand-icon" style="display: inline-block;"></i>
+                <?php endif; ?>
+                <span class="brand-name">Witty Voting System</span>
             </a>
 
-            <div class="nav-top-right">
+            <div class="nav-center">
+                <?php if ($isLoggedIn): ?>
+                    <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
+                        <i class="fas fa-check-circle"></i> <span>Vote</span>
+                    </a>
+                    <a href="apply.php" class="<?php echo trim(navActive('apply.php', $currentPage)); ?>">
+                        <i class="fas fa-user-plus"></i> <span>Candidacy</span>
+                    </a>
+                    <a href="contest.php" class="<?php echo trim(navActive('contest.php', $currentPage)); ?>">
+                        <i class="fas fa-users"></i> <span>Contesters</span>
+                    </a>
+                    <a href="my_applications.php" class="<?php echo trim(navActive('my_applications.php', $currentPage)); ?>">
+                        <i class="fas fa-file-alt"></i> <span>My Apps</span>
+                    </a>
+                    <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
+                        <i class="fas fa-chart-bar"></i> <span>Results</span>
+                    </a>
+                    <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
+                        <i class="fas fa-question-circle"></i> <span>Help</span>
+                    </a>
+                <?php else: ?>
+                    <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
+                        <i class="fas fa-chart-bar"></i> <span>Results</span>
+                    </a>
+                    <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
+                        <i class="fas fa-question-circle"></i> <span>Help</span>
+                    </a>
+                <?php endif; ?>
+            </div>
+
+            <div class="nav-right">
                 <?php if ($isLoggedIn): ?>
                     <a href="profile.php" class="user-info<?php echo navActive('profile.php', $currentPage); ?>">
                         <img src="<?php echo htmlspecialchars($headerAvatarUrl); ?>" alt="Avatar" class="nav-avatar">
                         <span><?php echo htmlspecialchars($userName); ?></span>
                     </a>
+
+                    <span class="nav-divider"></span>
+
+                    <button id="themeToggle" class="theme-toggle" type="button">
+                        <i class="fas fa-moon"></i>
+                        <span>Dark</span>
+                    </button>
+
                     <a href="logout.php" class="logout-link">
                         <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                     </a>
                 <?php else: ?>
-                    <a href="login.php" class="login-btn">
+                    <button id="themeToggle" class="theme-toggle" type="button">
+                        <i class="fas fa-moon"></i>
+                        <span>Dark</span>
+                    </button>
+
+                    <a href="login.php" class="<?php echo trim(navActive('login.php', $currentPage)); ?>" style="background-color: #2c7a7b; color: white;">
                         <i class="fas fa-sign-in-alt"></i> <span>Login</span>
                     </a>
                 <?php endif; ?>
             </div>
-        </div>
-
-        <!-- Bottom row: sticky -->
-        <div class="nav-bottom">
-            <?php if ($isLoggedIn): ?>
-                <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
-                    <i class="fas fa-check-circle"></i> <span>Vote</span>
-                </a>
-                <a href="apply.php" class="<?php echo trim(navActive('apply.php', $currentPage)); ?>">
-                    <i class="fas fa-user-plus"></i> <span>Candidacy</span>
-                </a>
-                <a href="contest.php" class="<?php echo trim(navActive('contest.php', $currentPage)); ?>">
-                    <i class="fas fa-users"></i> <span>Contesters</span>
-                </a>
-                <a href="my_applications.php" class="<?php echo trim(navActive('my_applications.php', $currentPage)); ?>">
-                    <i class="fas fa-file-alt"></i> <span>My Apps</span>
-                </a>
-                <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
-                    <i class="fas fa-chart-bar"></i> <span>Results</span>
-                </a>
-                <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
-                    <i class="fas fa-question-circle"></i> <span>Help</span>
-                </a>
-            <?php else: ?>
-                <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
-                    <i class="fas fa-chart-bar"></i> <span>Results</span>
-                </a>
-                <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
-                    <i class="fas fa-question-circle"></i> <span>Help</span>
-                </a>
-            <?php endif; ?>
-
-            <button id="themeToggle" class="theme-toggle" type="button">
-                <i class="fas fa-moon"></i>
-                <span>Dark</span>
-            </button>
         </div>
     </header>
 
