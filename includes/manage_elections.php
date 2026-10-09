@@ -494,7 +494,7 @@ if (isset($_GET['edit_id'])) {
                 <?php echo $editElection ? 'Update Election' : 'Add Election'; ?>
             </button>
             <?php if ($editElection): ?>
-                <a href="manage_elections.php" style="text-align: center; display: block; margin-top: 10px; color: #666;">Cancel Edit</a>
+                <a href="main.php?page=elections" style="text-align: center; display: block; margin-top: 10px; color: #666;">Cancel Edit</a>
             <?php endif; ?>
         </form>
     </div>
@@ -545,7 +545,7 @@ if (isset($_GET['edit_id'])) {
                                     </select>
                                     <button type="submit" name="update_election_status">Update</button>
                                 </form>
-                                <a href="manage_elections.php?edit_id=<?php echo $election['id']; ?>" class="btn btn-edit btn-sm">Edit</a>
+                                <a href="main.php?page=elections&edit_id=<?= $election['id'] ?>" class="btn btn-edit btn-sm">Edit</a>
                                 <button onclick="deleteElection(<?php echo $election['id']; ?>)" class="btn btn-delete btn-sm">Delete</button>
                                 <button onclick="managePosts(<?php echo $election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')" class="btn btn-posts btn-sm">Manage Posts</button>
                             </td>
@@ -578,7 +578,7 @@ if (isset($_GET['edit_id'])) {
     <script>
     let currentElectionId = null;
     // IMPORTANT: Use the full path to manage_elections.php
-    const ajaxUrl = 'manage_elections.php';
+   const ajaxUrl = 'manage_elections.php'; 
     
     function managePosts(electionId, electionTitle) {
         currentElectionId = electionId;
@@ -616,8 +616,8 @@ if (isset($_GET['edit_id'])) {
                 data.posts.forEach(post => {
                     html += `
                         <div class="post-item">
-                            <span>📌 ${escapeHtml(post.postname)}</span>
-                            <span class="delete-post" onclick="deletePost(${post.id})">🗑️ Delete</span>
+                            <span> ${escapeHtml(post.postname)}</span>
+                            <span class="delete-post" onclick="deletePost(${post.id})"> Delete</span>
                         </div>
                     `;
                 });
@@ -697,10 +697,10 @@ if (isset($_GET['edit_id'])) {
     }
     
     function deleteElection(electionId) {
-        if (confirm('⚠️ Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
+        if (confirm(' Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = 'manage_elections.php';
+            form.action = 'main.php?page=elections';
             form.innerHTML = `<input type="hidden" name="delete_election" value="1"><input type="hidden" name="election_id" value="${electionId}">`;
             document.body.appendChild(form);
             form.submit();
