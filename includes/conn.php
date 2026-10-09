@@ -1,8 +1,10 @@
 <?php
 // =====================================================================
 // conn.php — database, session, CSRF, HTTPS enforcement
+// Safe to include multiple times per request (guarded below).
 // =====================================================================
 
+// ---- Load-once guard: makes this file idempotent ----
 if (defined('CONN_LOADED')) {
     return;
 }
@@ -23,7 +25,13 @@ require_once __DIR__ . '/csrf.php';
 // =====================================================================
 // HTTPS ENFORCEMENT
 // ---------------------------------------------------------------------
-
+// Runs only once per request, and only if PHP can still send headers.
+// Guards prevent:
+//   - "Cannot modify header information" when a sub-page re-includes
+//     this file after main.php has already printed HTML
+//   - Double redirects / double HSTS headers
+//   - Any interference with CLI scripts (cron, migrations, etc.)
+// =====================================================================
 if (php_sapi_name() !== 'cli'
     && !headers_sent()
     && empty($GLOBALS['__https_enforced'])) {
@@ -58,18 +66,40 @@ if (php_sapi_name() !== 'cli'
 // DATABASE CONNECTION
 // =====================================================================
 
+// ---------------------------------------------------------------------
+// Helper: emit a clean 500 and exit — never prints before headers are set
+// ---------------------------------------------------------------------
+if (!function_exists('conn_fail')) {
+    function conn_fail(string $logMessage): void {
+        error_log($logMessage);
+
+        if (php_sapi_name() === 'cli') {
+            fwrite(STDERR, $logMessage . "\n");
+            exit(1);
+        }
+
+        // Only try to send headers if none have been sent yet
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=utf-8');
+        }
+        echo "Database temporarily unavailable. Please try again shortly.";
+        exit;
+    }
+}
+
 // 1. Fetch the secret link from Render's environment settings
 $uri = getenv('AIVEN_DATABASE_URL');
 
 if (!$uri) {
-    die("Database Connection Error: Secure configuration string is missing.");
+    conn_fail("AIVEN_DATABASE_URL is missing from the environment.");
 }
 
 // 2. Safely parse the database URL details
 $fields = parse_url($uri);
 
 if (!$fields || !isset($fields["host"])) {
-    die("Database Connection Error: Secure configuration string is corrupted.");
+    conn_fail("AIVEN_DATABASE_URL is malformed: " . substr($uri, 0, 30) . "...");
 }
 
 // 3. Cleanly build the basic MySQL DSN (no SSL text inside the string)
@@ -81,7 +111,7 @@ $dsn .= ";dbname=defaultdb;charset=utf8mb4";
 $options = [
     PDO::ATTR_ERRMODE                      => PDO::ERRMODE_EXCEPTION,
     PDO::MYSQL_ATTR_SSL_CA                 => __DIR__ . '/ca.pem',
-    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true, 
+    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true, // Forces certificate verification
 ];
 
 try {
@@ -93,7 +123,7 @@ try {
     $conn = $db;
 
 } catch (Exception $e) {
-    die("Database Connection Error: " . $e->getMessage());
+    conn_fail("DB connection failed: " . $e->getMessage());
 }
 
- ?> 
+// ✅ No closing ?> — best practice for PHP-only files, prevents stray whitespace.
