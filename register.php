@@ -33,6 +33,7 @@ $message = "";
 $messageType = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    verifyCsrf();
     $username = trim($_POST['username']);
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
@@ -530,6 +531,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         <?php endif; ?>
         
         <form method="post" action="register.php" enctype="multipart/form-data" id="registrationForm">
+             <?= csrfField() ?>
             <div class="form-group">
                 <label for="username" class="form-label required">
                     <i class="fas fa-user"></i> Username
