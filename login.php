@@ -9,20 +9,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
     $password = trim($_POST['password']);
 
     try {
-        $stmt = $conn->prepare("SELECT id, username, name, email, profile_photo_blob, profile_photo_type, password FROM users WHERE username = ?");
+        $stmt = $conn->prepare("SELECT id, username, name, email, profile_photo, password FROM users WHERE username = ?");
         $stmt->execute([$username]);
         
         if ($stmt->rowCount() == 1) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (password_verify($password, $row['password'])) {
+                session_regenerate_id(true);
+
                 $_SESSION['user_id'] = $row['id'];
                 $_SESSION['username'] = $row['username'];
                 $_SESSION['full_name'] = $row['name'];
                 $_SESSION['email'] = $row['email'];
                 
-                if (!empty($row['profile_photo_blob'])) {
-                    $_SESSION['profile_photo'] = 'data:image/' . $row['profile_photo_type'] . ';base64,' . base64_encode($row['profile_photo_blob']);
+                // Resolve Cloudinary avatar URL
+                if (!empty($row['profile_photo']) && preg_match('#^https?://#i', $row['profile_photo'])) {
+                    $_SESSION['profile_photo'] = $row['profile_photo'];
                 } else {
                     $_SESSION['profile_photo'] = null;
                 }
