@@ -1,10 +1,4 @@
 <?php
-const MIGRATION_TOKEN = 'change-me-to-something-random-9f3a2b';
-
-if (!isset($_GET['token']) || !hash_equals(MIGRATION_TOKEN, $_GET['token'])) {
-    http_response_code(403);
-    die('Forbidden. Provide the correct ?token= value.');
-}
 
 header('Content-Type: text/plain; charset=utf-8');
 
