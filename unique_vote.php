@@ -1,9 +1,4 @@
 <?php
-// migrate_unique_vote.php
-// ONE-TIME MIGRATION: Adds UNIQUE constraint to prevent duplicate votes.
-// ⚠️  DELETE THIS FILE IMMEDIATELY AFTER RUNNING IT.
-
-// ---- Change this to any random string, then visit: migrate_unique_vote.php?token=YOUR_SECRET ----
 const MIGRATION_TOKEN = 'change-me-to-something-random-9f3a2b';
 
 if (!isset($_GET['token']) || !hash_equals(MIGRATION_TOKEN, $_GET['token'])) {
