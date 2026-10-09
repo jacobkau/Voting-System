@@ -370,7 +370,7 @@ function getProfileImage($row) {
 </style>
 
 <div class="profile-container">
-    <h1><i class="fas fa-user-circle"></i> My Profile</h1>
+    <h1> My Profile</h1>
     
     <?php if (!empty($message)): ?>
         <div class="message <?php echo $messageType; ?>">
