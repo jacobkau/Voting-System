@@ -16,6 +16,7 @@ require_once __DIR__ . '/cloudinary.php';
 $userName = $_SESSION['username'] ?? 'Guest';
 $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
 
+// Resolve the user's avatar
 $headerAvatarUrl = defaultAvatarUrl();
 
 if ($isLoggedIn) {
@@ -48,10 +49,10 @@ if ($isLoggedIn) {
     }
 }
 
-// System logo — resolved from env or default avatar as fallback
+// System logo
 $systemLogoUrl = getenv('SYSTEM_LOGO_URL') ?: defaultAvatarUrl();
 
-// Determine current page filename for active link detection
+// Current page for active link detection
 $currentPage = basename($_SERVER['PHP_SELF']);
 
 function navActive($file, $currentPage) {
@@ -67,30 +68,36 @@ function navActive($file, $currentPage) {
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        /* Height of the fixed top row — used by body padding + sticky offset */
+        :root {
+            --top-row-height: 68px;
+        }
+
+        /* ---------- Base ---------- */
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
-            padding-top: 110px;
+            padding-top: var(--top-row-height);
             transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        /* ---------- Light theme ---------- */
         body.light-theme {
             background-color: #f4f7f9;
             color: #1f2937;
         }
 
-        body.light-theme .navbar {
+        body.light-theme .nav-top {
             background-color: #ffffff;
             color: #1f2937;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
             border-bottom: 1px solid #e5e7eb;
         }
 
-        body.light-theme .nav-top {
+        body.light-theme .nav-bottom {
+            background-color: #ffffff;
             border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
         }
-
-        body.light-theme .navbar .title h1 { color: #1f2937; }
 
         body.light-theme .navbar a {
             color: #4b5563;
@@ -151,22 +158,23 @@ function navActive($file, $currentPage) {
             background: #d1ebeb;
         }
 
+        /* ---------- Dark theme ---------- */
         body.dark-theme {
             background-color: #1e293b;
             color: #f3f4f6;
         }
 
-        body.dark-theme .navbar {
+        body.dark-theme .nav-top {
             background-color: #0f172a;
             color: #f3f4f6;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        body.dark-theme .nav-top {
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        body.dark-theme .nav-bottom {
+            background-color: #0f172a;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
-
-        body.dark-theme .navbar .title h1 { color: #f3f4f6; }
 
         body.dark-theme .navbar a {
             color: #cbd5e1;
@@ -224,33 +232,38 @@ function navActive($file, $currentPage) {
             background: rgba(255, 255, 255, 0.18);
         }
 
-        .navbar {
+        /* ---------- Top row: FIXED ---------- */
+        .nav-top {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
-            z-index: 1000;
-            transition: all 0.3s ease;
-        }
-
-        .nav-top {
+            z-index: 1001;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
             gap: 12px;
             padding: 12px 30px;
+            height: var(--top-row-height);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        /* ---------- Bottom row: STICKY below top row ---------- */
         .nav-bottom {
+            position: sticky;
+            top: var(--top-row-height);
+            z-index: 1000;
             display: flex;
             justify-content: center;
             align-items: center;
             flex-wrap: wrap;
             gap: 4px;
             padding: 8px 30px;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
+        /* Brand */
         .brand {
             display: flex;
             align-items: center;
@@ -270,9 +283,6 @@ function navActive($file, $currentPage) {
 
         .brand-text h1 {
             font-size: 1.15rem;
-            display: flex;
-            align-items: center;
-            gap: 8px;
             font-weight: 700;
             margin: 0;
             line-height: 1.2;
@@ -285,6 +295,7 @@ function navActive($file, $currentPage) {
             line-height: 1.2;
         }
 
+        /* Right side of top row */
         .nav-top-right {
             display: flex;
             align-items: center;
@@ -292,6 +303,7 @@ function navActive($file, $currentPage) {
             flex-wrap: wrap;
         }
 
+        /* Links */
         .navbar a {
             text-decoration: none;
             padding: 8px 14px;
@@ -340,7 +352,9 @@ function navActive($file, $currentPage) {
             transition: all 0.2s ease;
         }
 
+        /* ---------- Mobile ---------- */
         @media (max-width: 1024px) {
+            :root { --top-row-height: 62px; }
             .brand-text h1 { font-size: 1.05rem; }
             .navbar a, .theme-toggle { padding: 6px 10px; font-size: 13px; }
         }
@@ -354,24 +368,22 @@ function navActive($file, $currentPage) {
                 padding: 6px 9px;
                 font-size: 12px;
             }
-            .nav-bottom a i {
-                font-size: 13px;
-            }
+            .nav-bottom a i { font-size: 13px; }
         }
 
         @media (max-width: 768px) {
-            body { padding-top: 130px; }
+            :root { --top-row-height: 110px; }
 
             .nav-top {
                 flex-direction: column;
                 text-align: center;
-                gap: 10px;
-                padding: 12px 20px;
+                gap: 8px;
+                padding: 10px 20px;
+                height: auto;
+                min-height: var(--top-row-height);
             }
 
-            .brand {
-                justify-content: center;
-            }
+            .brand { justify-content: center; }
 
             .nav-top-right {
                 justify-content: center;
@@ -388,7 +400,7 @@ function navActive($file, $currentPage) {
         }
 
         @media (max-width: 600px) {
-            body { padding-top: 140px; }
+            :root { --top-row-height: 118px; }
 
             .nav-bottom a span,
             .theme-toggle span {
@@ -407,7 +419,7 @@ function navActive($file, $currentPage) {
         }
 
         @media (max-width: 480px) {
-            body { padding-top: 150px; }
+            :root { --top-row-height: 112px; }
             .nav-top { padding: 10px 15px; }
             .brand-logo { width: 34px; height: 34px; }
             .brand-text h1 { font-size: 0.95rem; }
@@ -424,71 +436,67 @@ function navActive($file, $currentPage) {
 </head>
 <body>
     <header>
-        <div class="navbar" id="navbar">
-
-            <!-- Top row-->
-            <div class="nav-top">
-                <a href="index.php" class="brand">
-                    <img src="<?php echo htmlspecialchars($systemLogoUrl); ?>" alt="Logo" class="brand-logo">
-                    <div class="brand-text">
-                        <h1>Witty Voting System</h1>
-                        <p>Manage elections and cast your vote</p>
-                    </div>
-                </a>
-
-                <div class="nav-top-right">
-                    <?php if ($isLoggedIn): ?>
-                        <a href="profile.php" class="user-info<?php echo navActive('profile.php', $currentPage); ?>">
-                            <img src="<?php echo htmlspecialchars($headerAvatarUrl); ?>" alt="Avatar" class="nav-avatar">
-                            <span><?php echo htmlspecialchars($userName); ?></span>
-                        </a>
-                        <a href="logout.php" class="logout-link">
-                            <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
-                        </a>
-                    <?php else: ?>
-                        <a href="login.php" style="background-color: #2c7a7b; color: white;">
-                            <i class="fas fa-sign-in-alt"></i> <span>Login</span>
-                        </a>
-                    <?php endif; ?>
+        <!-- Top row: always fixed -->
+        <div class="nav-top">
+            <a href="index.php" class="brand">
+                <img src="<?php echo htmlspecialchars($systemLogoUrl); ?>" alt="Logo" class="brand-logo">
+                <div class="brand-text">
+                    <h1>Witty Voting System</h1>
+                    <p>Manage elections and cast your vote</p>
                 </div>
-            </div>
+            </a>
 
-            <!-- Bottom row: navigation + theme -->
-            <div class="nav-bottom">
+            <div class="nav-top-right">
                 <?php if ($isLoggedIn): ?>
-                    <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
-                        <i class="fas fa-check-circle"></i> <span>Vote</span>
+                    <a href="profile.php" class="user-info<?php echo navActive('profile.php', $currentPage); ?>">
+                        <img src="<?php echo htmlspecialchars($headerAvatarUrl); ?>" alt="Avatar" class="nav-avatar">
+                        <span><?php echo htmlspecialchars($userName); ?></span>
                     </a>
-                    <a href="apply.php" class="<?php echo trim(navActive('apply.php', $currentPage)); ?>">
-                        <i class="fas fa-user-plus"></i> <span>Candidacy</span>
-                    </a>
-                    <a href="contest.php" class="<?php echo trim(navActive('contest.php', $currentPage)); ?>">
-                        <i class="fas fa-users"></i> <span>Contesters</span>
-                    </a>
-                    <a href="my_applications.php" class="<?php echo trim(navActive('my_applications.php', $currentPage)); ?>">
-                        <i class="fas fa-file-alt"></i> <span>My Apps</span>
-                    </a>
-                    <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
-                        <i class="fas fa-chart-bar"></i> <span>Results</span>
-                    </a>
-                    <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
-                        <i class="fas fa-question-circle"></i> <span>Help</span>
+                    <a href="logout.php" class="logout-link">
+                        <i class="fas fa-sign-out-alt"></i> <span>Logout</span>
                     </a>
                 <?php else: ?>
-                    <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
-                        <i class="fas fa-chart-bar"></i> <span>Results</span>
-                    </a>
-                    <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
-                        <i class="fas fa-question-circle"></i> <span>Help</span>
+                    <a href="login.php" style="background-color: #2c7a7b; color: white;">
+                        <i class="fas fa-sign-in-alt"></i> <span>Login</span>
                     </a>
                 <?php endif; ?>
-
-                <button id="themeToggle" class="theme-toggle" type="button">
-                    <i class="fas fa-moon"></i>
-                    <span>Dark</span>
-                </button>
             </div>
+        </div>
 
+        <!-- Bottom row: sticky, scrolls with page then pins below top row -->
+        <div class="nav-bottom">
+            <?php if ($isLoggedIn): ?>
+                <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
+                    <i class="fas fa-check-circle"></i> <span>Vote</span>
+                </a>
+                <a href="apply.php" class="<?php echo trim(navActive('apply.php', $currentPage)); ?>">
+                    <i class="fas fa-user-plus"></i> <span>Candidacy</span>
+                </a>
+                <a href="contest.php" class="<?php echo trim(navActive('contest.php', $currentPage)); ?>">
+                    <i class="fas fa-users"></i> <span>Contesters</span>
+                </a>
+                <a href="my_applications.php" class="<?php echo trim(navActive('my_applications.php', $currentPage)); ?>">
+                    <i class="fas fa-file-alt"></i> <span>My Apps</span>
+                </a>
+                <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
+                    <i class="fas fa-chart-bar"></i> <span>Results</span>
+                </a>
+                <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
+                    <i class="fas fa-question-circle"></i> <span>Help</span>
+                </a>
+            <?php else: ?>
+                <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
+                    <i class="fas fa-chart-bar"></i> <span>Results</span>
+                </a>
+                <a href="help.php" class="help-link<?php echo navActive('help.php', $currentPage); ?>">
+                    <i class="fas fa-question-circle"></i> <span>Help</span>
+                </a>
+            <?php endif; ?>
+
+            <button id="themeToggle" class="theme-toggle" type="button">
+                <i class="fas fa-moon"></i>
+                <span>Dark</span>
+            </button>
         </div>
     </header>
 
