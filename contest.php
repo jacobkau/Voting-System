@@ -287,17 +287,16 @@ function getContesterImage($contester, $conn) {
 </style>
 
 <div class="contest-container">
-    <h1><i class="fas fa-users"></i> Election Contestants</h1>
+    <h1> Election Contestants</h1>
 
     <?php if (empty($elections)): ?>
         <div class="no-data">
-            <i class="fas fa-vote-yea"></i>
             <p>No elections found.</p>
         </div>
     <?php else: ?>
         <?php foreach ($elections as $election): ?>
             <div class="election-section">
-                <h2><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></h2>
+                <h2><?php echo htmlspecialchars($election['title']); ?></h2>
 
                 <?php
                 try {
@@ -318,7 +317,6 @@ function getContesterImage($contester, $conn) {
                         <?php foreach ($posts as $post): ?>
                             <div class="post-section">
                                 <h3>
-                                    <i class="fas fa-user-tie"></i>
                                     <?php echo htmlspecialchars($post['postname']); ?>
                                 </h3>
 
