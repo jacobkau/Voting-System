@@ -66,6 +66,7 @@ function sendPasswordResetEmail(string $email, string $username, string $resetLi
 
 // Handle AJAX request
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
+    verifyCsrf();
     header('Content-Type: application/json');
 
     $email = trim($_POST['email']);
@@ -438,6 +439,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax'])) {
         </div>
 
         <form id="resetForm">
+             <?= csrfField() ?>
             <div class="form-group">
                 <label for="email"><i class="fas fa-envelope"></i> Email Address</label>
                 <input type="email" name="email" id="email" placeholder="your@email.com" required>
