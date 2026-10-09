@@ -24,7 +24,6 @@ try {
 }
 
 function getContesterImage($contester, $conn) {
-   
     if (!empty($contester['user_id'])) {
         try {
             $stmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
@@ -50,12 +49,61 @@ function getContesterImage($contester, $conn) {
 <?php include("header.php"); ?>
 
 <style>
+    /* Compact hero */
+    .contest-hero {
+        background-color: #2c7a7b;
+        border-radius: 16px;
+        padding: 22px 26px;
+        color: white;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(44, 122, 123, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        flex-wrap: wrap;
+    }
+
+    body.dark-theme .contest-hero {
+        background-color: #0f172a;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+    }
+
+    .contest-hero-icon {
+        font-size: 26px;
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .contest-hero-text {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .contest-hero-text h1 {
+        font-size: 20px;
+        margin-bottom: 4px;
+        font-weight: 700;
+    }
+
+    .contest-hero-text p {
+        font-size: 13px;
+        opacity: 0.9;
+        line-height: 1.5;
+    }
+
+    /* Container */
     .contest-container {
         max-width: 1400px;
-        margin: 40px auto;
+        margin: 0 auto 40px;
         background-color: #ffffff;
-        padding: 35px;
-        border-radius: 20px;
+        padding: 25px;
+        border-radius: 16px;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease;
@@ -67,30 +115,18 @@ function getContesterImage($contester, $conn) {
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
 
-    .contest-container h1 {
-        color: #1f2937;
-        margin-bottom: 30px;
-        text-align: center;
-        font-size: 32px;
-        transition: color 0.3s ease;
-    }
-
-    body.dark-theme .contest-container h1 { color: #f3f4f6; }
-
-    .contest-container h1 i {
-        color: #2c7a7b;
-        margin-right: 10px;
-    }
-
+    /* Election section */
     .election-section {
-        margin-bottom: 40px;
+        margin-bottom: 24px;
         border: 1px solid #e5e7eb;
-        border-radius: 16px;
+        border-radius: 12px;
         overflow: hidden;
         background: #ffffff;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         transition: background-color 0.3s ease, border-color 0.3s ease;
     }
+
+    .election-section:last-child { margin-bottom: 0; }
 
     body.dark-theme .election-section {
         background: #1e1e2e;
@@ -101,8 +137,9 @@ function getContesterImage($contester, $conn) {
         background-color: #2c7a7b;
         color: #ffffff;
         margin: 0;
-        padding: 18px 25px;
-        font-size: 22px;
+        padding: 14px 20px;
+        font-size: 16px;
+        font-weight: 700;
         display: flex;
         align-items: center;
         gap: 10px;
@@ -112,14 +149,22 @@ function getContesterImage($contester, $conn) {
         background-color: #0f172a;
     }
 
+    .election-section h2 i {
+        font-size: 14px;
+        opacity: 0.85;
+    }
+
+    /* Post section */
     .post-section {
-        margin: 25px;
-        padding: 20px;
+        margin: 16px;
+        padding: 16px;
         background: #f9fafb;
-        border-radius: 12px;
-        border-left: 4px solid #2c7a7b;
+        border-radius: 10px;
+        border-left: 3px solid #2c7a7b;
         transition: background-color 0.3s ease;
     }
+
+    .post-section:last-child { margin-bottom: 16px; }
 
     body.dark-theme .post-section {
         background: #2d2d3d;
@@ -128,23 +173,26 @@ function getContesterImage($contester, $conn) {
     .post-section h3 {
         color: #1f2937;
         margin-top: 0;
-        margin-bottom: 20px;
-        font-size: 18px;
+        margin-bottom: 14px;
+        font-size: 14px;
         font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
     }
 
     body.dark-theme .post-section h3 { color: #f3f4f6; }
 
-    .post-section h3 i { color: #2c7a7b; }
+    .post-section h3 i { color: #2c7a7b; font-size: 12px; }
 
+    /* Table */
     .contester-table {
         width: 100%;
         border-collapse: collapse;
         background: #ffffff;
-        border-radius: 12px;
+        border-radius: 10px;
         overflow: hidden;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
@@ -155,7 +203,7 @@ function getContesterImage($contester, $conn) {
 
     .contester-table th,
     .contester-table td {
-        padding: 14px 16px;
+        padding: 11px 14px;
         text-align: left;
         border-bottom: 1px solid #e5e7eb;
         transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
@@ -171,9 +219,9 @@ function getContesterImage($contester, $conn) {
         background: #f3f4f6;
         color: #374151;
         font-weight: 600;
-        font-size: 14px;
+        font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
+        letter-spacing: 0.5px;
     }
 
     body.dark-theme .contester-table th {
@@ -192,30 +240,40 @@ function getContesterImage($contester, $conn) {
     }
 
     .contester-image {
-        width: 55px;
-        height: 55px;
+        width: 44px;
+        height: 44px;
         border-radius: 50%;
         object-fit: cover;
         border: 2px solid #2c7a7b;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
         background: #f4f7f9;
     }
 
     .candidate-name {
-        font-weight: 700;
+        font-weight: 600;
         color: #1f2937;
+        font-size: 14px;
     }
 
     body.dark-theme .candidate-name { color: #f3f4f6; }
+
+    .candidate-bio {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.5;
+    }
+
+    body.dark-theme .candidate-bio { color: #9ca3af; }
 
     .vote-count {
         display: inline-block;
         background: #e6f4f4;
         color: #2c7a7b;
-        padding: 4px 10px;
+        padding: 3px 9px;
         border-radius: 20px;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
+        white-space: nowrap;
     }
 
     body.dark-theme .vote-count {
@@ -223,12 +281,13 @@ function getContesterImage($contester, $conn) {
         color: #a7f3d0;
     }
 
+    /* Empty states */
     .no-data {
         text-align: center;
-        padding: 60px;
+        padding: 50px 20px;
         color: #9ca3af;
         background: #f9fafb;
-        border-radius: 16px;
+        border-radius: 12px;
         border: 1px solid #e5e7eb;
     }
 
@@ -238,8 +297,8 @@ function getContesterImage($contester, $conn) {
     }
 
     .no-data i {
-        font-size: 48px;
-        margin-bottom: 15px;
+        font-size: 42px;
+        margin-bottom: 12px;
         display: block;
         color: #d1d5db;
     }
@@ -249,54 +308,76 @@ function getContesterImage($contester, $conn) {
     .inline-info {
         text-align: center;
         color: #9ca3af;
-        padding: 30px;
+        padding: 20px;
+        font-size: 13px;
+        font-style: italic;
     }
+
+    body.dark-theme .inline-info { color: #6b7280; }
 
     .error-text {
         text-align: center;
         color: #dc2626;
         padding: 20px;
+        font-size: 13px;
     }
 
     body.dark-theme .error-text { color: #fca5a5; }
 
+    /* Mobile */
     @media (max-width: 768px) {
+        .contest-hero { padding: 18px 20px; gap: 14px; }
+        .contest-hero-icon { width: 42px; height: 42px; font-size: 22px; }
+        .contest-hero-text h1 { font-size: 18px; }
+        .contest-hero-text p { font-size: 12px; }
         .contest-container {
-            margin: 20px;
-            padding: 20px;
+            padding: 16px;
+            margin: 0 0 30px;
         }
-        .contest-container h1 { font-size: 24px; }
         .post-section {
-            margin: 15px;
-            padding: 15px;
+            margin: 12px;
+            padding: 12px;
         }
         .contester-table th,
         .contester-table td {
-            padding: 10px;
-            font-size: 13px;
+            padding: 9px 10px;
+            font-size: 12px;
         }
         .contester-image {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
         }
         .election-section h2 {
-            font-size: 18px;
-            padding: 15px 20px;
+            font-size: 15px;
+            padding: 12px 16px;
         }
+        .post-section h3 { font-size: 13px; }
+        .candidate-name { font-size: 13px; }
+        .candidate-bio { font-size: 12px; }
     }
 </style>
 
-<div class="contest-container">
-    <h1> Election Contestants</h1>
+<!-- Compact hero -->
+<div class="contest-hero">
+    <div class="contest-hero-icon">
+        <i class="fas fa-users"></i>
+    </div>
+    <div class="contest-hero-text">
+        <h1>Election Contestants</h1>
+        <p>Browse all candidates running in every election and position</p>
+    </div>
+</div>
 
+<div class="contest-container">
     <?php if (empty($elections)): ?>
         <div class="no-data">
+            <i class="fas fa-vote-yea"></i>
             <p>No elections found.</p>
         </div>
     <?php else: ?>
         <?php foreach ($elections as $election): ?>
             <div class="election-section">
-                <h2><?php echo htmlspecialchars($election['title']); ?></h2>
+                <h2><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></h2>
 
                 <?php
                 try {
@@ -317,16 +398,17 @@ function getContesterImage($contester, $conn) {
                         <?php foreach ($posts as $post): ?>
                             <div class="post-section">
                                 <h3>
+                                    <i class="fas fa-user-tie"></i>
                                     <?php echo htmlspecialchars($post['postname']); ?>
                                 </h3>
 
                                 <table class="contester-table">
                                     <thead>
                                         <tr>
-                                            <th width="80">Photo</th>
+                                            <th width="70">Photo</th>
                                             <th>Candidate Name</th>
                                             <th>Bio / Manifesto</th>
-                                            <th width="100">Votes</th>
+                                            <th width="90">Votes</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -355,7 +437,7 @@ function getContesterImage($contester, $conn) {
                                                         <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="Contester" class="contester-image">
                                                     </td>
                                                     <td class="candidate-name"><?php echo htmlspecialchars($contester['name']); ?></td>
-                                                    <td><?php echo nl2br(htmlspecialchars($contester['bio'] ?? 'No bio provided')); ?></td>
+                                                    <td class="candidate-bio"><?php echo nl2br(htmlspecialchars($contester['bio'] ?? 'No bio provided')); ?></td>
                                                     <td><span class="vote-count"><?php echo (int) $contester['votes']; ?> votes</span></td>
                                                 </tr>
                                             <?php endforeach; ?>
