@@ -1,7 +1,12 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+require_once __DIR__ . '/csrf.php';
 
 // ============================================================
-// 0. ENFORCE HTTPS - Redirect all HTTP traffic to HTTPS
+//  ENFORCE HTTPS - Redirect all HTTP traffic to HTTPS
 // ============================================================
 // Skip enforcement for CLI (cron jobs, scripts) and local development
 if (php_sapi_name() !== 'cli') {
