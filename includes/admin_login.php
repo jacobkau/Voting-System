@@ -16,6 +16,7 @@ if (isset($_SESSION['admin_id'])) {
 $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    verifyCsrf();
     $username = trim($_POST["username"]);
     $password = trim($_POST["password"]);
 
@@ -325,6 +326,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php endif; ?>
             
             <form method="post" action="admin_login.php" id="loginForm">
+                 <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label" for="username">
                         <i class="fas fa-user"></i> Username
