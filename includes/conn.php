@@ -126,4 +126,4 @@ try {
     conn_fail("DB connection failed: " . $e->getMessage());
 }
 
-// ✅ No closing ?> — best practice for PHP-only files, prevents stray whitespace.
+// ✅ No closing ?>
