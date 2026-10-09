@@ -34,6 +34,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $db_password = $row["password"];
 
                 if (password_verify($password, $db_password)) {
+                    session_regenerate_id(true);
                     $_SESSION['admin_id'] = $admin_id;
                     $_SESSION['username'] = $db_username;
 
