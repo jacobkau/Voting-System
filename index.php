@@ -27,12 +27,35 @@ try {
 }
 
 /**
- * Candidate image — Cloudinary only.
+ * Candidate image — always prefer the live avatar from users.profile_photo.
+ *
+ * Priority:
+ *   1. users.profile_photo (looked up via contesters.user_id)
+ *   2. contesters.profile_photo (snapshot at application time)
+ *   3. System default avatar
  */
-function getCandidateImage($candidate) {
+function getCandidateImage($candidate, $conn) {
+    // 1. Live lookup from users table by user_id
+    if (!empty($candidate['user_id'])) {
+        try {
+            $stmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
+            $stmt->execute([$candidate['user_id']]);
+            $userRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($userRow && !empty($userRow['profile_photo']) && preg_match('#^https?://#i', $userRow['profile_photo'])) {
+                return $userRow['profile_photo'];
+            }
+        } catch (PDOException $e) {
+            error_log("Candidate live-avatar lookup error: " . $e->getMessage());
+        }
+    }
+
+    // 2. Fall back to the snapshot stored on the contester row
     if (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo'])) {
         return $candidate['profile_photo'];
     }
+
+    // 3. System default
     return defaultAvatarUrl();
 }
 
@@ -60,6 +83,15 @@ try {
 <?php include("header.php"); ?>
 
 <style>
+    .results-hero {
+        background-color: #2c7a7b;
+        border-radius: 20px;
+        padding: 45px 30px;
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(44, 122, 123, 0.2);
+    }
 
     body.dark-theme .results-hero {
         background-color: #0f172a;
@@ -375,6 +407,12 @@ try {
     }
 </style>
 
+<div class="results-hero">
+    <i class="fas fa-chart-bar"></i>
+    <h1>Election Results</h1>
+    <p>Live vote counts and standings across all elections</p>
+</div>
+
 <!-- Quick stats -->
 <div class="stats-row">
     <div class="stat-box">
@@ -405,7 +443,7 @@ try {
         <?php foreach ($elections as $election):
             $electionId = $election['id'];
         ?>
-            <h2> <?php echo htmlspecialchars($election['title']); ?></h2>
+            <h2><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></h2>
 
             <?php
             try {
@@ -426,7 +464,7 @@ try {
                     <?php foreach ($posts as $post):
                         $postName = $post['postname'];
                     ?>
-                        <h3> <?php echo htmlspecialchars($postName); ?></h3>
+                        <h3><i class="fas fa-user-tie"></i> <?php echo htmlspecialchars($postName); ?></h3>
                         <table class="votes-table">
                             <thead>
                                 <tr>
@@ -439,7 +477,7 @@ try {
                             <tbody>
                                 <?php
                                 $candidateQuery = $conn->prepare("
-                                    SELECT id, name, votes, profile_photo
+                                    SELECT id, user_id, name, votes, profile_photo
                                     FROM contesters
                                     WHERE postname = ? AND election_id = ?
                                     ORDER BY votes DESC
@@ -457,7 +495,7 @@ try {
                                     <?php foreach ($candidates as $index => $candidate):
                                         $isWinner = ($index === 0 && $totalVotes > 0);
                                         $percentage = ($totalVotes > 0) ? ($candidate['votes'] / $totalVotes) * 100 : 0;
-                                        $imgSrc = getCandidateImage($candidate);
+                                        $imgSrc = getCandidateImage($candidate, $conn);
                                     ?>
                                         <tr class="<?php echo $isWinner ? 'winner-row' : ''; ?>">
                                             <td style="text-align: center;">
