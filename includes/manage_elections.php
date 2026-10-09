@@ -12,6 +12,7 @@ if (!isset($_SESSION['admin_id'])) {
 
 // Handle AJAX requests for posts - MUST be at the top
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
+    verifyCsrf();
     header('Content-Type: application/json');
     
     if ($_POST['ajax_action'] == 'add_post') {
@@ -474,6 +475,7 @@ if (isset($_GET['edit_id'])) {
         <h2><?php echo $editElection ? 'Edit Election' : 'Add New Election'; ?></h2>
         
         <form method="post">
+             <?= csrfField() ?>
             <?php if ($editElection): ?>
                 <input type="hidden" name="election_id" value="<?php echo $editElection['id']; ?>">
             <?php endif; ?>
