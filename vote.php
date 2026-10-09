@@ -76,6 +76,7 @@ if ($electionId !== null) {
 
 // Handle Form Submission
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVoteForm) {
+    verifyCsrf();
     $votes = $_POST;
     unset($votes['submit']);
 
@@ -612,6 +613,7 @@ function getCandidateImage($candidate, $conn) {
 
     <?php if ($showVoteForm && $electionId && $election): ?>
         <form method="post" action="vote.php?election_id=<?php echo $electionId; ?>" id="voteForm">
+             <?= csrfField() ?>
             <?php
             $postsStmt = $conn->prepare("SELECT id, postname FROM election_posts WHERE election_id = ? ORDER BY postname");
             $postsStmt->execute([$electionId]);
