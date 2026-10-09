@@ -6,7 +6,6 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
-// Cloudinary helpers (uploadToCloudinary)
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -168,7 +167,6 @@ if ($selectedElectionId) {
         color: #dc2626;
     }
 
-    /* -------- Input visibility fix -------- */
     select, textarea, input[type="file"] {
         width: 100%;
         padding: 12px 15px;
@@ -217,7 +215,6 @@ if ($selectedElectionId) {
         background: #2d2d3d;
         color: #f3f4f6;
     }
-    /* ------------------------------------- */
 
     textarea {
         resize: vertical;
