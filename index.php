@@ -60,15 +60,6 @@ try {
 <?php include("header.php"); ?>
 
 <style>
-    .results-hero {
-        background-color: #2c7a7b;
-        border-radius: 20px;
-        padding: 45px 30px;
-        text-align: center;
-        color: white;
-        margin-bottom: 30px;
-        box-shadow: 0 10px 30px rgba(44, 122, 123, 0.2);
-    }
 
     body.dark-theme .results-hero {
         background-color: #0f172a;
@@ -384,13 +375,6 @@ try {
     }
 </style>
 
-<!-- Hero -->
-<div class="results-hero">
-    <i class="fas fa-chart-bar"></i>
-    <h1>Election Results</h1>
-    <p>Live vote counts and standings across all elections</p>
-</div>
-
 <!-- Quick stats -->
 <div class="stats-row">
     <div class="stat-box">
@@ -421,7 +405,7 @@ try {
         <?php foreach ($elections as $election):
             $electionId = $election['id'];
         ?>
-            <h2><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></h2>
+            <h2> <?php echo htmlspecialchars($election['title']); ?></h2>
 
             <?php
             try {
@@ -442,7 +426,7 @@ try {
                     <?php foreach ($posts as $post):
                         $postName = $post['postname'];
                     ?>
-                        <h3><i class="fas fa-user-tie"></i> <?php echo htmlspecialchars($postName); ?></h3>
+                        <h3> <?php echo htmlspecialchars($postName); ?></h3>
                         <table class="votes-table">
                             <thead>
                                 <tr>
