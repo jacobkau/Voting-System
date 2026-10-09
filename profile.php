@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
-// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, defaultAvatarUrl)
+// Cloudinary helpers 
 require_once __DIR__ . '/cloudinary.php';
 
 // Redirect if not logged in
@@ -114,10 +114,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-/**
- * Resolve a displayable avatar URL for the profile page.
- * Prefers the Cloudinary URL in users.profile_photo, falls back to system default.
- */
 function getProfileImage($row) {
     if (!empty($row['profile_photo']) && preg_match('#^https?://#i', $row['profile_photo'])) {
         return $row['profile_photo'];
@@ -195,7 +191,6 @@ function getProfileImage($row) {
         margin-right: 6px;
     }
 
-    /* -------- Input visibility fix -------- */
     .profile-form input[type="text"],
     .profile-form input[type="email"],
     .profile-form input[type="password"],
@@ -238,7 +233,7 @@ function getProfileImage($row) {
         color: #6b7280;
     }
 
-    /* Autofill overrides */
+ 
     .profile-form input:-webkit-autofill,
     .profile-form input:-webkit-autofill:hover,
     .profile-form input:-webkit-autofill:focus {
@@ -253,7 +248,6 @@ function getProfileImage($row) {
         -webkit-text-fill-color: #f3f4f6;
         -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
     }
-    /* ------------------------------------- */
 
     .profile-form input[readonly] {
         background-color: #f9fafb;
@@ -390,25 +384,25 @@ function getProfileImage($row) {
     </div>
     
     <form method="post" action="profile.php" class="profile-form" enctype="multipart/form-data" id="profileForm">
-        <label for="profile_photo"><i class="fas fa-camera"></i> Profile Photo</label>
+        <label for="profile_photo"> Profile Photo</label>
         <input type="file" name="profile_photo" id="profile_photo" accept="image/*">
         <div class="file-hint">Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
         
-        <label for="username"><i class="fas fa-user"></i> Username</label>
+        <label for="username"> Username</label>
         <input type="text" name="username" id="username" value="<?php echo htmlspecialchars($username); ?>" readonly>
         
-        <label for="name"><i class="fas fa-signature"></i> Full Name</label>
+        <label for="name"> Full Name</label>
         <input type="text" name="name" id="name" value="<?php echo htmlspecialchars($row["name"] ?? ''); ?>" required>
         
-        <label for="email"><i class="fas fa-envelope"></i> Email</label>
+        <label for="email">Email</label>
         <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($row["email"] ?? ''); ?>" required>
         
-        <label for="password"><i class="fas fa-lock"></i> New Password</label>
+        <label for="password">New Password</label>
         <input type="password" name="password" id="password" placeholder="Leave blank to keep current password">
         <div class="file-hint">Enter a new password only if you want to change it</div>
         
         <button type="submit" class="submit-btn" id="submitBtn">
-            <span><i class="fas fa-save"></i> Update Profile</span>
+            <span> Update Profile</span>
             <span class="spinner"></span>
         </button>
     </form>
