@@ -31,6 +31,7 @@ try {
 
 // Handle AJAX Requests for Adding and Deleting Posts
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
+    verifyCsrf();
     header('Content-Type: application/json');
 
     if ($_POST['action'] == "add_post") {
@@ -193,6 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                         </tbody>
                     </table>
                     <form class="add-post-form" data-election="<?php echo $election['id']; ?>">
+                         <?= csrfField() ?>
                         <input type="text" name="postname" placeholder="Enter new post name (e.g., President, Secretary, Treasurer)" required>
                         <button type="submit">+ Add Post</button>
                     </form>
