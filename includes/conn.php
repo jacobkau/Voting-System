@@ -1,5 +1,41 @@
 <?php
-// conn.php - Safe, hidden credentials with proper PHP MySQL SSL attributes
+
+// =====================================================================
+// HTTPS ENFORCEMENT
+// =====================================================================
+// Skip enforcement for CLI (e.g., cron jobs, artisan, migrations)
+if (php_sapi_name() !== 'cli') {
+
+    // 1. Detect whether the current request is already HTTPS
+    $isHttps =
+        (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
+            && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_SSL'])
+            && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+        || (!empty($_SERVER['HTTP_CF_VISITOR'])
+            && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
+
+    // 2. If not HTTPS, redirect permanently (301) to the HTTPS version
+    if (!$isHttps) {
+        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+        $redirect = 'https://' . $host . $requestUri;
+
+        header('HTTP/1.1 301 Moved Permanently');
+        header('Location: ' . $redirect);
+        exit;
+    }
+
+    // 3. Send HSTS header (browsers remember to always use HTTPS)
+    // Only send if we're on HTTPS. Start with a short max-age; raise it after testing.
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
+
+// =====================================================================
+// DATABASE CONNECTION
+// =====================================================================
 
 // 1. Fetch the secret link from Render's environment settings
 $uri = getenv('AIVEN_DATABASE_URL');
@@ -30,7 +66,7 @@ $options = [
 try {
     $user = $fields["user"] ?? 'avnadmin';
     $pass = $fields["pass"] ?? '';
-    
+
     // 5. Connect securely using the options array
     $db = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
