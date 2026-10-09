@@ -37,6 +37,7 @@ try {
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    verifyCsrf();
     $name = trim($_POST['name']);
     $email = trim($_POST['email']);
     
@@ -384,6 +385,7 @@ function getProfileImage($row) {
     </div>
     
     <form method="post" action="profile.php" class="profile-form" enctype="multipart/form-data" id="profileForm">
+         <?= csrfField() ?>
         <label for="profile_photo"> Profile Photo</label>
         <input type="file" name="profile_photo" id="profile_photo" accept="image/*">
         <div class="file-hint">Accepted formats: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
