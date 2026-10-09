@@ -20,7 +20,7 @@ $headerAvatarUrl = defaultAvatarUrl();
 if ($isLoggedIn) {
     $resolvedAvatar = null;
 
-    // 1. DB lookup 
+    // 1. DB lookup
     if (!empty($_SESSION['user_id']) && isset($conn)) {
         try {
             $avatarStmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
@@ -49,7 +49,7 @@ if ($isLoggedIn) {
     }
 }
 
-// logo URL
+// Logo URL from environment
 $logoUrl = getenv('SYSTEM_LOGO_URL');
 if (empty($logoUrl) || !preg_match('#^https?://#i', $logoUrl)) {
     $logoUrl = '';
@@ -145,9 +145,7 @@ function navActive($file, $currentPage) {
 
         body.light-theme .user-info:hover { background: #d1ebeb; }
 
-        body.light-theme .nav-divider {
-            background: #e5e7eb;
-        }
+        body.light-theme .nav-divider { background: #e5e7eb; }
 
         body.dark-theme {
             background-color: #1e293b;
@@ -209,9 +207,7 @@ function navActive($file, $currentPage) {
 
         body.dark-theme .user-info:hover { background: rgba(255, 255, 255, 0.18); }
 
-        body.dark-theme .nav-divider {
-            background: rgba(255, 255, 255, 0.1);
-        }
+        body.dark-theme .nav-divider { background: rgba(255, 255, 255, 0.1); }
 
         .navbar {
             padding: 12px 30px;
@@ -246,7 +242,7 @@ function navActive($file, $currentPage) {
 
         .navbar .brand-icon {
             font-size: 1.6rem;
-            display: none; 
+            display: none;
         }
 
         .navbar .brand-name {
@@ -323,9 +319,8 @@ function navActive($file, $currentPage) {
 
         @media (max-width: 900px) {
             .navbar .brand-name { display: none; }
-            .navbar .nav-center a span { display: none; }
-            .navbar .nav-center a { padding: 8px 10px; }
-            .navbar .nav-center a i { margin: 0; font-size: 15px; }
+            .navbar .nav-center a { padding: 7px 10px; font-size: 12px; }
+            .navbar .nav-center a i { font-size: 13px; }
         }
 
         @media (max-width: 768px) {
@@ -346,9 +341,8 @@ function navActive($file, $currentPage) {
                 width: 100%;
                 justify-content: center;
                 gap: 4px;
+                flex-wrap: wrap;
             }
-
-            .navbar .nav-center a span { display: inline; }
 
             .navbar .nav-right {
                 width: 100%;
@@ -363,8 +357,9 @@ function navActive($file, $currentPage) {
         @media (max-width: 600px) {
             body { padding-top: 150px; }
 
-            .navbar .nav-center a span { display: none; }
-            .navbar .nav-center a i { margin: 0; font-size: 15px; }
+            .navbar .nav-center a { padding: 6px 9px; font-size: 11px; }
+            .navbar .nav-center a i { font-size: 12px; }
+
             .navbar .theme-toggle span { display: none; }
             .navbar .logout-link span { display: none; }
             .navbar .user-info span { display: inline; font-size: 12px; }
@@ -375,6 +370,8 @@ function navActive($file, $currentPage) {
             .navbar { padding: 10px 12px; }
             .navbar .brand-logo { width: 30px; height: 30px; }
             .navbar .brand-name { font-size: 0.9rem; }
+            .navbar .nav-center a { padding: 5px 8px; font-size: 10px; }
+            .navbar .nav-center a i { font-size: 11px; }
         }
 
         .main-content {
