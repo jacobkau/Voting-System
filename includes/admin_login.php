@@ -1,13 +1,10 @@
 <?php
-session_start();
-include("conn.php");
+require_once __DIR__ . '/conn.php';
 
-// Map $conn to $db if your conn.php file sets up the variable as $db
 if (!isset($conn) && isset($db)) {
     $conn = $db;
 }
 
-// Redirect if already logged in
 if (isset($_SESSION['admin_id'])) {
     header("Location: main.php");
     exit();
@@ -29,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($row) {
-                $admin_id = $row["id"];
+                $admin_id    = $row["id"];
                 $db_username = $row["username"];
                 $db_password = $row["password"];
 
@@ -47,8 +44,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );");
 
-                        $eventQuery = "INSERT INTO event_log (username, event_type, event_description) VALUES (:user, :type, :desc)";
-                        $eventStmt = $conn->prepare($eventQuery);
+                        $eventStmt = $conn->prepare(
+                            "INSERT INTO event_log (username, event_type, event_description)
+                             VALUES (:user, :type, :desc)"
+                        );
                         $eventStmt->execute([
                             ':user' => $db_username,
                             ':type' => "Admin Login",
