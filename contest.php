@@ -6,7 +6,6 @@ error_reporting(E_ALL);
 
 include("conn.php");
 
-// Cloudinary helpers (defaultAvatarUrl)
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -24,14 +23,26 @@ try {
     $elections = [];
 }
 
-/**
- * Resolve a displayable image URL for a contester row.
- * Cloudinary URL if present, otherwise system default.
- */
-function getContesterImage($contester) {
+function getContesterImage($contester, $conn) {
+   
+    if (!empty($contester['user_id'])) {
+        try {
+            $stmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
+            $stmt->execute([$contester['user_id']]);
+            $userRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($userRow && !empty($userRow['profile_photo']) && preg_match('#^https?://#i', $userRow['profile_photo'])) {
+                return $userRow['profile_photo'];
+            }
+        } catch (PDOException $e) {
+            error_log("Contester live-avatar lookup error: " . $e->getMessage());
+        }
+    }
+
     if (!empty($contester['profile_photo']) && preg_match('#^https?://#i', $contester['profile_photo'])) {
         return $contester['profile_photo'];
     }
+
     return defaultAvatarUrl();
 }
 ?>
@@ -323,7 +334,7 @@ function getContesterImage($contester) {
                                     <tbody>
                                         <?php
                                         $contestersStmt = $conn->prepare("
-                                            SELECT name, bio, profile_photo, votes
+                                            SELECT id, user_id, name, bio, profile_photo, votes
                                             FROM contesters
                                             WHERE election_id = ? AND postname = ?
                                             ORDER BY votes DESC
@@ -340,7 +351,7 @@ function getContesterImage($contester) {
                                             </tr>
                                         <?php else: ?>
                                             <?php foreach ($contesters as $contester): ?>
-                                                <?php $imgSrc = getContesterImage($contester); ?>
+                                                <?php $imgSrc = getContesterImage($contester, $conn); ?>
                                                 <tr>
                                                     <td style="text-align: center;">
                                                         <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="Contester" class="contester-image">
