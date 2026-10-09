@@ -8,6 +8,9 @@ include("conn.php");
 
 require_once __DIR__ . '/cloudinary.php';
 
+// Custom exception so we can distinguish "already voted" from real errors
+class DuplicateVoteException extends Exception {}
+
 if (empty($_SESSION["username"])) {
     header("Location: login.php");
     exit();
@@ -54,7 +57,7 @@ if ($electionId !== null) {
         if ($userRegisteredStmt->rowCount() === 0) {
             $errorMessage = "You are not registered for this election. Please register first.";
         } else {
-            $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE username = ? AND election_id = ?");
+            $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE username = ? AND election_id = ? LIMIT 1");
             $alreadyVotedStmt->execute([$username, $electionId]);
 
             if ($alreadyVotedStmt->rowCount() > 0) {
@@ -74,7 +77,9 @@ if ($electionId !== null) {
     }
 }
 
-// Handle Form Submission
+// ============================================================
+// Handle Form Submission — with DB-level duplicate protection
+// ============================================================
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVoteForm) {
     verifyCsrf();
     $votes = $_POST;
@@ -101,6 +106,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
         $conn->beginTransaction();
 
         try {
+            // Defense-in-depth: re-check just before insert (catches most races cheaply)
+            $recheck = $conn->prepare("SELECT 1 FROM votes WHERE username = ? AND election_id = ? LIMIT 1");
+            $recheck->execute([$username, $electionId]);
+            if ($recheck->rowCount() > 0) {
+                throw new DuplicateVoteException("You have already voted in this election.");
+            }
+
             foreach ($votes as $postKey => $candidateId) {
                 $candidateStmt = $conn->prepare("SELECT name FROM contesters WHERE id = ?");
                 $candidateStmt->execute([$candidateId]);
@@ -108,10 +120,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
                 $candidateName = $candidate ? $candidate['name'] : '';
                 $originalPostName = str_replace('_', ' ', $postKey);
 
-                $voteStmt = $conn->prepare("INSERT INTO votes (username, election_id, postname, candidate_name, voted_at) VALUES (?, ?, ?, ?, NOW())");
-                if (!$voteStmt->execute([$username, $electionId, $originalPostName, $candidateName])) {
-                    throw new Exception("Failed to insert vote");
-                }
+                $voteStmt = $conn->prepare("
+                    INSERT INTO votes (username, election_id, postname, candidate_name, voted_at)
+                    VALUES (?, ?, ?, ?, NOW())
+                ");
+                $voteStmt->execute([$username, $electionId, $originalPostName, $candidateName]);
 
                 $updateStmt = $conn->prepare("UPDATE contesters SET votes = votes + 1 WHERE id = ?");
                 $updateStmt->execute([$candidateId]);
@@ -120,6 +133,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
             $conn->commit();
             $successMessage = "Vote submitted successfully. Thank you for voting.";
             $showVoteForm = false;
+
+        } catch (DuplicateVoteException $e) {
+            $conn->rollBack();
+            $errorMessage = $e->getMessage();
+            $showVoteForm = false;
+
+        } catch (PDOException $e) {
+            $conn->rollBack();
+
+            // SQLSTATE 23000 = integrity constraint violation (our UNIQUE key fired)
+            if ($e->getCode() === '23000') {
+                $errorMessage = "You have already voted in this election.";
+                $showVoteForm = false;
+            } else {
+                $errorMessage = "Error submitting your vote. Please try again.";
+                error_log("Vote PDO error: " . $e->getMessage());
+            }
 
         } catch (Exception $e) {
             $conn->rollBack();
