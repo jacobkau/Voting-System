@@ -8,137 +8,86 @@ include("conn.php");
 
 $username = $_SESSION['username'] ?? 'Guest';
 $isLoggedIn = isset($_SESSION['user_logged_in']) && $_SESSION['user_logged_in'] === true;
-
-// Safe stats queries (only if logged in)
-$totalVotesByUser = 0;
-$totalApplicationsByUser = 0;
-$totalRegistrationsByUser = 0;
-
-if ($isLoggedIn) {
-    try {
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM votes WHERE username = ?");
-        $stmt->execute([$username]);
-        $totalVotesByUser = (int) $stmt->fetchColumn();
-
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM contesters WHERE user_id = (SELECT id FROM users WHERE username = ?)");
-        $stmt->execute([$username]);
-        $totalApplicationsByUser = (int) $stmt->fetchColumn();
-
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM user_elections ue JOIN users u ON ue.user_id = u.id WHERE u.username = ?");
-        $stmt->execute([$username]);
-        $totalRegistrationsByUser = (int) $stmt->fetchColumn();
-    } catch (PDOException $e) {
-        error_log("Help stats error: " . $e->getMessage());
-    }
-}
 ?>
 
 <?php include("header.php"); ?>
 
 <style>
     .help-container {
-        max-width: 1200px;
+        max-width: 1000px;
         margin: 40px auto;
         padding: 0 20px;
     }
 
-    /* Hero */
+    /* Hero — compact and professional */
     .help-hero {
         background-color: #2c7a7b;
-        border-radius: 20px;
-        padding: 50px 30px;
-        text-align: center;
+        border-radius: 16px;
+        padding: 28px 30px;
         color: white;
-        margin-bottom: 40px;
-        box-shadow: 0 10px 30px rgba(44, 122, 123, 0.2);
+        margin-bottom: 30px;
+        box-shadow: 0 4px 15px rgba(44, 122, 123, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
     }
 
     body.dark-theme .help-hero {
         background-color: #0f172a;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     }
 
-    .help-hero > i {
-        font-size: 64px;
-        margin-bottom: 20px;
-        display: block;
-    }
-
-    .help-hero h1 {
-        font-size: 42px;
-        margin-bottom: 15px;
-    }
-
-    .help-hero p {
-        font-size: 17px;
-        opacity: 0.95;
-    }
-
-    .help-hero .welcome-badge {
-        background: rgba(255, 255, 255, 0.2);
-        display: inline-block;
-        padding: 8px 20px;
-        border-radius: 30px;
-        margin-top: 20px;
-        font-size: 14px;
-    }
-
-    /* Stats */
-    .stats-row {
+    .help-hero-icon {
+        font-size: 36px;
+        width: 60px;
+        height: 60px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.15);
         display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-        margin-bottom: 40px;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
     }
 
-    .stat-box {
+    .help-hero-text {
         flex: 1;
-        min-width: 180px;
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 25px;
-        text-align: center;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-        border: 1px solid #e5e7eb;
-        transition: transform 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
+        min-width: 200px;
     }
 
-    body.dark-theme .stat-box {
-        background: #1e1e2e;
-        border-color: #3d3d4d;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    .help-hero-text h1 {
+        font-size: 24px;
+        margin-bottom: 6px;
+        font-weight: 700;
     }
 
-    .stat-box:hover { transform: translateY(-5px); }
-
-    .stat-box i {
-        font-size: 40px;
-        color: #2c7a7b;
-        margin-bottom: 10px;
-        display: block;
-    }
-
-    .stat-box .number {
-        font-size: 32px;
-        font-weight: 800;
-        color: #1f2937;
-    }
-
-    body.dark-theme .stat-box .number { color: #f3f4f6; }
-
-    .stat-box .label {
-        color: #6b7280;
+    .help-hero-text p {
         font-size: 14px;
-        margin-top: 5px;
+        opacity: 0.9;
+        line-height: 1.5;
     }
 
-    body.dark-theme .stat-box .label { color: #9ca3af; }
+    .help-hero-badge {
+        background: rgba(255, 255, 255, 0.15);
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-size: 13px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .help-hero-badge i {
+        font-size: 12px;
+        opacity: 0.85;
+    }
 
     /* Guide sections */
     .guide-section {
         background: #ffffff;
-        border-radius: 20px;
-        margin-bottom: 20px;
+        border-radius: 16px;
+        margin-bottom: 16px;
         overflow: hidden;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
         border: 1px solid #e5e7eb;
@@ -153,9 +102,9 @@ if ($isLoggedIn) {
 
     .section-header {
         background: #f9fafb;
-        padding: 20px 30px;
+        padding: 18px 24px;
         cursor: pointer;
-        transition: all 0.3s;
+        transition: all 0.2s;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -171,23 +120,23 @@ if ($isLoggedIn) {
     body.dark-theme .section-header:hover { background: #3d3d4d; }
 
     .section-title {
-        font-size: 20px;
-        font-weight: 700;
+        font-size: 16px;
+        font-weight: 600;
         color: #1f2937;
         display: flex;
         align-items: center;
-        gap: 15px;
+        gap: 12px;
     }
 
     body.dark-theme .section-title { color: #f3f4f6; }
 
     .section-title i {
-        font-size: 22px;
+        font-size: 18px;
         color: #2c7a7b;
     }
 
     .toggle-icon {
-        font-size: 18px;
+        font-size: 14px;
         color: #6b7280;
         transition: transform 0.3s;
     }
@@ -195,51 +144,53 @@ if ($isLoggedIn) {
     body.dark-theme .toggle-icon { color: #9ca3af; }
 
     .section-content {
-        padding: 0 30px;
+        padding: 0 24px;
         max-height: 0;
         overflow: hidden;
         transition: all 0.3s ease;
     }
 
     .section-content.active {
-        padding: 25px 30px 30px;
+        padding: 22px 24px 26px;
         max-height: 3000px;
     }
 
     /* Guide card */
     .guide-card {
         display: flex;
-        gap: 20px;
-        padding: 20px;
-        margin-bottom: 20px;
+        gap: 18px;
+        padding: 18px;
+        margin-bottom: 16px;
         background: #f9fafb;
         border-radius: 12px;
-        border-left: 4px solid #2c7a7b;
-        transition: all 0.3s;
+        border-left: 3px solid #2c7a7b;
+        transition: all 0.2s;
     }
 
     body.dark-theme .guide-card {
         background: #2d2d3d;
     }
 
+    .guide-card:last-child { margin-bottom: 0; }
+
     .guide-card:hover {
         background: #f3f4f6;
-        transform: translateX(5px);
     }
 
     body.dark-theme .guide-card:hover { background: #3d3d4d; }
 
     .guide-icon {
-        font-size: 36px;
-        min-width: 50px;
+        font-size: 26px;
+        min-width: 40px;
         text-align: center;
         color: #2c7a7b;
+        padding-top: 2px;
     }
 
     .guide-content h3 {
         color: #1f2937;
         margin-bottom: 8px;
-        font-size: 17px;
+        font-size: 15px;
         font-weight: 700;
     }
 
@@ -249,6 +200,7 @@ if ($isLoggedIn) {
         color: #6b7280;
         line-height: 1.6;
         font-size: 14px;
+        margin-bottom: 8px;
     }
 
     body.dark-theme .guide-content p { color: #9ca3af; }
@@ -266,6 +218,7 @@ if ($isLoggedIn) {
         display: flex;
         align-items: flex-start;
         gap: 8px;
+        line-height: 1.5;
     }
 
     body.dark-theme .guide-content ul li { color: #9ca3af; }
@@ -274,6 +227,7 @@ if ($isLoggedIn) {
         color: #2c7a7b;
         margin-top: 4px;
         flex-shrink: 0;
+        font-size: 12px;
     }
 
     .step-list {
@@ -282,13 +236,14 @@ if ($isLoggedIn) {
     }
 
     .step-list li {
-        padding: 10px 0;
+        padding: 9px 0;
         border-bottom: 1px solid #e5e7eb;
         display: flex;
         align-items: center;
         gap: 12px;
         color: #6b7280;
         font-size: 14px;
+        line-height: 1.5;
     }
 
     body.dark-theme .step-list li {
@@ -301,26 +256,26 @@ if ($isLoggedIn) {
     .step-number {
         background-color: #2c7a7b;
         color: white;
-        width: 26px;
-        height: 26px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        font-weight: bold;
-        font-size: 13px;
+        font-weight: 600;
+        font-size: 12px;
         flex-shrink: 0;
     }
 
     /* Tip / warning boxes */
     .tip-box {
         background: #fef3c7;
-        border-left: 4px solid #f59e0b;
-        padding: 15px 20px;
+        border-left: 3px solid #f59e0b;
+        padding: 13px 18px;
         border-radius: 10px;
-        margin-top: 15px;
+        margin-top: 12px;
         color: #78350f;
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1.6;
     }
 
@@ -338,12 +293,12 @@ if ($isLoggedIn) {
 
     .warning-box {
         background: #fee2e2;
-        border-left: 4px solid #dc2626;
-        padding: 15px 20px;
+        border-left: 3px solid #dc2626;
+        padding: 13px 18px;
         border-radius: 10px;
-        margin-top: 15px;
+        margin-top: 12px;
         color: #7f1d1d;
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1.6;
     }
 
@@ -361,7 +316,7 @@ if ($isLoggedIn) {
 
     /* FAQ */
     .faq-item {
-        padding: 15px 0;
+        padding: 14px 0;
         border-bottom: 1px solid #e5e7eb;
     }
 
@@ -378,14 +333,14 @@ if ($isLoggedIn) {
         align-items: center;
         gap: 15px;
         user-select: none;
-        font-size: 15px;
+        font-size: 14px;
     }
 
     body.dark-theme .faq-question { color: #f3f4f6; }
 
     .faq-question i.fa-chevron-right {
         transition: transform 0.3s;
-        font-size: 13px;
+        font-size: 12px;
         color: #6b7280;
         flex-shrink: 0;
     }
@@ -402,7 +357,7 @@ if ($isLoggedIn) {
         color: #6b7280;
         display: none;
         line-height: 1.6;
-        font-size: 14px;
+        font-size: 13px;
     }
 
     body.dark-theme .faq-answer { color: #9ca3af; }
@@ -433,63 +388,47 @@ if ($isLoggedIn) {
     }
 
     @media (max-width: 768px) {
-        .help-hero { padding: 35px 20px; }
-        .help-hero h1 { font-size: 26px; }
-        .help-hero > i { font-size: 48px; }
-        .section-header { padding: 16px 20px; }
-        .section-title { font-size: 17px; }
-        .section-title i { font-size: 19px; }
-        .section-content { padding: 0 20px; }
-        .section-content.active { padding: 20px 20px 25px; }
-        .guide-card { flex-direction: column; text-align: center; align-items: center; }
-        .stats-row { flex-direction: column; }
+        .help-container { padding: 0 15px; margin: 25px auto; }
+        .help-hero { padding: 22px 20px; gap: 15px; }
+        .help-hero-icon { width: 50px; height: 50px; font-size: 28px; }
+        .help-hero-text h1 { font-size: 20px; }
+        .help-hero-text p { font-size: 13px; }
+        .section-header { padding: 15px 18px; }
+        .section-title { font-size: 15px; }
+        .section-title i { font-size: 16px; }
+        .section-content { padding: 0 18px; }
+        .section-content.active { padding: 18px 18px 22px; }
+        .guide-card { flex-direction: column; text-align: left; gap: 10px; }
+        .guide-icon { text-align: left; }
     }
 </style>
 
 <div class="help-container">
     <!-- Hero -->
     <div class="help-hero">
-        <i class="fas fa-question-circle"></i>
-        <h1>Voting System Guide</h1>
-        <p>Your complete guide to participating in elections, voting, and managing your profile</p>
-        <div class="welcome-badge">
-            <i class="fas fa-user"></i> Logged in as: <strong><?php echo htmlspecialchars($username); ?></strong>
+        <div class="help-hero-icon">
+            <i class="fas fa-question-circle"></i>
+        </div>
+        <div class="help-hero-text">
+            <h1>Voting System Guide</h1>
+            <p>Your complete guide to participating in elections, voting, and managing your profile</p>
+        </div>
+        <div class="help-hero-badge">
+            <i class="fas fa-user"></i>
+            <span><?php echo htmlspecialchars($username); ?></span>
         </div>
     </div>
-
-    <?php if ($isLoggedIn): ?>
-    <!-- Quick stats -->
-    <div class="stats-row">
-        <div class="stat-box">
-            <i class="fas fa-vote-yea"></i>
-            <div class="number"><?php echo number_format($totalVotesByUser); ?></div>
-            <div class="label">Votes Cast</div>
-        </div>
-        <div class="stat-box">
-            <i class="fas fa-user-tie"></i>
-            <div class="number"><?php echo number_format($totalApplicationsByUser); ?></div>
-            <div class="label">Candidacy Applications</div>
-        </div>
-        <div class="stat-box">
-            <i class="fas fa-calendar-check"></i>
-            <div class="number"><?php echo number_format($totalRegistrationsByUser); ?></div>
-            <div class="label">Elections Registered</div>
-        </div>
-    </div>
-    <?php endif; ?>
 
     <!-- 1. Getting Started -->
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-rocket"></i>
                 <span>Getting Started</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-user-plus"></i></div>
                 <div class="guide-content">
                     <h3>Create Your Account</h3>
                     <p>To participate in elections, you need to register an account first. Click on "Register" from the login page and fill in your details.</p>
@@ -503,7 +442,7 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="tip-box">
-                <i class="fas fa-lightbulb"></i> <strong>Pro Tip:</strong> Use a clear profile photo so other voters can identify you easily, especially if you're running as a candidate.
+                 <strong>Pro Tip:</strong> Use a clear profile photo so other voters can identify you easily, especially if you're running as a candidate.
             </div>
         </div>
     </div>
@@ -512,14 +451,12 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-check-circle"></i>
                 <span>How to Vote</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-hand-pointer"></i></div>
                 <div class="guide-content">
                     <h3>Cast Your Vote</h3>
                     <ul class="step-list">
@@ -533,7 +470,6 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-info-circle"></i></div>
                 <div class="guide-content">
                     <h3>Important Voting Rules</h3>
                     <ul>
@@ -545,7 +481,7 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="warning-box">
-                <i class="fas fa-exclamation-triangle"></i> <strong>Important:</strong> Once you submit your vote, it cannot be changed or undone. Make sure you've selected your preferred candidates before confirming.
+               <strong>Important:</strong> Once you submit your vote, it cannot be changed or undone. Make sure you've selected your preferred candidates before confirming.
             </div>
         </div>
     </div>
@@ -554,14 +490,12 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-user-tie"></i>
                 <span>Applying as a Candidate</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-file-signature"></i></div>
                 <div class="guide-content">
                     <h3>How to Apply for Candidacy</h3>
                     <ul class="step-list">
@@ -575,7 +509,6 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-pen-fancy"></i></div>
                 <div class="guide-content">
                     <h3>Writing an Effective Manifesto</h3>
                     <ul>
@@ -588,7 +521,7 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="tip-box">
-                <i class="fas fa-lightbulb"></i> <strong>Pro Tip:</strong> You can only apply for ONE position per election. Choose the role that best fits your qualifications.
+                 <strong>Pro Tip:</strong> You can only apply for ONE position per election. Choose the role that best fits your qualifications.
             </div>
         </div>
     </div>
@@ -597,14 +530,12 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-chart-line"></i>
                 <span>Viewing Election Results</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-poll"></i></div>
                 <div class="guide-content">
                     <h3>Accessing Results</h3>
                     <ul class="step-list">
@@ -617,7 +548,6 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-chart-pie"></i></div>
                 <div class="guide-content">
                     <h3>Understanding the Results Display</h3>
                     <ul>
@@ -635,14 +565,12 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-user-cog"></i>
                 <span>Managing Your Profile</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-edit"></i></div>
                 <div class="guide-content">
                     <h3>Profile Management Features</h3>
                     <ul class="step-list">
@@ -656,7 +584,6 @@ if ($isLoggedIn) {
                 </div>
             </div>
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-history"></i></div>
                 <div class="guide-content">
                     <h3>Tracking Your Activity</h3>
                     <p>The <strong>My Applications</strong> page shows you:</p>
@@ -674,7 +601,6 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-question-circle"></i>
                 <span>Frequently Asked Questions</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
@@ -741,26 +667,24 @@ if ($isLoggedIn) {
     <div class="guide-section">
         <div class="section-header" onclick="toggleSection(this)">
             <div class="section-title">
-                <i class="fas fa-headset"></i>
                 <span>Need Additional Help?</span>
             </div>
             <i class="fas fa-chevron-down toggle-icon"></i>
         </div>
         <div class="section-content">
             <div class="guide-card">
-                <div class="guide-icon"><i class="fas fa-envelope"></i></div>
                 <div class="guide-content">
                     <h3>Contact Support</h3>
                     <p>If you need further assistance, please contact the system administrator:</p>
                     <ul class="contact-list">
-                        <li><i class="fas fa-envelope"></i> Email: <strong>jacobwitty@example.com</strong></li>
-                        <li><i class="fas fa-phone"></i> Phone: <strong>+254 700 000 000</strong></li>
+                        <li><i class="fas fa-envelope"></i> Email: <strong>wittyhighbrowtechnologies@gmail.com</strong></li>
+                        <li><i class="fas fa-phone"></i> Phone: <strong>+254 768 374 497</strong></li>
                         <li><i class="fas fa-clock"></i> Response Time: Within 24 hours</li>
                     </ul>
                 </div>
             </div>
             <div class="tip-box">
-                <i class="fas fa-info-circle"></i> <strong>Tip:</strong> Before contacting support, check this guide and the FAQ section for quick answers to common questions.
+                <strong>Tip:</strong> Before contacting support, check this guide and the FAQ section for quick answers to common questions.
             </div>
         </div>
     </div>
