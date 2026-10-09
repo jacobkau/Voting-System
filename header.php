@@ -408,7 +408,7 @@ function navActive($file, $currentPage) {
                         <i class="fas fa-users"></i> <span>Contesters</span>
                     </a>
                     <a href="my_applications.php" class="<?php echo trim(navActive('my_applications.php', $currentPage)); ?>">
-                        <i class="fas fa-file-alt"></i> <span>My Apps</span>
+                        <i class="fas fa-file-alt"></i> <span>My Applications</span>
                     </a>
                     <a href="index.php" class="<?php echo trim(navActive('index.php', $currentPage)); ?>">
                         <i class="fas fa-chart-bar"></i> <span>Results</span>
