@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 if (!isset($conn)) {
     include __DIR__ . '/conn.php';
 }
-
+require_once __DIR__ . '/security.php';
 // Cloudinary helpers
 require_once __DIR__ . '/cloudinary.php';
 
