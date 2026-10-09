@@ -26,6 +26,7 @@ $success = "";
 
 if (!$registrationDisabled && $_SERVER["REQUEST_METHOD"] == "POST") {
     verifyCsrf();
+    verifyCsrf();
     $invite_code = trim($_POST["invite_code"] ?? "");
     $username    = trim($_POST["username"]);
     $name        = trim($_POST["name"]);
@@ -92,6 +93,7 @@ if (!$registrationDisabled && $_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="An online Voting Management System.">
     <meta name="keywords" content="portfolio, projects, web development, design">
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrfToken()) ?>">
     <meta name="author" content="Jacob witty">
     <link rel="icon" href="../logo.jpg" type="image/x-icon">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
