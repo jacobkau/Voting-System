@@ -110,6 +110,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
 // Handle AJAX Requests
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
+    verifyCsrf();
     header('Content-Type: application/json');
 
     if ($_POST['action'] == "delete_candidate") {
@@ -169,6 +170,7 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>Admin | Manage Candidates</title>
+    <meta name="csrf-token" content="<?= htmlspecialchars(csrfToken()) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
