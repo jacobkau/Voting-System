@@ -23,7 +23,6 @@ function resolveImageUrl($value) {
 
 // Handle AJAX request for user info
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'get_user') {
-    verifyCsrf();
     header('Content-Type: application/json');
     
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
@@ -105,7 +104,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
 // Handle Delete User
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete_user') {
-    verifyCsrf();
     header('Content-Type: application/json');
     
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
@@ -174,7 +172,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
 // Handle Register User to Election
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'register_election') {
-    verifyCsrf();
     header('Content-Type: application/json');
     
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
@@ -198,7 +195,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
 
 // Handle Update User
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'update_user') {
-    verifyCsrf();
     header('Content-Type: application/json');
     
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
@@ -634,7 +630,6 @@ try {
             </div>
             <div class="modal-body">
                 <form id="editForm">
-                     <?= csrfField() ?>
                     <input type="hidden" id="edit_user_id">
                     <div class="form-group">
                         <label>Username:</label>
@@ -663,7 +658,6 @@ try {
             </div>
             <div class="modal-body">
                 <form id="registerForm">
-                    <?= csrfField() ?>
                     <input type="hidden" id="register_user_id">
                     <div class="form-group">
                         <label>User:</label>
