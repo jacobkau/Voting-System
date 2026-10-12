@@ -14,11 +14,12 @@ $adminId = (int)$_SESSION['admin_id'];
 $message = "";
 $messageType = "";
 
-/**
- * Send an approval/rejection email via EmailJS.
- *
- * Returns ['sent' => bool, 'error' => string|null].
- */
+// Read message from PRG redirect
+if (!empty($_GET['msg'])) {
+    $message = $_GET['msg'];
+    $messageType = $_GET['msg_type'] ?? 'success';
+}
+
 function sendDecisionEmail(string $email, string $userName, string $electionTitle, string $decision, string $reason = ''): array {
     $serviceId  = getenv('EMAILJS_SERVICE_ID');
     $templateId = getenv('EMAILJS_DECISION_TEMPLATE_ID');
@@ -45,13 +46,13 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
         'template_id'     => $templateId,
         'user_id'         => $publicKey,
         'template_params' => [
-            'user_name'     => $userName,
-            'user_email'    => $email,
-            'election_title'=> $electionTitle,
-            'decision'      => $decision,
-            'subject_line'  => $subjectLine,
-            'message_body'  => $messageBody,
-            'reason'        => $reason,
+            'user_name'      => $userName,
+            'user_email'     => $email,
+            'election_title' => $electionTitle,
+            'decision'       => $decision,
+            'subject_line'   => $subjectLine,
+            'message_body'   => $messageBody,
+            'reason'         => $reason,
         ],
     ];
 
@@ -87,6 +88,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
     $requestId = (int)$_POST['request_id'];
     $decision = $_POST['decision'];
     $reason = trim($_POST['reason'] ?? '');
+
+    // Capture context for redirect
+    $returnStatus = $_POST['return_status'] ?? 'pending';
+    $returnElectionId = isset($_POST['return_election_id']) ? (int)$_POST['return_election_id'] : 0;
 
     if (!in_array($decision, ['approve', 'reject'], true)) {
         $message = "Invalid decision.";
@@ -168,6 +173,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
             $messageType = "error";
         }
     }
+
+    $redirect = 'main.php?page=voters'
+              . '&status=' . urlencode($returnStatus)
+              . ($returnElectionId ? '&election_id=' . $returnElectionId : '')
+              . '&msg=' . urlencode($message)
+              . '&msg_type=' . urlencode($messageType);
+    header('Location: ' . $redirect);
+    exit;
 }
 
 // Optional filter
@@ -218,6 +231,15 @@ $countsStmt = $conn->query("
 $counts = ['pending' => 0, 'approved' => 0, 'rejected' => 0];
 while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     $counts[$row['status']] = (int)$row['c'];
+}
+
+// Helper to build a tab URL
+function tabUrl(string $status, ?int $electionId): string {
+    $url = '?page=voters&status=' . urlencode($status);
+    if ($electionId) {
+        $url .= '&election_id=' . (int)$electionId;
+    }
+    return $url;
 }
 ?>
 
@@ -306,7 +328,10 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
         display: inline-flex;
         align-items: center;
         gap: 8px;
+        transition: all 0.2s;
     }
+
+    .filter-tab:hover { background: #e5e7eb; }
 
     .filter-tab.active {
         background: #2c7a7b;
@@ -314,7 +339,7 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     }
 
     .filter-tab .count {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(0, 0, 0, 0.08);
         padding: 1px 8px;
         border-radius: 10px;
         font-size: 11px;
@@ -390,6 +415,9 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     .status-pending  { background: #fef3c7; color: #92400e; }
     .status-approved { background: #d1fae5; color: #065f46; }
     .status-rejected { background: #fee2e2; color: #991b1b; }
+    .status-active   { background: #d1fae5; color: #065f46; }
+    .status-upcoming { background: #fef3c7; color: #92400e; }
+    .status-completed{ background: #e5e7eb; color: #374151; }
 
     .action-buttons {
         display: flex;
@@ -475,9 +503,16 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
         background: #2d2d3d;
         color: #cbd5e1;
     }
+    body.dark-theme .filter-tab:hover { background: #3d3d4d; }
     body.dark-theme .filter-tab.active {
         background: #2c7a7b;
         color: white;
+    }
+    body.dark-theme .filter-tab .count {
+        background: rgba(255, 255, 255, 0.12);
+    }
+    body.dark-theme .filter-tab.active .count {
+        background: rgba(255, 255, 255, 0.25);
     }
     body.dark-theme .requests-table {
         background: #1e1e2e;
@@ -496,6 +531,9 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     body.dark-theme .status-pending  { background: #78350f; color: #fde68a; }
     body.dark-theme .status-approved { background: #064e3b; color: #a7f3d0; }
     body.dark-theme .status-rejected { background: #7f1d1d; color: #fecaca; }
+    body.dark-theme .status-active   { background: #064e3b; color: #a7f3d0; }
+    body.dark-theme .status-upcoming { background: #78350f; color: #fde68a; }
+    body.dark-theme .status-completed{ background: #374151; color: #e5e7eb; }
     body.dark-theme .empty-state {
         background: #2d2d3d;
         border-color: #3d3d4d;
@@ -519,29 +557,29 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     </div>
 
     <?php if (!empty($message)): ?>
-        <div class="message <?php echo $messageType; ?>">
+        <div class="message <?php echo htmlspecialchars($messageType); ?>">
             <i class="fas <?php echo $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
             <?php echo htmlspecialchars($message); ?>
         </div>
     <?php endif; ?>
 
     <div class="filter-tabs">
-        <a href="?status=pending<?= $filterElectionId ? '&election_id=' . $filterElectionId : '' ?>"
+        <a href="<?= tabUrl('pending', $filterElectionId) ?>"
            class="filter-tab <?= $filterStatus === 'pending' ? 'active' : '' ?>">
             <i class="fas fa-hourglass-half"></i> Pending
             <span class="count"><?= $counts['pending'] ?></span>
         </a>
-        <a href="?status=approved<?= $filterElectionId ? '&election_id=' . $filterElectionId : '' ?>"
+        <a href="<?= tabUrl('approved', $filterElectionId) ?>"
            class="filter-tab <?= $filterStatus === 'approved' ? 'active' : '' ?>">
             <i class="fas fa-check-circle"></i> Approved
             <span class="count"><?= $counts['approved'] ?></span>
         </a>
-        <a href="?status=rejected<?= $filterElectionId ? '&election_id=' . $filterElectionId : '' ?>"
+        <a href="<?= tabUrl('rejected', $filterElectionId) ?>"
            class="filter-tab <?= $filterStatus === 'rejected' ? 'active' : '' ?>">
             <i class="fas fa-times-circle"></i> Rejected
             <span class="count"><?= $counts['rejected'] ?></span>
         </a>
-        <a href="?status=all<?= $filterElectionId ? '&election_id=' . $filterElectionId : '' ?>"
+        <a href="<?= tabUrl('all', $filterElectionId) ?>"
            class="filter-tab <?= $filterStatus === 'all' ? 'active' : '' ?>">
             <i class="fas fa-list"></i> All
         </a>
@@ -549,6 +587,7 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
 
     <div class="filters">
         <form method="get">
+            <input type="hidden" name="page" value="voters">
             <input type="hidden" name="status" value="<?= htmlspecialchars($filterStatus) ?>">
             <label style="font-size:13px;color:#4b5563;">Filter by election:</label>
             <select name="election_id" onchange="this.form.submit()">
@@ -624,6 +663,8 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
                                           onsubmit="return confirm('Approve <?= htmlspecialchars(addslashes($r['username'])) ?> as a voter? An email will be sent to them.');">
                                         <input type="hidden" name="request_id" value="<?= $r['id'] ?>">
                                         <input type="hidden" name="decision" value="approve">
+                                        <input type="hidden" name="return_status" value="<?= htmlspecialchars($filterStatus) ?>">
+                                        <input type="hidden" name="return_election_id" value="<?= (int)$filterElectionId ?>">
                                         <button type="submit" class="btn-approve">
                                             <i class="fas fa-check"></i> Approve
                                         </button>
@@ -633,6 +674,8 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
                                         <input type="hidden" name="request_id" value="<?= $r['id'] ?>">
                                         <input type="hidden" name="decision" value="reject">
                                         <input type="hidden" name="reason" value="">
+                                        <input type="hidden" name="return_status" value="<?= htmlspecialchars($filterStatus) ?>">
+                                        <input type="hidden" name="return_election_id" value="<?= (int)$filterElectionId ?>">
                                         <button type="submit" class="btn-reject">
                                             <i class="fas fa-times"></i> Reject
                                         </button>
