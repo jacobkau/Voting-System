@@ -811,8 +811,8 @@ try {
 <script>
 (function() {
     const POLL_INTERVAL_MS = 15000;
-    const RESULTS_API = 'api_election_results.php';
-    const SUMMARY_API = 'api_election_summary.php';
+const RESULTS_API = 'api/election_results.php';
+const SUMMARY_API = 'api/election_summary.php';
 
     let currentElectionId = null;
     let resultsPollTimer = null;
