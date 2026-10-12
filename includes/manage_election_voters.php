@@ -10,16 +10,6 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-
-error_log(sprintf(
-    "EmailJS DEBUG: SERVICE=[%s] TEMPLATE=[%s] PUBLIC=[%s] PRIVATE=[%s]",
-    getenv('EMAILJS_SERVICE_ID') ?: 'MISSING',
-    getenv('EMAILJS_DECISION_TEMPLATE_ID') ?: 'MISSING',
-    getenv('EMAILJS_PUBLIC_KEY') ? 'SET' : 'MISSING',
-    getenv('EMAILJS_PRIVATE_KEY') ? 'SET' : 'MISSING'
-));
-
-
 $adminId = (int)$_SESSION['admin_id'];
 $message = "";
 $messageType = "";
@@ -31,10 +21,10 @@ if (!empty($_GET['msg'])) {
 }
 
 function sendDecisionEmail(string $email, string $userName, string $electionTitle, string $decision, string $reason = ''): array {
-    $serviceId  = getenv('EMAILJS_SERVICE_ID');
-    $templateId = getenv('EMAILJS_DECISION_TEMPLATE_ID');
-    $publicKey  = getenv('EMAILJS_PUBLIC_KEY');
-    $privateKey = getenv('EMAILJS_PRIVATE_KEY');
+    $serviceId  = getenv('EMAILJS_SERVICE_ID2');
+    $templateId = getenv('EMAILJS_TEMPLATE_ID2');
+    $publicKey  = getenv('EMAILJS_PUBLIC_KEY2');
+    $privateKey = getenv('EMAILJS_PRIVATE_KEY2');
 
     if (!$serviceId || !$templateId || !$publicKey) {
         return ['sent' => false, 'error' => 'EmailJS not configured.'];
