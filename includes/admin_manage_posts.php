@@ -31,7 +31,6 @@ try {
 
 // Handle AJAX Requests for Adding and Deleting Posts
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
-    verifyCsrf();
     header('Content-Type: application/json');
 
     if ($_POST['action'] == "add_post") {
@@ -194,7 +193,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                         </tbody>
                     </table>
                     <form class="add-post-form" data-election="<?php echo $election['id']; ?>">
-                         <?= csrfField() ?>
                         <input type="text" name="postname" placeholder="Enter new post name (e.g., President, Secretary, Treasurer)" required>
                         <button type="submit">+ Add Post</button>
                     </form>
@@ -207,7 +205,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
     $(document).ready(function() {
         // Delete Post
         $(document).on("click", ".delete-btn", function() {
-            if (!confirm("⚠️ Are you sure you want to delete this post?\n\nThis action cannot be undone.")) return;
+            if (!confirm(" Are you sure you want to delete this post?\n\nThis action cannot be undone.")) return;
             
             let postId = $(this).data("id");
             let $row = $("#post-" + postId);
