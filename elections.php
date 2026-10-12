@@ -533,7 +533,7 @@ function resolveRegStatus(array $election): string {
 
 <script>
 (function() {
-    const POLL_INTERVAL_MS = 15000; // 15 seconds
+    const POLL_INTERVAL_MS = 1500; 
     const API_URL = 'api_election_status.php';
 
     // Track last-known statuses so we only touch the DOM when something changed
