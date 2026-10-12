@@ -2,606 +2,1106 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-include("conn.php");
+include __DIR__ . '/conn.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit();
 }
-
-// Fetch Elections
-$electionsStmt = $conn->prepare("SELECT id, title, status, start_date, end_date FROM elections ORDER BY id DESC");
-$electionsStmt->execute();
-$elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin Dashboard | Voting Results</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-    /* Stats Cards - Second Row (Flex) */
-        .stats-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        
-        .stat-card {
-            flex: 1;
-            min-width: 200px;
-            background: white;
-            border-radius: 16px;            
-            padding: 25px 20px;
-            text-align: center;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .stat-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: #2c7a7b; 
-        }
-        
-        .stat-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
-        }
-        
-        .stat-icon {
-            font-size: 45px;
-            color: #2c7a7b; 
-            margin-bottom: 15px;
-        }
-        
-        .stat-value {
-            font-size: 36px;
-            font-weight: 800;
-            color: #1f2937;
-            margin-bottom: 5px;
-        }
-        
-        .stat-label {
-            font-size: 14px;
-            color: #6b7280;
-            font-weight: 500;
-        }
-        
-        /* Elections List - Third Row */
-        .elections-section {
-            margin-top: 20px;
-        }
-        
-        .section-title {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 25px;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-        
-        .section-title h2 {
-            font-size: 24px;
-            font-weight: 700;
-            color: black;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-        }
-        
-        .section-title p {
-            color: #FF7F50;
-            font-size: 14px;
-        }
-        
-        /* Election Card */
-        .election-card {
-            background: white;
-            border-radius: 20px;
-            margin-bottom: 30px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .election-card:hover {
-            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
-        }
-        
-        .election-header {
-            background: #2c7a7b; 
-            padding: 25px 30px;
-            color: white;
-            cursor: pointer;
-            transition: background 0.3s ease;
-        }
-        
-        .election-header:hover {
-            background: #236162;
-        }
-        
-        .election-title {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .election-badge {
-            display: inline-block;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        .badge-active {
-            background: #10b981;
-            color: white;
-        }
-        
-        .badge-upcoming {
-            background: #f59e0b;
-            color: white;
-        }
-        
-        .badge-completed {
-            background: #6b7280;
-            color: white;
-        }
-        
-        .election-dates {
-            font-size: 14px;
-            opacity: 0.9;
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .election-dates i {
-            margin-right: 5px;
-        }
-        
-        .election-content {
-            padding: 30px;
-            display: none;
-        }
-        
-        .election-card.active .election-content {
-            display: block;
-        }
-        
-        .toggle-icon {
-            font-size: 24px;
-            transition: transform 0.3s ease;
-        }
-        
-        .election-card.active .toggle-icon {
-            transform: rotate(180deg);
-        }
-        
-        /* Post Section */
-        .post-section {
-            margin-bottom: 30px;
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
-            overflow: hidden;
-            background: #f9fafb;
-        }
-        
-        .post-header {
-            background: #f3f4f6;
-            padding: 15px 20px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .post-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: #374151;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .winner-badge {
-            background: #10b981;
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        
-        /* Table Styles */
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .results-table th {
-            background: #f3f4f6;
-            padding: 15px;
-            text-align: left;
-            font-weight: 600;
-            color: #374151;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        
-        .results-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .results-table tr:last-child td {
-            border-bottom: none;
-        }
-        
-        .results-table tr:hover {
-            background: #fef3c7;
-        }
-        
-        .winner-row {
-            background: #d1fae5; 
-            font-weight: 600;
-        }
-        
-        .candidate-name {
-            font-weight: 600;
-            color: #1f2937;
-        }
-        
-        .vote-count {
-            font-weight: 700;
-            color: #2c7a7b;
-            font-size: 18px;
-        }
-        
-        .percentage-bar {
-            background: #e5e7eb;
-            border-radius: 10px;
-            height: 8px;
-            width: 100%;
-            overflow: hidden;
-        }
-        
-        .percentage-fill {
-            background: #2c7a7b;
-            height: 100%;
-            border-radius: 10px;
-            transition: width 0.5s ease;
-        }
-        
-        .percentage-text {
-            font-size: 14px;
-            color: #6b7280;
-            margin-left: 10px;
-        }
-        
-        .crown-icon {
-            color: #f59e0b;
-            margin-right: 8px;
-        }
-        
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 16px;
-        }
-        
-        .empty-state i {
-            font-size: 64px;
-            color: #cbd5e1;
-            margin-bottom: 20px;
-        }
-        
-        .empty-state p {
-            color: #6b7280;
-            font-size: 16px;
-        }
-        
-        /* No votes state */
-        .no-votes {
-            padding: 20px;
-            text-align: center;
-            color: #9ca3af;
-        }
-        
-        /* Loading State */
-        .loading-state {
-            text-align: center;
-            padding: 40px;
-            background: white;
-            border-radius: 16px;
-        }
-        
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid #e5e7eb;
-            border-top-color: #2c7a7b; 
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        /* Responsive */
-        @media (max-width: 768px) {
-            body {
-                padding: 15px;
-            }
-            
-            .stats-grid {
-                gap: 15px;
-            }
-            
-            .stat-card {
-                min-width: calc(50% - 15px);
-                padding: 20px 15px;
-            }
-            
-            .stat-value {
-                font-size: 28px;
-            }
-            
-            .election-header {
-                padding: 15px 20px;
-            }
-            
-            .election-title {
-                font-size: 18px;
-            }
-            
-            .election-content {
-                padding: 15px;
-            }
-            
-            .results-table th,
-            .results-table td {
-                padding: 8px 10px;
-                font-size: 12px;
-            }
-            
-            .header {
-                padding: 20px;
-            }
-            
-            .header h1 {
-                font-size: 24px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .stat-card {
-                min-width: 100%;
-            }
-            
-            .stats-grid {
-                flex-direction: column;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container1">
-            
-        <?php if (empty($elections)): ?>
-            <div class="empty-state">
-                <i class="fas fa-vote-yea"></i>
-                <p>No elections found. Please create an election first.</p>
+<style>
+    /* ─────────────────────────────────────────────
+       Page shell
+       ───────────────────────────────────────────── */
+    .mv-wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    /* Stats strip */
+    .mv-stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .mv-stat {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 14px 16px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .mv-stat-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: #e6f4f4;
+        color: #2c7a7b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        flex-shrink: 0;
+    }
+
+    .mv-stat-info { flex: 1; min-width: 0; }
+
+    .mv-stat-value {
+        font-size: 20px;
+        font-weight: 800;
+        color: #1f2937;
+        line-height: 1.2;
+    }
+
+    .mv-stat-label {
+        font-size: 11px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-top: 2px;
+    }
+
+    /* Section title */
+    .mv-section-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .mv-section-title h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+    }
+
+    .mv-section-title h2 i { color: #2c7a7b; }
+
+    .mv-live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        background: #e6f4f4;
+        color: #2c7a7b;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+
+    .mv-live-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #10b981;
+        animation: mvPulse 2s infinite;
+    }
+
+    @keyframes mvPulse {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.4; }
+    }
+
+    /* Election card */
+    .mv-card {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        margin-bottom: 16px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.2s ease;
+    }
+
+    .mv-card:hover { box-shadow: 0 4px 15px rgba(44, 122, 123, 0.08); }
+
+    .mv-card-header {
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        flex-wrap: wrap;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .mv-card.active .mv-card-header {
+        border-bottom-color: #e5e7eb;
+    }
+
+    .mv-card-title-block {
+        flex: 1;
+        min-width: 220px;
+    }
+
+    .mv-card-title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 6px;
+    }
+
+    .mv-card-meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    .mv-card-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .mv-card-meta i { color: #2c7a7b; font-size: 11px; }
+
+    .mv-card-right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+    }
+
+    .mv-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+    }
+
+    .mv-status-active    { background: #d1fae5; color: #065f46; }
+    .mv-status-upcoming  { background: #fef3c7; color: #92400e; }
+    .mv-status-completed { background: #e5e7eb; color: #374151; }
+
+    .mv-toggle-icon {
+        font-size: 14px;
+        color: #6b7280;
+        transition: transform 0.25s ease;
+    }
+
+    .mv-card.active .mv-toggle-icon { transform: rotate(180deg); }
+
+    /* Body */
+    .mv-card-body {
+        display: none;
+        padding: 20px;
+    }
+
+    .mv-card.active .mv-card-body { display: block; }
+
+    /* Turnout block */
+    .mv-turnout {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+        padding: 14px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+    }
+
+    .mv-turnout-cell {
+        text-align: center;
+    }
+
+    .mv-turnout-cell .num {
+        font-size: 20px;
+        font-weight: 800;
+        color: #2c7a7b;
+        line-height: 1.1;
+    }
+
+    .mv-turnout-cell .lbl {
+        font-size: 11px;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        margin-top: 3px;
+    }
+
+    /* Turnout progress bar */
+    .mv-turnout-bar {
+        margin-top: 12px;
+        background: #e5e7eb;
+        border-radius: 20px;
+        height: 10px;
+        overflow: hidden;
+    }
+
+    .mv-turnout-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #2c7a7b, #4fd1c5);
+        border-radius: 20px;
+        transition: width 0.6s ease;
+    }
+
+    /* Positions */
+    .mv-position {
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+
+    .mv-position:last-child { margin-bottom: 0; }
+
+    .mv-position-header {
+        background: #f3f4f6;
+        padding: 11px 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .mv-position-name {
+        font-size: 13px;
+        font-weight: 700;
+        color: #374151;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .mv-position-name i { color: #2c7a7b; font-size: 12px; }
+
+    .mv-winner-tag {
+        font-size: 10px;
+        font-weight: 700;
+        background: #fef3c7;
+        color: #92400e;
+        padding: 3px 10px;
+        border-radius: 20px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .mv-winner-tag i { color: #f59e0b; }
+
+    /* Results table */
+    .mv-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .mv-table th,
+    .mv-table td {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 13px;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .mv-table tr:last-child td { border-bottom: none; }
+
+    .mv-table tr:hover { background: #f9fafb; }
+
+    .mv-table tr.mv-winner-row {
+        background: #ecfdf5;
+    }
+
+    .mv-table tr.mv-winner-row:hover {
+        background: #d1fae5;
+    }
+
+    .mv-table th {
+        font-size: 10px;
+        font-weight: 700;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        background: #f9fafb;
+    }
+
+    .mv-rank {
+        font-weight: 700;
+        color: #6b7280;
+        font-size: 12px;
+    }
+
+    .mv-rank.mv-rank-winner {
+        color: #f59e0b;
+    }
+
+    .mv-candidate {
+        font-weight: 600;
+        color: #1f2937;
+    }
+
+    .mv-vote-count {
+        font-weight: 800;
+        color: #2c7a7b;
+        font-size: 14px;
+    }
+
+    .mv-pct-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .mv-pct-track {
+        background: #e5e7eb;
+        border-radius: 10px;
+        height: 6px;
+        flex: 1;
+        overflow: hidden;
+        min-width: 60px;
+    }
+
+    .mv-pct-fill {
+        background: #2c7a7b;
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.6s ease;
+    }
+
+    .mv-pct-text {
+        font-size: 12px;
+        font-weight: 600;
+        color: #6b7280;
+        min-width: 42px;
+        text-align: right;
+    }
+
+    /* Actions footer */
+    .mv-card-actions {
+        margin-top: 18px;
+        padding-top: 16px;
+        border-top: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .mv-btn-danger {
+        background: #dc2626;
+        color: white;
+        border: none;
+        padding: 9px 16px;
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        transition: all 0.2s ease;
+    }
+
+    .mv-btn-danger:hover {
+        background: #b91c1c;
+        transform: translateY(-1px);
+    }
+
+    /* Empty states */
+    .mv-empty {
+        text-align: center;
+        padding: 60px 20px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        color: #9ca3af;
+    }
+
+    .mv-empty i {
+        font-size: 48px;
+        display: block;
+        margin-bottom: 14px;
+        color: #d1d5db;
+    }
+
+    .mv-no-votes {
+        text-align: center;
+        padding: 20px;
+        color: #9ca3af;
+        font-style: italic;
+        font-size: 12px;
+    }
+
+    /* Reset modal */
+    .mv-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        z-index: 1000;
+        padding: 20px;
+        overflow-y: auto;
+    }
+
+    .mv-modal.open {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+    }
+
+    .mv-modal-content {
+        background: #ffffff;
+        border-radius: 14px;
+        width: 100%;
+        max-width: 480px;
+        margin: 60px 0;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+        animation: mvSlideDown 0.25s ease;
+    }
+
+    @keyframes mvSlideDown {
+        from { transform: translateY(-24px); opacity: 0; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .mv-modal-header {
+        background: #dc2626;
+        color: white;
+        padding: 16px 22px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .mv-modal-header h3 {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .mv-modal-close {
+        background: rgba(255, 255, 255, 0.15);
+        border: none;
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .mv-modal-close:hover { background: rgba(255, 255, 255, 0.3); }
+
+    .mv-modal-body {
+        padding: 22px;
+    }
+
+    .mv-modal-warning {
+        background: #fef2f2;
+        color: #991b1b;
+        padding: 12px 14px;
+        border-radius: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+        margin-bottom: 18px;
+        border-left: 3px solid #dc2626;
+    }
+
+    .mv-modal-form label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 6px;
+    }
+
+    .mv-modal-form input,
+    .mv-modal-form textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 13px;
+        font-family: inherit;
+        margin-bottom: 14px;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #1f2937;
+        -webkit-text-fill-color: #1f2937;
+    }
+
+    .mv-modal-form textarea {
+        resize: vertical;
+        min-height: 70px;
+    }
+
+    .mv-modal-form input:focus,
+    .mv-modal-form textarea:focus {
+        outline: none;
+        border-color: #dc2626;
+        box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+    }
+
+    .mv-modal-confirm-hint {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: -10px;
+        margin-bottom: 14px;
+    }
+
+    .mv-modal-confirm-hint code {
+        background: #f3f4f6;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: #dc2626;
+        font-weight: 600;
+    }
+
+    .mv-modal-footer {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 6px;
+    }
+
+    .mv-modal-btn {
+        padding: 9px 16px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        border: none;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .mv-modal-btn.cancel {
+        background: #f3f4f6;
+        color: #4b5563;
+    }
+
+    .mv-modal-btn.cancel:hover { background: #e5e7eb; }
+
+    .mv-modal-btn.danger {
+        background: #dc2626;
+        color: white;
+    }
+
+    .mv-modal-btn.danger:hover { background: #b91c1c; }
+
+    .mv-modal-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Toast */
+    .mv-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1f2937;
+        color: white;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        z-index: 2000;
+        animation: mvToastIn 0.3s ease;
+        max-width: 340px;
+    }
+
+    .mv-toast.success { background: #065f46; }
+    .mv-toast.error   { background: #991b1b; }
+
+    @keyframes mvToastIn {
+        from { transform: translateX(20px); opacity: 0; }
+        to   { transform: translateX(0); opacity: 1; }
+    }
+
+    /* Live flash when a number changes */
+    @keyframes mvFlash {
+        0%   { background: rgba(16, 185, 129, 0.35); }
+        100% { background: transparent; }
+    }
+
+    .mv-num-updated { animation: mvFlash 1.2s ease; border-radius: 4px; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+        .mv-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 600px) {
+        .mv-stats { grid-template-columns: 1fr; }
+        .mv-turnout { grid-template-columns: 1fr; gap: 8px; }
+        .mv-card-header { padding: 14px 16px; }
+        .mv-card-body { padding: 16px; }
+        .mv-table th,
+        .mv-table td { padding: 8px 10px; font-size: 12px; }
+        .mv-card-title { font-size: 14px; }
+        .mv-section-title { flex-direction: column; align-items: flex-start; }
+    }
+</style>
+
+<div class="mv-wrap">
+    <!-- Stats strip -->
+    <div class="mv-stats" id="mvStats">
+        <div class="mv-stat">
+            <div class="mv-stat-icon"><i class="fas fa-poll"></i></div>
+            <div class="mv-stat-info">
+                <div class="mv-stat-value" id="mvTotalElections">—</div>
+                <div class="mv-stat-label">Total Elections</div>
             </div>
-        <?php else: ?>
-            <!-- Second Row: Statistics Overview (Flex) -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
-                    <div class="stat-value"><?php echo count($elections); ?></div>
-                    <div class="stat-label">Total Elections</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-                    <div class="stat-value">
-                        <?php 
-                        $activeCount = count(array_filter($elections, function($e) { return $e['status'] == 'active'; }));
-                        echo $activeCount;
-                        ?>
-                    </div>
-                    <div class="stat-label">Active Elections</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-trophy"></i></div>
-                    <div class="stat-value">
-                        <?php 
-                        $completedCount = count(array_filter($elections, function($e) { return $e['status'] == 'completed'; }));
-                        echo $completedCount;
-                        ?>
-                    </div>
-                    <div class="stat-label">Completed Elections</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon"><i class="fas fa-users"></i></div>
-                    <div class="stat-value">
-                        <?php
-                        $totalVotes = $conn->query("SELECT COUNT(*) as count FROM votes")->fetch(PDO::FETCH_ASSOC);
-                        echo number_format($totalVotes['count']);
-                        ?>
-                    </div>
-                    <div class="stat-label">Total Votes Cast</div>
-                </div>
+        </div>
+        <div class="mv-stat">
+            <div class="mv-stat-icon"><i class="fas fa-play"></i></div>
+            <div class="mv-stat-info">
+                <div class="mv-stat-value" id="mvActiveElections">—</div>
+                <div class="mv-stat-label">Active</div>
             </div>
-            
-            <!-- Third Row: Elections List -->
-            <div class="elections-section">
-                <div class="section-title">
-                    <h2><i class="fas fa-poll"></i> Elections Results</h2>
-                    <p><b>Click on any election to view detailed results</b></p>
-                </div>
-                
-                <?php foreach ($elections as $index => $election): ?>
-                    <?php
-                    // Get posts for this election
-                    $postsStmt = $conn->prepare("SELECT postname FROM election_posts WHERE election_id = ? ORDER BY postname");
-                    $postsStmt->execute([$election['id']]);
-                    $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
-                    ?>
-                    
-                    <div class="election-card" id="election-<?php echo $election['id']; ?>">
-                        <div class="election-header" onclick="toggleElection(<?php echo $election['id']; ?>)">
-                            <div class="election-title">
-                                <span><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></span>
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <span class="election-badge badge-<?php echo $election['status']; ?>">
-                                        <i class="fas <?php echo $election['status'] == 'active' ? 'fa-play' : ($election['status'] == 'upcoming' ? 'fa-clock' : 'fa-flag-checkered'); ?>"></i>
-                                        <?php echo ucfirst($election['status']); ?>
-                                    </span>
-                                    <i class="fas fa-chevron-down toggle-icon"></i>
-                                </div>
-                            </div>
-                            <div class="election-dates">
-                                <span><i class="far fa-calendar-alt"></i> Start: <?php echo date('M d, Y H:i', strtotime($election['start_date'])); ?></span>
-                                <span><i class="far fa-calendar-check"></i> End: <?php echo date('M d, Y H:i', strtotime($election['end_date'])); ?></span>
-                            </div>
-                        </div>
-                        
-                        <div class="election-content">
-                            <?php if (empty($posts)): ?>
-                                <div class="no-votes">
-                                    <i class="fas fa-info-circle"></i> No positions defined for this election.
-                                </div>
-                            <?php else: ?>
-                                <?php foreach ($posts as $post):
-                                    $postName = $post['postname'];
-                                    
-                                    // Get vote counts for this position
-                                    $voteStmt = $conn->prepare("
-                                        SELECT candidate_name, COUNT(*) as vote_count 
-                                        FROM votes 
-                                        WHERE election_id = ? AND postname = ? 
-                                        GROUP BY candidate_name 
-                                        ORDER BY vote_count DESC
-                                    ");
-                                    $voteStmt->execute([$election['id'], $postName]);
-                                    $results = $voteStmt->fetchAll(PDO::FETCH_ASSOC);
-                                    $totalVotes = array_sum(array_column($results, 'vote_count'));
-                                    $winner = !empty($results) ? $results[0] : null;
-                                    ?>
-                                    
-                                    <div class="post-section">
-                                        <div class="post-header">
-                                            <div class="post-title">
-                                                <span><i class="fas fa-user-tie"></i> <?php echo htmlspecialchars($postName); ?></span>
-                                                <?php if ($winner && $totalVotes > 0): ?>
-                                                    <span class="winner-badge">
-                                                        <i class="fas fa-crown"></i> Winner: <?php echo htmlspecialchars($winner['candidate_name']); ?> (<?php echo $winner['vote_count']; ?> votes)
-                                                    </span>
-                                                <?php endif; ?>
-                                            </div>
-                                        </div>
-                                        
-                                        <?php if (empty($results) || $totalVotes == 0): ?>
-                                            <div class="no-votes">
-                                                <i class="fas fa-chart-simple"></i> No votes recorded for this position yet.
-                                            </div>
-                                        <?php else: ?>
-                                            <table class="results-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Rank</th>
-                                                        <th>Candidate</th>
-                                                        <th>Votes</th>
-                                                        <th>Percentage</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <?php foreach ($results as $idx => $result):
-                                                        $percentage = ($totalVotes > 0) ? ($result['vote_count'] / $totalVotes) * 100 : 0;
-                                                        $isWinner = ($idx === 0);
-                                                    ?>
-                                                        <tr class="<?php echo $isWinner ? 'winner-row' : ''; ?>">
-                                                            <td width="60">
-                                                                <?php if ($isWinner): ?>
-                                                                    <i class="fas fa-crown crown-icon"></i> #<?php echo $idx + 1; ?>
-                                                                <?php else: ?>
-                                                                    #<?php echo $idx + 1; ?>
-                                                                <?php endif; ?>
-                                                            </td>
-                                                            <td class="candidate-name">
-                                                                <?php echo htmlspecialchars($result['candidate_name']); ?>
-                                                            </td>
-                                                            <td width="100">
-                                                                <span class="vote-count"><?php echo number_format($result['vote_count']); ?></span>
-                                                            </td>
-                                                            <td>
-                                                                <div style="display: flex; align-items: center; gap: 10px;">
-                                                                    <div class="percentage-bar" style="flex: 1;">
-                                                                        <div class="percentage-fill" style="width: <?php echo $percentage; ?>%;"></div>
-                                                                    </div>
-                                                                    <span class="percentage-text"><?php echo number_format($percentage, 1); ?>%</span>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    <?php endforeach; ?>
-                                                </tbody>
-                                            </table>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
+        </div>
+        <div class="mv-stat">
+            <div class="mv-stat-icon"><i class="fas fa-user-check"></i></div>
+            <div class="mv-stat-info">
+                <div class="mv-stat-value" id="mvTotalTurnout">—</div>
+                <div class="mv-stat-label">Voters Turned Out</div>
             </div>
-        <?php endif; ?>
+        </div>
+        <div class="mv-stat">
+            <div class="mv-stat-icon"><i class="fas fa-vote-yea"></i></div>
+            <div class="mv-stat-info">
+                <div class="mv-stat-value" id="mvTotalVotes">—</div>
+                <div class="mv-stat-label">Total Votes Cast</div>
+            </div>
+        </div>
     </div>
-    
-    <script>
-        function toggleElection(electionId) {
-            const card = document.getElementById('election-' + electionId);
-            card.classList.toggle('active');
+
+    <!-- Section title -->
+    <div class="mv-section-title">
+        <h2><i class="fas fa-chart-bar"></i> Voting Results</h2>
+        <span class="mv-live-badge">
+            <span class="mv-live-dot"></span> Live
+        </span>
+    </div>
+
+    <!-- Elections container -->
+    <div id="mvElections">
+        <div class="mv-empty">
+            <i class="fas fa-spinner fa-pulse"></i>
+            <p>Loading elections…</p>
+        </div>
+    </div>
+</div>
+
+<!-- Reset modal -->
+<div class="mv-modal" id="mvResetModal" onclick="if(event.target === this) closeResetModal()">
+    <div class="mv-modal-content" onclick="event.stopPropagation()">
+        <div class="mv-modal-header">
+            <h3><i class="fas fa-exclamation-triangle"></i> Reset Election</h3>
+            <button type="button" class="mv-modal-close" onclick="closeResetModal()" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="mv-modal-body">
+            <div class="mv-modal-warning">
+                <strong>This action cannot be undone.</strong>
+                <div style="margin-top: 4px;">
+                    All votes for <strong id="mvResetTitle">this election</strong> will be permanently deleted,
+                    and all candidate counters will be reset to zero.
+                </div>
+            </div>
+
+            <form class="mv-modal-form" id="mvResetForm" onsubmit="return submitReset(event)">
+                <input type="hidden" id="mvResetElectionId">
+
+                <label for="mvResetConfirm">Type the election title to confirm:</label>
+                <input type="text" id="mvResetConfirm" autocomplete="off" required>
+                <div class="mv-modal-confirm-hint">
+                    Must match exactly: <code id="mvResetExpected">—</code>
+                </div>
+
+                <label for="mvResetReason">Reason for reset (logged):</label>
+                <textarea id="mvResetReason" required minlength="5" placeholder="e.g., Testing phase complete, starting fresh"></textarea>
+
+                <div class="mv-modal-footer">
+                    <button type="button" class="mv-modal-btn cancel" onclick="closeResetModal()">Cancel</button>
+                    <button type="submit" class="mv-modal-btn danger" id="mvResetSubmitBtn">
+                        <i class="fas fa-trash-alt"></i> Reset Election
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const POLL_INTERVAL_MS = 15000;
+    const RESULTS_API = 'api/election_results_admin.php';
+    const RESET_API = 'api/reset_election.php';
+
+    const openCards = new Set();
+
+    // ─────────────────────────────────────────
+    // Toast helper
+    // ─────────────────────────────────────────
+    function showToast(message, type) {
+        const t = document.createElement('div');
+        t.className = 'mv-toast ' + (type || '');
+        t.textContent = message;
+        document.body.appendChild(t);
+        setTimeout(function() { t.remove(); }, 4000);
+    }
+
+    function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(String(s)));
+        return d.innerHTML;
+    }
+
+    function fmtDate(s) {
+        if (!s) return '—';
+        const d = new Date(s.replace(' ', 'T'));
+        if (isNaN(d)) return s;
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    // ─────────────────────────────────────────
+    // Renderers
+    // ─────────────────────────────────────────
+    function renderStats(elections) {
+        const totalElections = elections.length;
+        const activeCount = elections.filter(function(e) { return e.status === 'active'; }).length;
+        const totalTurnout = elections.reduce(function(sum, e) { return sum + (e.voted || 0); }, 0);
+        const totalVotes = elections.reduce(function(sum, e) { return sum + (e.total_votes_cast || 0); }, 0);
+
+        document.getElementById('mvTotalElections').textContent = totalElections.toLocaleString();
+        document.getElementById('mvActiveElections').textContent = activeCount.toLocaleString();
+        document.getElementById('mvTotalTurnout').textContent = totalTurnout.toLocaleString();
+        document.getElementById('mvTotalVotes').textContent = totalVotes.toLocaleString();
+    }
+
+    function renderElection(e) {
+        const isOpen = openCards.has(e.id);
+        const cardClass = 'mv-card' + (isOpen ? ' active' : '');
+
+        let positionsHtml = '';
+        if (!e.positions || e.positions.length === 0) {
+            positionsHtml = '<div class="mv-no-votes"><i class="fas fa-info-circle"></i> No positions defined for this election.</div>';
+        } else {
+            positionsHtml = e.positions.map(function(post) {
+                if (!post.candidates || post.candidates.length === 0) {
+                    return '<div class="mv-position">' +
+                        '<div class="mv-position-header">' +
+                            '<span class="mv-position-name"><i class="fas fa-user-tie"></i> ' + escapeHtml(post.postname) + '</span>' +
+                        '</div>' +
+                        '<div class="mv-no-votes">No approved candidates for this position.</div>' +
+                    '</div>';
+                }
+
+                const winner = post.candidates[0];
+
+                const rows = post.candidates.map(function(c, idx) {
+                    const isWinner = idx === 0 && post.total_votes > 0;
+                    return '<tr class="' + (isWinner ? 'mv-winner-row' : '') + '">' +
+                        '<td style="width:60px;">' +
+                            '<span class="mv-rank' + (isWinner ? ' mv-rank-winner' : '') + '">' +
+                                (isWinner ? '<i class="fas fa-crown"></i> ' : '') + '#' + (idx + 1) +
+                            '</span>' +
+                        '</td>' +
+                        '<td class="mv-candidate">' + escapeHtml(c.name) + '</td>' +
+                        '<td style="width:80px;">' +
+                            '<span class="mv-vote-count" data-candidate-id="' + c.id + '">' + c.votes.toLocaleString() + '</span>' +
+                        '</td>' +
+                        '<td style="width:200px;">' +
+                            '<div class="mv-pct-bar">' +
+                                '<div class="mv-pct-track">' +
+                                    '<div class="mv-pct-fill" style="width:' + c.percentage + '%;"></div>' +
+                                '</div>' +
+                                '<span class="mv-pct-text">' + c.percentage + '%</span>' +
+                            '</div>' +
+                        '</td>' +
+                    '</tr>';
+                }).join('');
+
+                const winnerTag = post.total_votes > 0 && winner
+                    ? '<span class="mv-winner-tag"><i class="fas fa-crown"></i> Winner: ' + escapeHtml(winner.name) + '</span>'
+                    : '';
+
+                return '<div class="mv-position">' +
+                    '<div class="mv-position-header">' +
+                        '<span class="mv-position-name"><i class="fas fa-user-tie"></i> ' + escapeHtml(post.postname) + '</span>' +
+                        winnerTag +
+                    '</div>' +
+                    '<table class="mv-table">' +
+                        '<thead>' +
+                            '<tr>' +
+                                '<th>Rank</th>' +
+                                '<th>Candidate</th>' +
+                                '<th>Votes</th>' +
+                                '<th>Percentage</th>' +
+                            '</tr>' +
+                        '</thead>' +
+                        '<tbody>' + rows + '</tbody>' +
+                    '</table>' +
+                '</div>';
+            }).join('');
         }
-        
-        // Auto-open first election card
-        const firstCard = document.querySelector('.election-card');
-        if (firstCard) {
-            firstCard.classList.add('active');
+
+        const turnoutHtml =
+            '<div class="mv-turnout">' +
+                '<div class="mv-turnout-cell">' +
+                    '<div class="num">' + (e.registered || 0).toLocaleString() + '</div>' +
+                    '<div class="lbl">Registered</div>' +
+                '</div>' +
+                '<div class="mv-turnout-cell">' +
+                    '<div class="num">' + (e.voted || 0).toLocaleString() + '</div>' +
+                    '<div class="lbl">Voted</div>' +
+                '</div>' +
+                '<div class="mv-turnout-cell">' +
+                    '<div class="num">' + e.turnout_pct + '%</div>' +
+                    '<div class="lbl">Turnout</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mv-turnout-bar">' +
+                '<div class="mv-turnout-fill" style="width:' + Math.min(e.turnout_pct, 100) + '%;"></div>' +
+            '</div>';
+
+        return '<div class="' + cardClass + '" data-election-id="' + e.id + '">' +
+            '<div class="mv-card-header" onclick="toggleCard(' + e.id + ')">' +
+                '<div class="mv-card-title-block">' +
+                    '<div class="mv-card-title">' +
+                        '<i class="fas fa-poll" style="color:#2c7a7b;"></i> ' + escapeHtml(e.title) +
+                        '<span class="mv-status-pill mv-status-' + escapeHtml(e.status) + '">' + escapeHtml(e.status) + '</span>' +
+                    '</div>' +
+                    '<div class="mv-card-meta">' +
+                        '<span><i class="far fa-calendar-alt"></i> ' + fmtDate(e.start_date) + '</span>' +
+                        '<span><i class="far fa-calendar-check"></i> ' + fmtDate(e.end_date) + '</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="mv-card-right">' +
+                    '<i class="fas fa-chevron-down mv-toggle-icon"></i>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mv-card-body">' +
+                turnoutHtml +
+                '<div style="margin-top:20px;">' + positionsHtml + '</div>' +
+                '<div class="mv-card-actions">' +
+                    '<button type="button" class="mv-btn-danger" onclick="event.stopPropagation(); openResetModal(' + e.id + ', \'' + escapeHtml(e.title.replace(/'/g, "\\'")) + '\')">' +
+                        '<i class="fas fa-sync-alt"></i> Reset Election' +
+                    '</button>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+
+    function render(elections) {
+        renderStats(elections);
+
+        const container = document.getElementById('mvElections');
+
+        if (!elections || elections.length === 0) {
+            container.innerHTML =
+                '<div class="mv-empty">' +
+                    '<i class="fas fa-vote-yea"></i>' +
+                    '<p>No elections found. Please create one first.</p>' +
+                '</div>';
+            return;
         }
-        
-        // Animate percentage bars on load
-        document.addEventListener('DOMContentLoaded', function() {
-            const fills = document.querySelectorAll('.percentage-fill');
-            fills.forEach(fill => {
-                const width = fill.style.width;
-                fill.style.width = '0%';
-                setTimeout(() => {
-                    fill.style.width = width;
-                }, 100);
+
+        container.innerHTML = elections.map(renderElection).join('');
+    }
+
+    // ─────────────────────────────────────────
+    // Toggle card
+    // ─────────────────────────────────────────
+    window.toggleCard = function(id) {
+        const card = document.querySelector('.mv-card[data-election-id="' + id + '"]');
+        if (!card) return;
+
+        if (card.classList.contains('active')) {
+            card.classList.remove('active');
+            openCards.delete(id);
+        } else {
+            card.classList.add('active');
+            openCards.add(id);
+        }
+    };
+
+    // ─────────────────────────────────────────
+    // Live polling
+    // ─────────────────────────────────────────
+    async function poll() {
+        if (document.visibilityState === 'hidden') return;
+
+        try {
+            const res = await fetch(RESULTS_API, {
+                credentials: 'same-origin',
+                cache: 'no-store'
             });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            if (!data.ok || !Array.isArray(data.elections)) return;
+
+            const serverIds = data.elections.map(function(e) { return String(e.id); }).sort().join(',');
+            const renderedIds = Array.from(document.querySelectorAll('.mv-card'))
+                .map(function(el) { return el.dataset.electionId; }).sort().join(',');
+
+            if (serverIds !== renderedIds) {
+                render(data.elections);
+                return;
+            }
+
+            data.elections.forEach(function(e) {
+                const card = document.querySelector('.mv-card[data-election-id="' + e.id + '"]');
+                if (!card) return;
+
+                const oldBody = card.querySelector('.mv-card-body');
+                if (!oldBody) return;
+
+                const cells = oldBody.querySelectorAll('.mv-turnout-cell .num');
+                if (cells.length >= 3) {
+                    const oldReg = parseInt(cells[0].textContent.replace(/,/g, ''), 10) || 0;
+                    const oldVoted = parseInt(cells[1].textContent.replace(/,/g, ''), 10) || 0;
+
+                    if (oldReg !== e.registered || oldVoted !== e.voted) {
+                        const isOpen = card.classList.contains('active');
+                        const fresh = document.createElement('div');
+                        fresh.innerHTML = renderElection(e);
+                        const freshCard = fresh.firstElementChild;
+
+                        if (isOpen) freshCard.classList.add('active');
+                        card.replaceWith(freshCard);
+                    }
+                }
+            });
+
+        } catch (err) {
+            // Silent — retry on next tick
+        }
+    }
+
+    // ─────────────────────────────────────────
+    // Reset modal
+    // ─────────────────────────────────────────
+    window.openResetModal = function(electionId, title) {
+        document.getElementById('mvResetElectionId').value = electionId;
+        document.getElementById('mvResetTitle').textContent = title;
+        document.getElementById('mvResetExpected').textContent = title;
+        document.getElementById('mvResetConfirm').value = '';
+        document.getElementById('mvResetReason').value = '';
+        document.getElementById('mvResetModal').classList.add('open');
+    };
+
+    window.closeResetModal = function() {
+        document.getElementById('mvResetModal').classList.remove('open');
+    };
+
+    window.submitReset = function(ev) {
+        ev.preventDefault();
+
+        const electionId = document.getElementById('mvResetElectionId').value;
+        const confirmText = document.getElementById('mvResetConfirm').value.trim();
+        const reason = document.getElementById('mvResetReason').value.trim();
+        const expected = document.getElementById('mvResetExpected').textContent;
+
+        if (confirmText !== expected) {
+            showToast('Confirmation text does not match.', 'error');
+            return false;
+        }
+        if (reason.length < 5) {
+            showToast('Please provide a reason (min 5 characters).', 'error');
+            return false;
+        }
+
+        const btn = document.getElementById('mvResetSubmitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Resetting…';
+
+        const formData = new FormData();
+        formData.append('election_id', electionId);
+        formData.append('confirm_text', confirmText);
+        formData.append('reason', reason);
+
+        fetch(RESET_API, {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash-alt"></i> Reset Election';
+
+            if (data.success) {
+                showToast(data.message || 'Election reset successfully.', 'success');
+                closeResetModal();
+                poll();
+            } else {
+                showToast(data.message || 'Reset failed.', 'error');
+            }
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-trash-alt"></i> Reset Election';
+            showToast('Network error. Please try again.', 'error');
         });
-    </script>
-</body>
-</html>
+
+        return false;
+    };
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeResetModal();
+    });
+
+    // ─────────────────────────────────────────
+    // Boot
+    // ─────────────────────────────────────────
+    poll();
+    setInterval(poll, POLL_INTERVAL_MS);
+
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') poll();
+    });
+})();
+</script>
