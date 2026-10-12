@@ -44,7 +44,6 @@ try {
 
 // Handle Form Submission
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['update_settings'])) {
-    verifyCsrf();
     $newName = trim($_POST['name']);
     $newEmail = trim($_POST['email']);
     $newPassword = $_POST['password'];
@@ -162,7 +161,6 @@ $profilePhotoDisplay = resolveImageUrl($profilePhoto);
 <?php endif; ?>
 
 <form method="post" enctype="multipart/form-data">
-     <?= csrfField() ?>
     <div class="current-photo">
         <img src="<?php echo htmlspecialchars($profilePhotoDisplay); ?>" alt="Admin Photo">
     </div>
