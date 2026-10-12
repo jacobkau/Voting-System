@@ -3,8 +3,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-require_once __DIR__ . '/csrf.php';
-
 // ============================================================
 //  ENFORCE HTTPS - Redirect all HTTP traffic to HTTPS
 // ============================================================
