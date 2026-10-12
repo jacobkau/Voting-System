@@ -116,9 +116,49 @@ $electionsStmt->execute([$userId, $userId]);
 $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
 /**
+ * Fetch the positions for a given election, along with the
+ * number of approved candidates per position.
+ */
+function fetchElectionPosts(PDO $conn, int $electionId): array {
+    try {
+        // Prefer the canonical positions from election_posts
+        $stmt = $conn->prepare("
+            SELECT ep.postname,
+                   (SELECT COUNT(*) FROM contesters c
+                    WHERE c.election_id = ep.election_id
+                      AND c.postname = ep.postname
+                      AND c.status = 'approved') AS approved_count
+            FROM election_posts ep
+            WHERE ep.election_id = ?
+            ORDER BY ep.postname
+        ");
+        $stmt->execute([$electionId]);
+        $posts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($posts)) {
+            return $posts;
+        }
+
+        // Fall back — distinct postnames from approved contesters
+        $stmt2 = $conn->prepare("
+            SELECT c.postname,
+                   COUNT(*) AS approved_count
+            FROM contesters c
+            WHERE c.election_id = ? AND c.status = 'approved'
+            GROUP BY c.postname
+            ORDER BY c.postname
+        ");
+        $stmt2->execute([$electionId]);
+        return $stmt2->fetchAll(PDO::FETCH_ASSOC);
+
+    } catch (PDOException $e) {
+        error_log("fetchElectionPosts error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
  * Render the action button for a single election card.
- * Used both by the initial server-render and as the canonical markup
- * that the polling JS mirrors when a status changes.
  */
 function renderActionButton(array $election, string $regStatus): string {
     $electionId = (int)$election['id'];
@@ -154,7 +194,6 @@ function renderActionButton(array $election, string $regStatus): string {
         return $html;
     }
 
-    // 'none' — no request yet
     return '<form method="post">'
          . '<button type="submit" name="request_election_id" value="' . $electionId . '"'
          . ' class="btn-request"'
@@ -182,7 +221,7 @@ function resolveRegStatus(array $election): string {
 
 <style>
     .elections-container {
-        max-width: 1000px;
+        max-width: 1100px;
         margin: 0 auto 40px;
         padding: 0 20px;
     }
@@ -267,7 +306,7 @@ function resolveRegStatus(array $election): string {
 
     .election-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
         gap: 16px;
     }
 
@@ -371,6 +410,142 @@ function resolveRegStatus(array $election): string {
     body.dark-theme .status-approved { background: #064e3b; color: #a7f3d0; }
     body.dark-theme .status-rejected { background: #7f1d1d; color: #fecaca; }
 
+    /* ────────────────────────────────────────────
+       Posts (positions) section
+       ──────────────────────────────────────────── */
+    .posts-section {
+        border-top: 1px dashed #e5e7eb;
+        padding-top: 12px;
+        margin-top: 4px;
+    }
+
+    body.dark-theme .posts-section { border-top-color: #3d3d4d; }
+
+    .posts-toggle {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        color: #2c7a7b;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: gap 0.2s ease;
+    }
+
+    .posts-toggle:hover { gap: 10px; }
+
+    body.dark-theme .posts-toggle { color: #4fd1c5; }
+
+    .posts-toggle .posts-toggle-count {
+        background: #e6f4f4;
+        color: #2c7a7b;
+        font-size: 10px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-weight: 700;
+    }
+
+    body.dark-theme .posts-toggle .posts-toggle-count {
+        background: rgba(44, 122, 123, 0.25);
+        color: #a7f3d0;
+    }
+
+    .posts-toggle i.chev {
+        transition: transform 0.25s ease;
+        font-size: 10px;
+    }
+
+    .posts-toggle.open i.chev { transform: rotate(180deg); }
+
+    .posts-list {
+        margin-top: 10px;
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .posts-list.open { display: flex; }
+
+    .post-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 12px;
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        font-size: 12px;
+    }
+
+    body.dark-theme .post-item {
+        background: #2d2d3d;
+        border-color: #3d3d4d;
+    }
+
+    .post-item-left {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .post-item-left i {
+        color: #2c7a7b;
+        font-size: 11px;
+        flex-shrink: 0;
+    }
+
+    .post-item-name {
+        color: #374151;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    body.dark-theme .post-item-name { color: #e5e7eb; }
+
+    .post-item-badge {
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .post-item-badge.has-candidates {
+        background: #d1fae5;
+        color: #065f46;
+    }
+
+    .post-item-badge.no-candidates {
+        background: #f3f4f6;
+        color: #6b7280;
+    }
+
+    body.dark-theme .post-item-badge.has-candidates {
+        background: #064e3b;
+        color: #a7f3d0;
+    }
+
+    body.dark-theme .post-item-badge.no-candidates {
+        background: #3d3d4d;
+        color: #9ca3af;
+    }
+
+    .posts-empty {
+        font-size: 12px;
+        color: #9ca3af;
+        font-style: italic;
+        padding: 4px 0;
+    }
+
     .election-card-actions {
         margin-top: auto;
         padding-top: 6px;
@@ -405,21 +580,10 @@ function resolveRegStatus(array $election): string {
         transform: none;
     }
 
-    .btn-request.pending {
-        background-color: #f59e0b;
-    }
-
-    .btn-request.approved {
-        background-color: #10b981;
-    }
-
-    .btn-request.rejected {
-        background-color: #dc2626;
-    }
-
-    .btn-request.rejected:hover:not(:disabled) {
-        background-color: #b91c1c;
-    }
+    .btn-request.pending { background-color: #f59e0b; }
+    .btn-request.approved { background-color: #10b981; }
+    .btn-request.rejected { background-color: #dc2626; }
+    .btn-request.rejected:hover:not(:disabled) { background-color: #b91c1c; }
 
     .rejection-note {
         font-size: 12px;
@@ -474,7 +638,7 @@ function resolveRegStatus(array $election): string {
         </div>
         <div class="elections-hero-text">
             <h1>Open Elections</h1>
-            <p>Browse open elections and request voter registration. Your request will be reviewed by an administrator.</p>
+            <p>Browse open elections, see the positions being contested, and request voter registration.</p>
         </div>
         <span class="live-indicator" title="This page updates automatically">
             <span class="live-dot"></span> Live
@@ -497,7 +661,10 @@ function resolveRegStatus(array $election): string {
     <?php else: ?>
         <div class="election-grid">
             <?php foreach ($elections as $election): ?>
-                <?php $regStatus = resolveRegStatus($election); ?>
+                <?php
+                    $regStatus = resolveRegStatus($election);
+                    $posts = fetchElectionPosts($conn, (int)$election['id']);
+                ?>
                 <div class="election-card" data-election-id="<?php echo (int)$election['id']; ?>">
                     <div class="election-card-header">
                         <h3><?php echo htmlspecialchars($election['title']); ?></h3>
@@ -520,6 +687,40 @@ function resolveRegStatus(array $election): string {
                         <?php endif; ?>
                     </div>
 
+                    <!-- Positions (posts) section -->
+                    <div class="posts-section">
+                        <?php if (empty($posts)): ?>
+                            <span class="posts-empty">
+                                <i class="fas fa-info-circle"></i> No positions defined for this election yet.
+                            </span>
+                        <?php else: ?>
+                            <button type="button" class="posts-toggle" onclick="togglePosts(this)">
+                                <i class="fas fa-chevron-down chev"></i>
+                                Positions
+                                <span class="posts-toggle-count"><?php echo count($posts); ?></span>
+                            </button>
+
+                            <div class="posts-list">
+                                <?php foreach ($posts as $post): ?>
+                                    <?php $hasCandidates = (int)$post['approved_count'] > 0; ?>
+                                    <div class="post-item">
+                                        <div class="post-item-left">
+                                            <i class="fas fa-user-tie"></i>
+                                            <span class="post-item-name"><?php echo htmlspecialchars($post['postname']); ?></span>
+                                        </div>
+                                        <span class="post-item-badge <?php echo $hasCandidates ? 'has-candidates' : 'no-candidates'; ?>">
+                                            <?php if ($hasCandidates): ?>
+                                                <?php echo (int)$post['approved_count']; ?> candidate<?php echo (int)$post['approved_count'] === 1 ? '' : 's'; ?>
+                                            <?php else: ?>
+                                                No candidates yet
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+
                     <div class="election-card-actions"
                          data-role="actions"
                          data-status="<?php echo htmlspecialchars($regStatus); ?>">
@@ -532,11 +733,24 @@ function resolveRegStatus(array $election): string {
 </div>
 
 <script>
-(function() {
-    const POLL_INTERVAL_MS = 1500; 
-    const API_URL = 'api_election_status.php';
+// ────────────────────────────────────────────────────────────
+// Positions (posts) expansion toggle
+// ────────────────────────────────────────────────────────────
+function togglePosts(button) {
+    const list = button.nextElementSibling;
+    if (!list) return;
 
-    // Track last-known statuses so we only touch the DOM when something changed
+    button.classList.toggle('open');
+    list.classList.toggle('open');
+}
+
+// ────────────────────────────────────────────────────────────
+// Live polling — registration status updates
+// ────────────────────────────────────────────────────────────
+(function() {
+    const POLL_INTERVAL_MS = 15000;
+    const API_URL = 'api/election_status.php';
+
     const lastKnownStatus = {};
 
     function escapeHtml(s) {
@@ -582,7 +796,6 @@ function resolveRegStatus(array $election): string {
     }
 
     async function pollOnce() {
-        // Don't poll while the tab is hidden — saves requests and battery
         if (document.visibilityState === 'hidden') return;
 
         try {
@@ -615,14 +828,12 @@ function resolveRegStatus(array $election): string {
                 if (!container) return;
 
                 const prev = lastKnownStatus[id];
-                if (prev === e.reg_status) return; 
+                if (prev === e.reg_status) return;
 
                 if (prev !== undefined) {
-                    // Only redraw if this isn't the very first poll
                     container.innerHTML = buildButtonHtml(id, e.reg_status, e.rejection_reason);
                     container.dataset.status = e.reg_status;
 
-                    // Brief green flash on the card to signal "something just updated"
                     const card = container.closest('.election-card');
                     if (card) {
                         card.classList.add('flash-update');
@@ -634,7 +845,7 @@ function resolveRegStatus(array $election): string {
             });
 
         } catch (err) {
-            // Silent — network hiccup; next tick will retry
+            // Silent — next tick will retry
         }
     }
 
@@ -647,10 +858,8 @@ function resolveRegStatus(array $election): string {
         }
     });
 
-    // Regular polling
     setInterval(pollOnce, POLL_INTERVAL_MS);
 
-    // Catch up immediately when the user returns to the tab
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
             pollOnce();
