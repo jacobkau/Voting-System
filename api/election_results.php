@@ -69,12 +69,12 @@ try {
     foreach ($posts as $post) {
         $postName = $post['postname'];
 
-        $cStmt = $conn->prepare("
-            SELECT id, user_id, name, votes, profile_photo
-            FROM contesters
-            WHERE postname = ? AND election_id = ? AND status = 'approved'
-            ORDER BY votes DESC, name ASC
-        ");
+      $cStmt = $conn->prepare("
+    SELECT id, user_id, name, votes, bio, profile_photo
+    FROM contesters
+    WHERE postname = ? AND election_id = ? AND status = 'approved'
+    ORDER BY votes DESC, name ASC
+");
         $cStmt->execute([$postName, $electionId]);
         $candidatesRaw = $cStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -82,12 +82,14 @@ try {
         $totalVotes = 0;
         foreach ($candidatesRaw as $c) {
             $totalVotes += (int)$c['votes'];
-            $candidates[] = [
-                'id'    => (int)$c['id'],
-                'name'  => $c['name'],
-                'votes' => (int)$c['votes'],
-                'photo' => resolveCandidateImage($c, $conn),
-            ];
+           $candidates[] = [
+    'id'     => (int)$c['id'],
+    'user_id'=> isset($c['user_id']) ? (int)$c['user_id'] : null,
+    'name'   => $c['name'],
+    'votes'  => (int)$c['votes'],
+    'bio'    => $c['bio'] ?? '',
+    'photo'  => resolveCandidateImage($c, $conn),
+];
         }
 
         $outPosts[] = [
