@@ -1,7 +1,9 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
 include("conn.php");
@@ -15,16 +17,31 @@ if (empty($_SESSION["username"])) {
 
 $username = $_SESSION["username"];
 
+// ────────────────────────────────────────────────────────────
+// Fetch all elections (with aggregated counts for the cards)
+// ────────────────────────────────────────────────────────────
 try {
-    $electionQuery = "SELECT id, title FROM elections ORDER BY id DESC";
-    $electionResult = $conn->query($electionQuery);
-    $elections = $electionResult->fetchAll(PDO::FETCH_ASSOC);
+    $electionsStmt = $conn->prepare("
+        SELECT e.id, e.title, e.description, e.start_date, e.end_date, e.status,
+               (SELECT COUNT(*) FROM election_posts WHERE election_id = e.id) AS positions_count,
+               (SELECT COUNT(DISTINCT postname) FROM contesters WHERE election_id = e.id AND status = 'approved') AS approved_posts,
+               (SELECT COUNT(*) FROM contesters WHERE election_id = e.id AND status = 'approved') AS candidates_count,
+               (SELECT COUNT(*) FROM votes WHERE election_id = e.id) AS votes_count
+        FROM elections e
+        ORDER BY 
+            CASE e.status WHEN 'active' THEN 1 WHEN 'upcoming' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END,
+            e.start_date DESC
+    ");
+    $electionsStmt->execute();
+    $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
     error_log("Error fetching elections: " . $e->getMessage());
     $elections = [];
 }
 
-
+// ────────────────────────────────────────────────────────────
+// Live avatar helper (unchanged from previous version)
+// ────────────────────────────────────────────────────────────
 function getCandidateImage($candidate, $conn) {
     if (!empty($candidate['user_id'])) {
         try {
@@ -47,6 +64,9 @@ function getCandidateImage($candidate, $conn) {
     return defaultAvatarUrl();
 }
 
+// ────────────────────────────────────────────────────────────
+// User's quick stats
+// ────────────────────────────────────────────────────────────
 try {
     $voteStmt = $conn->prepare("SELECT COUNT(*) FROM votes WHERE username = ?");
     $voteStmt->execute([$username]);
@@ -100,21 +120,34 @@ try {
         flex-shrink: 0;
     }
 
-    .results-hero-text {
-        flex: 1;
-        min-width: 200px;
-    }
+    .results-hero-text { flex: 1; min-width: 200px; }
+    .results-hero-text h1 { font-size: 20px; margin-bottom: 4px; font-weight: 700; }
+    .results-hero-text p { font-size: 13px; opacity: 0.9; line-height: 1.5; }
 
-    .results-hero-text h1 {
-        font-size: 20px;
-        margin-bottom: 4px;
-        font-weight: 700;
-    }
-
-    .results-hero-text p {
-        font-size: 13px;
+    .live-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        background: rgba(255, 255, 255, 0.15);
+        padding: 4px 10px;
+        border-radius: 20px;
         opacity: 0.9;
-        line-height: 1.5;
+    }
+
+    .live-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #10b981;
+        box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        animation: livePulse 2s infinite;
+    }
+
+    @keyframes livePulse {
+        0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+        70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
     .stats-row {
@@ -163,10 +196,7 @@ try {
         background: rgba(44, 122, 123, 0.2);
     }
 
-    .stat-box .stat-info {
-        flex: 1;
-        min-width: 0;
-    }
+    .stat-box .stat-info { flex: 1; min-width: 0; }
 
     .stat-box .number {
         font-size: 20px;
@@ -185,179 +215,179 @@ try {
 
     body.dark-theme .stat-box .label { color: #9ca3af; }
 
-    .votes-container {
-        max-width: 1400px;
-        margin: 0 auto 40px;
-        background-color: #ffffff;
-        padding: 30px;
-        border-radius: 16px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    /* ────────────────────────────────────────────────
+       Election cards grid
+       ──────────────────────────────────────────────── */
+    .elections-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+    }
+
+    .election-card {
+        background: #ffffff;
         border: 1px solid #e5e7eb;
-        transition: background-color 0.3s ease, border-color 0.3s ease;
+        border-radius: 14px;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        transition: all 0.25s ease;
+        cursor: pointer;
+        position: relative;
+        overflow: hidden;
     }
 
-    body.dark-theme .votes-container {
-        background-color: #1e1e2e;
+    body.dark-theme .election-card {
+        background: #1e1e2e;
         border-color: #3d3d4d;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
 
-    .votes-container h2 {
-        color: #1f2937;
-        margin-top: 26px;
-        margin-bottom: 16px;
-        padding-bottom: 8px;
-        border-bottom: 2px solid #e5e7eb;
-        font-size: 20px;
+    .election-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background-color: #2c7a7b;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 0.3s ease;
+    }
+
+    .election-card:hover {
+        border-color: #2c7a7b;
+        box-shadow: 0 8px 25px rgba(44, 122, 123, 0.12);
+        transform: translateY(-3px);
+    }
+
+    .election-card:hover::before {
+        transform: scaleX(1);
+    }
+
+    .election-card-header {
         display: flex;
-        align-items: center;
+        justify-content: space-between;
+        align-items: flex-start;
         gap: 10px;
-        transition: color 0.3s ease, border-color 0.3s ease;
     }
 
-    body.dark-theme .votes-container h2 {
-        color: #f3f4f6;
-        border-bottom-color: #3d3d4d;
-    }
-
-    .votes-container h2:first-child { margin-top: 0; }
-
-    .votes-container h2 i { color: #2c7a7b; font-size: 18px; }
-
-    .votes-container h3 {
-        color: #374151;
-        margin-top: 20px;
-        margin-bottom: 12px;
+    .election-card h3 {
         font-size: 16px;
+        font-weight: 700;
+        color: #1f2937;
+        margin: 0;
+        line-height: 1.3;
+    }
+
+    body.dark-theme .election-card h3 { color: #f3f4f6; }
+
+    .election-card p {
+        color: #6b7280;
+        font-size: 13px;
+        line-height: 1.5;
+        margin: 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    body.dark-theme .election-card p { color: #9ca3af; }
+
+    .election-card-meta {
         display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        font-size: 12px;
+        color: #6b7280;
+    }
+
+    body.dark-theme .election-card-meta { color: #9ca3af; }
+
+    .election-card-meta span {
+        display: inline-flex;
         align-items: center;
+        gap: 5px;
+    }
+
+    .election-card-meta i {
+        color: #2c7a7b;
+        font-size: 11px;
+    }
+
+    /* Mini live stats inside each card */
+    .card-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
         gap: 8px;
+        padding: 12px 0 0;
+        border-top: 1px dashed #e5e7eb;
+        margin-top: auto;
+    }
+
+    body.dark-theme .card-stats { border-top-color: #3d3d4d; }
+
+    .card-stat {
+        text-align: center;
+    }
+
+    .card-stat .cs-num {
+        font-size: 16px;
+        font-weight: 800;
+        color: #2c7a7b;
+        line-height: 1.2;
         transition: color 0.3s ease;
     }
 
-    body.dark-theme .votes-container h3 { color: #e5e7eb; }
+    body.dark-theme .card-stat .cs-num { color: #4fd1c5; }
 
-    .votes-container h3 i { color: #2c7a7b; font-size: 14px; }
-
-    .votes-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 8px;
-        margin-bottom: 24px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border-radius: 12px;
-        overflow: hidden;
-    }
-
-    .votes-table th,
-    .votes-table td {
-        border: 1px solid #e5e7eb;
-        padding: 12px 14px;
-        text-align: left;
-        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
-    }
-
-    body.dark-theme .votes-table th,
-    body.dark-theme .votes-table td {
-        border-color: #3d3d4d;
-        color: #e5e7eb;
-    }
-
-    .votes-table th {
-        background-color: #2c7a7b;
-        color: #ffffff;
-        font-weight: 600;
+    .card-stat .cs-label {
+        font-size: 10px;
+        color: #6b7280;
         text-transform: uppercase;
-        font-size: 11px;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
+        margin-top: 2px;
     }
 
-    body.dark-theme .votes-table th {
-        background-color: #0f172a;
+    body.dark-theme .card-stat .cs-label { color: #9ca3af; }
+
+    .card-cta {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #2c7a7b;
+        margin-top: 4px;
+        transition: gap 0.2s ease;
     }
 
-    .votes-table tr:hover {
-        background-color: #f9fafb;
+    .election-card:hover .card-cta {
+        gap: 10px;
     }
 
-    body.dark-theme .votes-table tr:hover {
-        background-color: #2d2d3d;
-    }
-
-    .votes-table tr.winner-row {
-        background-color: #d1fae5;
-    }
-
-    body.dark-theme .votes-table tr.winner-row {
-        background-color: #064e3b;
-    }
-
-    .votes-table tr.winner-row:hover {
-        background-color: #a7f3d0;
-    }
-
-    body.dark-theme .votes-table tr.winner-row:hover {
-        background-color: #065f46;
-    }
-
-    .candidate-image {
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        object-fit: cover;
-        border: 2px solid #2c7a7b;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-        background: #f4f7f9;
-    }
-
-    .winner-badge {
+    .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
-        background-color: #f59e0b;
-        color: #ffffff;
-        font-size: 10px;
         padding: 3px 9px;
         border-radius: 20px;
-        margin-left: 8px;
+        font-size: 10px;
         font-weight: 600;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
+        white-space: nowrap;
     }
 
-    .vote-count {
-        font-size: 15px;
-        font-weight: 700;
-        color: #2c7a7b;
-    }
+    .status-active    { background: #d1fae5; color: #065f46; }
+    .status-upcoming  { background: #fef3c7; color: #92400e; }
+    .status-completed { background: #e5e7eb; color: #374151; }
 
-    .percentage-bar {
-        background: #e5e7eb;
-        border-radius: 10px;
-        height: 6px;
-        width: 100%;
-        overflow: hidden;
-        margin-top: 5px;
-    }
-
-    body.dark-theme .percentage-bar {
-        background: #3d3d4d;
-    }
-
-    .percentage-fill {
-        background-color: #2c7a7b;
-        height: 100%;
-        border-radius: 10px;
-        transition: width 0.5s ease;
-    }
-
-    .percentage-text {
-        font-size: 13px;
-        color: #6b7280;
-        min-width: 42px;
-    }
-
-    body.dark-theme .percentage-text { color: #9ca3af; }
+    body.dark-theme .status-active   { background: #064e3b; color: #a7f3d0; }
+    body.dark-theme .status-upcoming { background: #78350f; color: #fde68a; }
+    body.dark-theme .status-completed{ background: #374151; color: #e5e7eb; }
 
     .no-data {
         text-align: center;
@@ -365,6 +395,7 @@ try {
         background: #f9fafb;
         border-radius: 12px;
         border: 1px solid #e5e7eb;
+        grid-column: 1 / -1;
     }
 
     body.dark-theme .no-data {
@@ -383,6 +414,245 @@ try {
 
     .no-data p { color: #9ca3af; font-size: 14px; }
 
+    /* ────────────────────────────────────────────────
+       Results modal
+       ──────────────────────────────────────────────── */
+    .results-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        z-index: 1000;
+        padding: 20px;
+        overflow-y: auto;
+        animation: fadeIn 0.2s ease;
+    }
+
+    .results-modal.open {
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
+
+    .results-modal-content {
+        background: #ffffff;
+        border-radius: 16px;
+        width: 100%;
+        max-width: 900px;
+        margin: 40px 0;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+        animation: slideDown 0.25s ease;
+    }
+
+    body.dark-theme .results-modal-content {
+        background: #1e1e2e;
+    }
+
+    @keyframes slideDown {
+        from { transform: translateY(-30px); opacity: 0; }
+        to   { transform: translateY(0); opacity: 1; }
+    }
+
+    .results-modal-header {
+        background-color: #2c7a7b;
+        color: white;
+        padding: 18px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+    }
+
+    body.dark-theme .results-modal-header { background-color: #0f172a; }
+
+    .results-modal-header h2 {
+        font-size: 18px;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+    }
+
+    .results-modal-header h2 i {
+        font-size: 16px;
+        opacity: 0.9;
+    }
+
+    .results-modal-header .modal-close {
+        background: rgba(255, 255, 255, 0.15);
+        border: none;
+        color: white;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        flex-shrink: 0;
+    }
+
+    .results-modal-header .modal-close:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: rotate(90deg);
+    }
+
+    .results-modal-body {
+        padding: 24px;
+        min-height: 200px;
+    }
+
+    .results-loading {
+        text-align: center;
+        padding: 60px 20px;
+        color: #6b7280;
+    }
+
+    .results-loading .spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top-color: #2c7a7b;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 16px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    body.dark-theme .results-loading { color: #9ca3af; }
+    body.dark-theme .results-loading .spinner { border-color: #3d3d4d; border-top-color: #4fd1c5; }
+
+    /* Results table inside modal */
+    .results-modal-body h3 {
+        color: #374151;
+        margin-top: 22px;
+        margin-bottom: 12px;
+        font-size: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    body.dark-theme .results-modal-body h3 { color: #e5e7eb; }
+
+    .results-modal-body h3:first-child { margin-top: 0; }
+
+    .results-modal-body h3 i { color: #2c7a7b; font-size: 13px; }
+
+    .votes-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .votes-table th,
+    .votes-table td {
+        border: 1px solid #e5e7eb;
+        padding: 11px 14px;
+        text-align: left;
+        font-size: 13px;
+        transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+    }
+
+    body.dark-theme .votes-table th,
+    body.dark-theme .votes-table td {
+        border-color: #3d3d4d;
+        color: #e5e7eb;
+    }
+
+    .votes-table th {
+        background-color: #2c7a7b;
+        color: #ffffff;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+    }
+
+    body.dark-theme .votes-table th { background-color: #0f172a; }
+
+    .votes-table tr:hover { background-color: #f9fafb; }
+    body.dark-theme .votes-table tr:hover { background-color: #2d2d3d; }
+
+    .votes-table tr.winner-row { background-color: #d1fae5; }
+    body.dark-theme .votes-table tr.winner-row { background-color: #064e3b; }
+    .votes-table tr.winner-row:hover { background-color: #a7f3d0; }
+    body.dark-theme .votes-table tr.winner-row:hover { background-color: #065f46; }
+
+    .candidate-image {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid #2c7a7b;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+        background: #f4f7f9;
+    }
+
+    .winner-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        background-color: #f59e0b;
+        color: #ffffff;
+        font-size: 10px;
+        padding: 2px 8px;
+        border-radius: 20px;
+        margin-left: 6px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+    }
+
+    .vote-count {
+        font-size: 14px;
+        font-weight: 700;
+        color: #2c7a7b;
+    }
+
+    body.dark-theme .vote-count { color: #4fd1c5; }
+
+    .percentage-bar {
+        background: #e5e7eb;
+        border-radius: 10px;
+        height: 6px;
+        width: 100%;
+        overflow: hidden;
+    }
+
+    body.dark-theme .percentage-bar { background: #3d3d4d; }
+
+    .percentage-fill {
+        background-color: #2c7a7b;
+        height: 100%;
+        border-radius: 10px;
+        transition: width 0.6s ease;
+    }
+
+    .percentage-text {
+        font-size: 12px;
+        color: #6b7280;
+        min-width: 42px;
+    }
+
+    body.dark-theme .percentage-text { color: #9ca3af; }
+
     .inline-info {
         color: #6b7280;
         font-style: italic;
@@ -393,18 +663,20 @@ try {
 
     body.dark-theme .inline-info { color: #9ca3af; }
 
-    .error-text {
-        color: #dc2626;
-        text-align: center;
-        padding: 20px;
+    /* Live pulse animation when a vote count changes */
+    @keyframes countPulse {
+        0%   { color: #10b981; }
+        100% { color: inherit; }
     }
 
-    body.dark-theme .error-text { color: #fca5a5; }
+    .count-updated {
+        animation: countPulse 1.2s ease;
+        font-weight: 800;
+    }
 
+    /* Mobile */
     @media (max-width: 900px) {
-        .stats-row {
-            grid-template-columns: 1fr;
-        }
+        .stats-row { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 768px) {
@@ -412,37 +684,31 @@ try {
         .results-hero-icon { width: 42px; height: 42px; font-size: 22px; }
         .results-hero-text h1 { font-size: 18px; }
         .results-hero-text p { font-size: 12px; }
-        .votes-container {
-            margin: 0 0 30px;
-            padding: 20px;
-        }
-        .votes-container h2 { font-size: 17px; }
-        .votes-container h3 { font-size: 14px; }
-        .votes-table th,
-        .votes-table td {
-            padding: 8px 10px;
-            font-size: 12px;
-        }
-        .candidate-image {
-            width: 38px;
-            height: 38px;
-        }
-        .vote-count { font-size: 13px; }
+        .elections-grid { grid-template-columns: 1fr; }
+        .results-modal { padding: 10px; }
+        .results-modal-content { margin: 10px 0; }
+        .results-modal-body { padding: 16px; }
+        .results-modal-header { padding: 14px 18px; }
+        .results-modal-header h2 { font-size: 15px; }
+        .votes-table th, .votes-table td { padding: 8px 10px; font-size: 12px; }
+        .candidate-image { width: 34px; height: 34px; }
+        .vote-count { font-size: 12px; }
     }
 </style>
 
-<!-- Compact hero -->
 <div class="results-hero">
     <div class="results-hero-icon">
         <i class="fas fa-chart-bar"></i>
     </div>
     <div class="results-hero-text">
         <h1>Election Results</h1>
-        <p>Live vote counts and standings across all elections</p>
+        <p>Click any election card to view detailed results</p>
     </div>
+    <span class="live-indicator" title="Results update automatically">
+        <span class="live-dot"></span> Live
+    </span>
 </div>
 
-<!-- Compact stats -->
 <div class="stats-row">
     <div class="stat-box">
         <i class="fas fa-vote-yea"></i>
@@ -467,7 +733,8 @@ try {
     </div>
 </div>
 
-<div class="votes-container">
+<!-- Elections as clickable cards -->
+<div class="elections-grid">
     <?php if (empty($elections)): ?>
         <div class="no-data">
             <i class="fas fa-vote-yea"></i>
@@ -475,95 +742,262 @@ try {
             <p>Please check back later for upcoming elections.</p>
         </div>
     <?php else: ?>
-        <?php foreach ($elections as $election):
-            $electionId = $election['id'];
-        ?>
-            <h2><i class="fas fa-poll"></i> <?php echo htmlspecialchars($election['title']); ?></h2>
+        <?php foreach ($elections as $election): ?>
+            <div class="election-card"
+                 data-election-id="<?php echo (int)$election['id']; ?>"
+                 onclick="openResults(<?php echo (int)$election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')">
+                <div class="election-card-header">
+                    <h3><?php echo htmlspecialchars($election['title']); ?></h3>
+                    <span class="status-pill status-<?php echo htmlspecialchars($election['status']); ?>">
+                        <i class="fas <?php echo $election['status'] === 'active' ? 'fa-play' : ($election['status'] === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
+                        <?php echo ucfirst(htmlspecialchars($election['status'])); ?>
+                    </span>
+                </div>
 
-            <?php
-            try {
-                $postQuery = $conn->prepare("SELECT DISTINCT postname FROM election_posts WHERE election_id = ? ORDER BY postname");
-                $postQuery->execute([$electionId]);
-                $posts = $postQuery->fetchAll(PDO::FETCH_ASSOC);
-
-                if (empty($posts)) {
-                    $postQuery2 = $conn->prepare("SELECT DISTINCT postname FROM contesters WHERE election_id = ? ORDER BY postname");
-                    $postQuery2->execute([$electionId]);
-                    $posts = $postQuery2->fetchAll(PDO::FETCH_ASSOC);
-                }
-
-                if (empty($posts)):
-            ?>
-                    <p class="inline-info">No positions available for this election.</p>
-                <?php else: ?>
-                    <?php foreach ($posts as $post):
-                        $postName = $post['postname'];
-                    ?>
-                        <h3><i class="fas fa-user-tie"></i> <?php echo htmlspecialchars($postName); ?></h3>
-                        <table class="votes-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 70px;">Photo</th>
-                                    <th>Candidate Name</th>
-                                    <th style="width: 130px;">Votes</th>
-                                    <th>Percentage</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php
-                                $candidateQuery = $conn->prepare("
-                                    SELECT id, user_id, name, votes, profile_photo
-                                    FROM contesters
-                                    WHERE postname = ? AND election_id = ?
-                                    ORDER BY votes DESC
-                                ");
-                                $candidateQuery->execute([$postName, $electionId]);
-                                $candidates = $candidateQuery->fetchAll(PDO::FETCH_ASSOC);
-                                $totalVotes = array_sum(array_column($candidates, 'votes'));
-
-                                if (empty($candidates)):
-                                ?>
-                                    <tr>
-                                        <td colspan="4" class="inline-info">No candidates for this position</td>
-                                    </tr>
-                                <?php else: ?>
-                                    <?php foreach ($candidates as $index => $candidate):
-                                        $isWinner = ($index === 0 && $totalVotes > 0);
-                                        $percentage = ($totalVotes > 0) ? ($candidate['votes'] / $totalVotes) * 100 : 0;
-                                        $imgSrc = getCandidateImage($candidate, $conn);
-                                    ?>
-                                        <tr class="<?php echo $isWinner ? 'winner-row' : ''; ?>">
-                                            <td style="text-align: center;">
-                                                <img src="<?php echo htmlspecialchars($imgSrc); ?>" alt="Candidate" class="candidate-image">
-                                            </td>
-                                            <td>
-                                                <strong><?php echo htmlspecialchars($candidate['name']); ?></strong>
-                                                <?php if ($isWinner): ?>
-                                                    <span class="winner-badge"><i class="fas fa-crown"></i> Winner</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><span class="vote-count"><?php echo number_format($candidate['votes']); ?></span> votes</td>
-                                            <td>
-                                                <div style="display: flex; align-items: center; gap: 10px;">
-                                                    <div class="percentage-bar" style="flex: 1;">
-                                                        <div class="percentage-fill" style="width: <?php echo $percentage; ?>%;"></div>
-                                                    </div>
-                                                    <span class="percentage-text"><?php echo number_format($percentage, 1); ?>%</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    <?php endforeach; ?>
+                <?php if (!empty($election['description'])): ?>
+                    <p><?php echo htmlspecialchars($election['description']); ?></p>
                 <?php endif; ?>
-            <?php } catch (PDOException $e) {
-                error_log("Error fetching posts/candidates: " . $e->getMessage());
-                echo "<p class='error-text'>Error loading results for this election.</p>";
-            } ?>
+
+                <div class="election-card-meta">
+                    <?php if (!empty($election['start_date'])): ?>
+                        <span><i class="far fa-calendar-alt"></i> <?php echo date('M d, Y', strtotime($election['start_date'])); ?></span>
+                    <?php endif; ?>
+                    <?php if (!empty($election['end_date'])): ?>
+                        <span><i class="far fa-calendar-check"></i> <?php echo date('M d, Y', strtotime($election['end_date'])); ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="card-stats">
+                    <div class="card-stat">
+                        <div class="cs-num" data-role="votes-count"><?php echo number_format($election['votes_count']); ?></div>
+                        <div class="cs-label">Votes</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="cs-num"><?php echo number_format($election['candidates_count']); ?></div>
+                        <div class="cs-label">Candidates</div>
+                    </div>
+                    <div class="card-stat">
+                        <div class="cs-num"><?php echo number_format($election['positions_count']); ?></div>
+                        <div class="cs-label">Positions</div>
+                    </div>
+                </div>
+
+                <div class="card-cta">
+                    View Results <i class="fas fa-arrow-right"></i>
+                </div>
+            </div>
         <?php endforeach; ?>
     <?php endif; ?>
 </div>
+
+<!-- Results modal -->
+<div class="results-modal" id="resultsModal" onclick="if(event.target === this) closeResults()">
+    <div class="results-modal-content" onclick="event.stopPropagation()">
+        <div class="results-modal-header">
+            <h2><i class="fas fa-poll"></i> <span id="resultsModalTitle">Election Results</span></h2>
+            <button type="button" class="modal-close" onclick="closeResults()" aria-label="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="results-modal-body" id="resultsModalBody">
+            <div class="results-loading">
+                <div class="spinner"></div>
+                Loading results...
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const POLL_INTERVAL_MS = 15000;
+    const RESULTS_API = 'api_election_results.php';
+    const SUMMARY_API = 'api_election_summary.php';
+
+    let currentElectionId = null;
+    let resultsPollTimer = null;
+
+    // ────────────────────────────────────────────────────
+    // Modal open / close
+    // ────────────────────────────────────────────────────
+    window.openResults = function(electionId, title) {
+        currentElectionId = electionId;
+        document.getElementById('resultsModalTitle').textContent = title;
+
+        const modal = document.getElementById('resultsModal');
+        const body = document.getElementById('resultsModalBody');
+
+        modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        body.innerHTML = '<div class="results-loading"><div class="spinner"></div>Loading results...</div>';
+
+        // Load immediately
+        fetchResults();
+
+        // Start polling while modal is open
+        if (resultsPollTimer) clearInterval(resultsPollTimer);
+        resultsPollTimer = setInterval(fetchResults, POLL_INTERVAL_MS);
+    };
+
+    window.closeResults = function() {
+        currentElectionId = null;
+        document.getElementById('resultsModal').classList.remove('open');
+        document.body.style.overflow = '';
+        if (resultsPollTimer) {
+            clearInterval(resultsPollTimer);
+            resultsPollTimer = null;
+        }
+    };
+
+    // Escape key closes the modal
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && currentElectionId !== null) {
+            closeResults();
+        }
+    });
+
+    // ────────────────────────────────────────────────────
+    // Fetch + render results for the open election
+    // ────────────────────────────────────────────────────
+    async function fetchResults() {
+        if (!currentElectionId) return;
+
+        try {
+            const res = await fetch(RESULTS_API + '?election_id=' + currentElectionId, {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'Failed to load');
+
+            renderResults(data);
+
+        } catch (err) {
+            document.getElementById('resultsModalBody').innerHTML =
+                '<p class="inline-info">Could not load results. Retrying…</p>';
+        }
+    }
+
+    function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        const d = document.createElement('div');
+        d.appendChild(document.createTextNode(String(s)));
+        return d.innerHTML;
+    }
+
+    function renderResults(data) {
+        const body = document.getElementById('resultsModalBody');
+
+        if (!data.posts || data.posts.length === 0) {
+            body.innerHTML = '<p class="inline-info">No positions available for this election.</p>';
+            return;
+        }
+
+        const html = data.posts.map(function(post) {
+            if (!post.candidates || post.candidates.length === 0) {
+                return '<h3><i class="fas fa-user-tie"></i> ' + escapeHtml(post.postname) + '</h3>' +
+                       '<p class="inline-info">No candidates for this position</p>';
+            }
+
+            const rows = post.candidates.map(function(c, idx) {
+                const isWinner = idx === 0 && post.total_votes > 0;
+                const pct = post.total_votes > 0 ? (c.votes / post.total_votes) * 100 : 0;
+                return '<tr class="' + (isWinner ? 'winner-row' : '') + '">' +
+                    '<td style="text-align:center; width:60px;">' +
+                        '<img src="' + escapeHtml(c.photo) + '" alt="" class="candidate-image">' +
+                    '</td>' +
+                    '<td>' +
+                        '<strong>' + escapeHtml(c.name) + '</strong>' +
+                        (isWinner ? ' <span class="winner-badge"><i class="fas fa-crown"></i> Winner</span>' : '') +
+                    '</td>' +
+                    '<td style="width:110px;">' +
+                        '<span class="vote-count" data-candidate-id="' + c.id + '">' + c.votes.toLocaleString() + '</span> votes' +
+                    '</td>' +
+                    '<td style="width:180px;">' +
+                        '<div style="display:flex; align-items:center; gap:10px;">' +
+                            '<div class="percentage-bar" style="flex:1;">' +
+                                '<div class="percentage-fill" style="width:' + pct.toFixed(1) + '%;"></div>' +
+                            '</div>' +
+                            '<span class="percentage-text">' + pct.toFixed(1) + '%</span>' +
+                        '</div>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+
+            return '<h3><i class="fas fa-user-tie"></i> ' + escapeHtml(post.postname) + '</h3>' +
+                   '<table class="votes-table">' +
+                       '<thead><tr>' +
+                           '<th style="width:60px;">Photo</th>' +
+                           '<th>Candidate Name</th>' +
+                           '<th style="width:110px;">Votes</th>' +
+                           '<th style="width:180px;">Percentage</th>' +
+                       '</tr></thead>' +
+                       '<tbody>' + rows + '</tbody>' +
+                   '</table>';
+        }).join('');
+
+        body.innerHTML = html;
+    }
+
+    // ────────────────────────────────────────────────────
+    // Poll the election card summary counts (votes per election)
+    // Updates the numbers on each card in place — no reload.
+    // ────────────────────────────────────────────────────
+    async function pollSummary() {
+        if (document.visibilityState === 'hidden') return;
+
+        try {
+            const res = await fetch(SUMMARY_API, {
+                credentials: 'same-origin',
+                cache: 'no-store'
+            });
+            if (!res.ok) return;
+
+            const data = await res.json();
+            if (!data.ok || !Array.isArray(data.elections)) return;
+
+            data.elections.forEach(function(e) {
+                const card = document.querySelector('.election-card[data-election-id="' + e.election_id + '"]');
+                if (!card) return;
+
+                const countEl = card.querySelector('[data-role="votes-count"]');
+                if (!countEl) return;
+
+                const previous = parseInt(countEl.textContent.replace(/[^\d]/g, ''), 10) || 0;
+                if (previous !== e.votes_count) {
+                    countEl.textContent = e.votes_count.toLocaleString();
+                    countEl.classList.add('count-updated');
+                    setTimeout(function() { countEl.classList.remove('count-updated'); }, 1200);
+                }
+            });
+
+        } catch (err) {
+            // Silent — retry next cycle
+        }
+    }
+
+    // Only poll the summary while the modal is closed.
+    // While the modal is open, we poll the full results instead.
+    setInterval(function() {
+        if (currentElectionId === null) pollSummary();
+    }, POLL_INTERVAL_MS);
+
+    // Immediate catch-up when tab becomes visible
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') {
+            if (currentElectionId === null) {
+                pollSummary();
+            } else {
+                fetchResults();
+            }
+        }
+    });
+
+    // Prime the cache once so the first poll cycle knows the current counts
+    pollSummary();
+})();
+</script>
 
 <?php include("footer.php"); ?>
