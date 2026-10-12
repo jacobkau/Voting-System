@@ -31,7 +31,6 @@ try {
 
     // Handle Unapply Request
     if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['unapply'])) {
-        verifyCsrf();
         $electionId = intval($_POST['election_id']);
         $postname = trim($_POST['postname']);
 
