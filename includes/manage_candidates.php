@@ -4,7 +4,7 @@ if (session_status() == PHP_SESSION_NONE) {
 }
 include("conn.php");
 
-// Cloudinary helpers (uploadToCloudinary, extractPublicIdFromUrl, defaultAvatarUrl)
+// Cloudinary helpers
 require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
@@ -22,6 +22,29 @@ try {
     error_log("Election fetch error: " . $e->getMessage());
     echo "Error fetching election data. Please try again.";
     exit();
+}
+
+function getCandidateAvatar($candidate, $conn) {
+    if (!empty($candidate['user_id'])) {
+        try {
+            $stmt = $conn->prepare("SELECT profile_photo FROM users WHERE id = ?");
+            $stmt->execute([$candidate['user_id']]);
+            $userRow = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($userRow && !empty($userRow['profile_photo']) && preg_match('#^https?://#i', $userRow['profile_photo'])) {
+                return $userRow['profile_photo'];
+            }
+        } catch (PDOException $e) {
+            error_log("Candidate live-avatar lookup error: " . $e->getMessage());
+        }
+    }
+
+    // Fallback to the snapshot on the contester row
+    if (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo'])) {
+        return $candidate['profile_photo'];
+    }
+
+    return defaultAvatarUrl();
 }
 
 function fetchUsersForElection($conn, $electionId) {
@@ -119,7 +142,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 $stmt_select = $conn->prepare("SELECT profile_photo FROM contesters WHERE id = ?");
                 $stmt_select->execute([$candidateId]);
                 $candidate = $stmt_select->fetch(PDO::FETCH_ASSOC);
-                
+
                 if ($candidate && !empty($candidate['profile_photo'])) {
                     // Delete image from Cloudinary
                     $publicId = extractPublicIdFromUrl($candidate['profile_photo']);
@@ -252,11 +275,7 @@ try {
                 </thead>
                 <tbody id="candidate-list">
                     <?php foreach ($candidates as $candidate): ?>
-                        <?php
-                        $imgSrc = (!empty($candidate['profile_photo']) && preg_match('#^https?://#i', $candidate['profile_photo']))
-                            ? $candidate['profile_photo']
-                            : defaultAvatarUrl();
-                        ?>
+                        <?php $imgSrc = getCandidateAvatar($candidate, $conn); ?>
                         <tr id="candidate-<?php echo $candidate['id']; ?>">
                             <td><?php echo $candidate['id']; ?></td>
                             <td>
@@ -281,7 +300,7 @@ try {
             let candidateId = $(this).data("id");
             $.post("manage_candidates.php", { action: "delete_candidate", delete_id: candidateId }, function(response) {
                 if (response.status === "success") {
-                    $("#candidate-" + candidateId).fadeOut(500, function() { 
+                    $("#candidate-" + candidateId).fadeOut(500, function() {
                         $(this).remove();
                         if ($("#candidate-list tr").length === 0) {
                             location.reload();
