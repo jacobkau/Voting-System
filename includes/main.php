@@ -110,34 +110,48 @@ $currentPage = $page;
             gap: 20px;
         }
 
-        .admin-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: rgba(255, 255, 255, 0.15);
-            padding: 6px 15px 6px 6px;
-            border-radius: 30px;
-        }
+       .admin-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    padding: 6px 15px 6px 6px;
+    border-radius: 30px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.25s ease;
+    cursor: pointer;
+}
 
-        .admin-info i {
-            font-size: 22px;
-        }
+.admin-info:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-2px);
+}
 
-        .admin-info span {
-            font-weight: 500;
-        }
+.admin-info i {
+    font-size: 22px;
+}
 
-        .admin-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid rgba(255, 255, 255, 0.6);
-            display: inline-block;
-            vertical-align: middle;
-            background: #f4f7f9;
-        }
+.admin-info span {
+    font-weight: 500;
+    color: white;
+}
 
+.admin-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.6);
+    display: inline-block;
+    vertical-align: middle;
+    background: #f4f7f9;
+    transition: border-color 0.25s ease;
+}
+
+.admin-info:hover .admin-avatar {
+    border-color: rgba(255, 255, 255, 0.95);
+}
         .logout-btn {
             background: rgba(255, 255, 255, 0.15);
             color: white;
@@ -323,12 +337,12 @@ $currentPage = $page;
         </button>
         
         <div class="header-right" id="headerRight">
-            <div class="admin-info">
+            <a href="main.php?page=profile" class="admin-info" title="Profile Settings">
                 <img src="<?php echo htmlspecialchars($adminPhotoDisplay); ?>"
-                     alt="Admin"
-                     class="admin-avatar">
+                alt="Admin"
+                class="admin-avatar">
                 <span>Welcome, <?php echo htmlspecialchars($adminName); ?></span>
-            </div>
+            </a>
             <a href="logout.php" class="logout-btn">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </a>
