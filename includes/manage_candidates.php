@@ -27,10 +27,10 @@ if (!empty($_GET['msg'])) {
 // Email helper — same pattern as manage_election_voters.php
 // ────────────────────────────────────────────────────────────
 function sendCandidateDecisionEmail(string $email, string $userName, string $electionTitle, string $position, string $decision, string $reason = ''): array {
-    $serviceId  = getenv('EMAILJS_SERVICE_ID');
-    $templateId = getenv('EMAILJS_DECISION_TEMPLATE_ID');
-    $publicKey  = getenv('EMAILJS_PUBLIC_KEY');
-    $privateKey = getenv('EMAILJS_PRIVATE_KEY');
+    $serviceId  = getenv('EMAILJS_SERVICE_ID2');
+    $templateId = getenv('EMAILJS_TEMPLATE_ID2');
+    $publicKey  = getenv('EMAILJS_PUBLIC_KEY2');
+    $privateKey = getenv('EMAILJS_PRIVATE_KEY2');
 
     if (!$serviceId || !$templateId || !$publicKey) {
         return ['sent' => false, 'error' => 'EmailJS not configured.'];
