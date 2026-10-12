@@ -25,8 +25,6 @@ $error = $error ?? "";
 $success = "";
 
 if (!$registrationDisabled && $_SERVER["REQUEST_METHOD"] == "POST") {
-    verifyCsrf();
-    verifyCsrf();
     $invite_code = trim($_POST["invite_code"] ?? "");
     $username    = trim($_POST["username"]);
     $name        = trim($_POST["name"]);
@@ -282,7 +280,6 @@ if (!$registrationDisabled && $_SERVER["REQUEST_METHOD"] == "POST") {
         <?php endif; ?>
 
         <form method="post" action="reg.php">
-             <?= csrfField() ?>
             <div class="invite-group">
                 <label for="invite_code"><i class="fas fa-key"></i> Invite Code</label>
                 <input type="text" name="invite_code" id="invite_code" required
