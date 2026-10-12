@@ -1,4 +1,5 @@
 <?php
+ob_start();
 require_once __DIR__ . '/conn.php';
 
 if (session_status() === PHP_SESSION_NONE) {
@@ -445,5 +446,6 @@ $currentPage = $page;
             }
         });
     </script>
+    <?php ob_end_flush(); ?>
 </body>
 </html>
