@@ -13,10 +13,10 @@ if (!isset($_SESSION['admin_id'])) {
 
 error_log(sprintf(
     "EmailJS DEBUG: SERVICE=[%s] TEMPLATE=[%s] PUBLIC=[%s] PRIVATE=[%s]",
-    getenv('EMAILJS_SERVICE_ID') ?: 'MISSING',
-    getenv('EMAILJS_DECISION_TEMPLATE_ID') ?: 'MISSING',
-    getenv('EMAILJS_PUBLIC_KEY') ? 'SET' : 'MISSING',
-    getenv('EMAILJS_PRIVATE_KEY') ? 'SET' : 'MISSING'
+    getenv('EMAILJS_SERVICE_ID2') ?: 'MISSING',
+    getenv('EMAILJS_TEMPLATE_ID2') ?: 'MISSING',
+    getenv('EMAILJS_PUBLIC_KEY2') ? 'SET' : 'MISSING',
+    getenv('EMAILJS_PRIVATE_KEY2') ? 'SET' : 'MISSING'
 ));
 
 
