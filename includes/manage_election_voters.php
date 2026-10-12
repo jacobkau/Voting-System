@@ -33,7 +33,7 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
 
     if ($decision === 'approved') {
         $subjectLine = 'Your registration has been approved';
-        $messageBody = 'Great news — your request to register as a voter for "' . $electionTitle . '" has been approved. You can now cast your vote when the election opens.';
+        $messageBody = 'Great news — your request to register as a voter for "' . $electionTitle . '" has been approved. You can now cast your vote when the election opens. Visit the voting system (https://witty-voting-system.onrender.com/) to cast your vote or check back later for updates.';
     } elseif ($decision === 'unapproved') {
         $subjectLine = 'Your registration has been revoked';
         $messageBody = 'Your previously approved registration for "' . $electionTitle . '" has been revoked by an administrator. You have been returned to the pending queue. If you believe this is in error, please contact support.';
