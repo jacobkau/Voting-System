@@ -13,7 +13,6 @@ if (isset($_SESSION['admin_id'])) {
 $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    verifyCsrf();
     $username = trim($_POST["username"]);
     $password = trim($_POST["password"]);
 
@@ -94,7 +93,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #2c7a7b; /* calm teal, matches admin panel */
+            background-color: #2c7a7b; 
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -124,7 +123,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .login-header {
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b;
             padding: 40px 30px;
             text-align: center;
             color: white;
@@ -164,7 +163,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         .form-label i {
             margin-right: 8px;
-            color: #2c7a7b; /* calm teal */
+            color: #2c7a7b;
         }
         
         .input-wrapper {
@@ -189,7 +188,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         .login-btn {
             width: 100%;
-            background-color: #2c7a7b; /* calm teal */
+            background-color: #2c7a7b; 
             color: white;
             padding: 14px;
             border: none;
@@ -206,7 +205,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         
         .login-btn:hover {
-            background-color: #236162; /* darker teal */
+            background-color: #236162;
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
         }
@@ -326,7 +325,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <?php endif; ?>
             
             <form method="post" action="admin_login.php" id="loginForm">
-                 <?= csrfField() ?>
                 <div class="form-group">
                     <label class="form-label" for="username">
                         <i class="fas fa-user"></i> Username
