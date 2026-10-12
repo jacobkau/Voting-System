@@ -71,21 +71,30 @@ $currentPage = $page;
             box-sizing: border-box;
         }
 
+        html, body {
+            height: 100%;
+            overflow: hidden; /* body doesn't scroll — only main does */
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
             background-color: #f4f7f9;
             color: #333;
         }
 
+        /* ────────────────────────────────────────
+           Fixed Header
+           ──────────────────────────────────────── */
         header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            z-index: 1000;
             background-color: #2c7a7b;
             color: white;
-            padding: 15px 25px;
+            padding: 12px 25px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
@@ -181,18 +190,28 @@ $currentPage = $page;
             padding: 5px;
         }
 
+        /* ────────────────────────────────────────
+           Layout: fixed sidebar + scrollable main
+           ──────────────────────────────────────── */
         .container {
             display: flex;
-            flex-grow: 1;
+            position: fixed;
+            top: 70px;                 /* below header */
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
 
+        /* Fixed sidebar (its own scroll if nav is long) */
         .sidebar {
             background-color: #1e293b;
             width: 280px;
             padding: 20px 0;
             box-sizing: border-box;
-            transition: all 0.3s ease;
             color: #fff;
+            flex-shrink: 0;
+            overflow-y: auto;           /* scrolls internally if menu is long */
+            height: 100%;
         }
 
         .sidebar ul {
@@ -247,11 +266,15 @@ $currentPage = $page;
             background-color: rgba(248, 113, 113, 0.1);
         }
 
+        /* Scrollable main */
         main {
             flex-grow: 1;
             padding: 25px;
             box-sizing: border-box;
             background-color: #f4f7f9;
+            height: 100%;
+            overflow-y: auto;            /* the only vertical scroll on the page */
+            overflow-x: hidden;
         }
 
         .main-content {
@@ -259,10 +282,12 @@ $currentPage = $page;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            min-height: calc(100vh - 150px);
+            min-height: 100%;             /* fills the visible area */
         }
 
-        /* ---------- Notification bell ---------- */
+        /* ────────────────────────────────────────
+           Notification bell (unchanged)
+           ──────────────────────────────────────── */
         .notif-wrap {
             position: relative;
             display: inline-flex;
@@ -446,10 +471,13 @@ $currentPage = $page;
             color: #d1d5db;
         }
 
-        /* Mobile */
+        /* ────────────────────────────────────────
+           Mobile: turn sidebar into a slide-out drawer
+           ──────────────────────────────────────── */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
+                height: auto;
             }
 
             .header-left h1 {
@@ -516,29 +544,51 @@ $currentPage = $page;
                 display: block;
             }
 
+            /* Container becomes relative on mobile so sidebar can overlay */
             .container {
+                top: 0;
+                position: relative;
+                display: flex;
                 flex-direction: column;
+                height: auto;
+                overflow: visible;
             }
 
+            /* Sidebar becomes an overlay drawer */
             .sidebar {
-                width: 100%;
-                max-height: 0;
-                overflow: hidden;
-                padding: 0;
-                transition: max-height 0.3s ease-out;
+                position: fixed;
+                top: 0;
+                left: -280px;
+                width: 280px;
+                height: 100%;
+                z-index: 1200;
+                padding: 20px 0;
+                overflow-y: auto;
+                transition: left 0.3s ease-out;
             }
 
             .sidebar.open {
-                max-height: 500px;
-                padding: 20px 0;
+                left: 0;
+            }
+
+            /* When sidebar is open, dim the background */
+            .sidebar.open::after {
+                content: '';
+                position: fixed;
+                top: 0; left: 280px; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.4);
+                z-index: -1;
             }
 
             main {
                 padding: 15px;
+                height: auto;
+                overflow: visible;
             }
 
             .main-content {
                 padding: 15px;
+                min-height: auto;
             }
         }
 
@@ -600,7 +650,6 @@ $currentPage = $page;
                 <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
                 <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> Manage Voters</a></li>
                 <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> Manage All Users</a></li>
-                <li><a href="main.php?page=votes" class="<?php echo $currentPage === 'votes' ? 'active' : ''; ?>"><i class="fas fa-vote-yea"></i> Manage Votes</a></li>
                 <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
                 <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> Manage Elections</a></li>
                 <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> Manage Posts</a></li>
@@ -622,9 +671,6 @@ $currentPage = $page;
                         break;
                     case 'voters':
                         include("manage_election_voters.php");
-                        break;
-                    case 'votes':
-                        include("manage_votes.php");
                         break;
                     case 'candidates':
                         include("manage_candidates.php");
@@ -703,11 +749,9 @@ $currentPage = $page;
 
             if (!btn || !badge || !panel || !body) return;
 
-            // Track state so we can animate on new activity
             let lastTotal = -1;
             let lastSeenTotal = 0;
 
-            // Restore "read" state from previous session
             try {
                 lastSeenTotal = parseInt(localStorage.getItem('notif_seen_total') || '0', 10) || 0;
             } catch (e) { lastSeenTotal = 0; }
@@ -786,7 +830,6 @@ $currentPage = $page;
                     renderBadge(data.total);
                     renderPanel(data);
 
-                    // Shake the bell when the total goes UP
                     if (lastTotal >= 0 && data.total > lastTotal) {
                         btn.classList.add('has-new');
                         setTimeout(() => btn.classList.remove('has-new'), 700);
@@ -798,19 +841,16 @@ $currentPage = $page;
                 }
             }
 
-            // Toggle panel on bell click
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
                 const willOpen = !panel.classList.contains('open');
                 panel.classList.toggle('open', willOpen);
 
                 if (willOpen) {
-                    // Refresh on open so counts are always up to date
                     pollOnce();
                 }
             });
 
-            // Mark all read
             document.getElementById('notifMarkRead')?.addEventListener('click', function(e) {
                 e.stopPropagation();
                 lastSeenTotal = lastTotal >= 0 ? lastTotal : 0;
@@ -819,7 +859,6 @@ $currentPage = $page;
                 panel.classList.remove('open');
             });
 
-            // Close on outside click
             document.addEventListener('click', function(e) {
                 if (!panel.classList.contains('open')) return;
                 if (!panel.contains(e.target) && !btn.contains(e.target)) {
@@ -827,16 +866,13 @@ $currentPage = $page;
                 }
             });
 
-            // Close on Escape
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') panel.classList.remove('open');
             });
 
-            // Start polling
             pollOnce();
             setInterval(pollOnce, POLL_INTERVAL_MS);
 
-            // Catch up when the user returns to the tab
             document.addEventListener('visibilitychange', function() {
                 if (document.visibilityState === 'visible') pollOnce();
             });
