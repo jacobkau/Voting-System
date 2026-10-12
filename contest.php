@@ -1,7 +1,9 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
 include("conn.php");
@@ -13,7 +15,6 @@ if (empty($_SESSION["username"])) {
     exit();
 }
 
-// Fetch all elections
 try {
     $electionsStmt = $conn->prepare("SELECT id, title FROM elections ORDER BY id DESC");
     $electionsStmt->execute();
@@ -49,7 +50,6 @@ function getContesterImage($contester, $conn) {
 <?php include("header.php"); ?>
 
 <style>
-    /* Compact hero */
     .contest-hero {
         background-color: #2c7a7b;
         border-radius: 16px;
@@ -80,10 +80,7 @@ function getContesterImage($contester, $conn) {
         flex-shrink: 0;
     }
 
-    .contest-hero-text {
-        flex: 1;
-        min-width: 200px;
-    }
+    .contest-hero-text { flex: 1; min-width: 200px; }
 
     .contest-hero-text h1 {
         font-size: 20px;
@@ -97,7 +94,6 @@ function getContesterImage($contester, $conn) {
         line-height: 1.5;
     }
 
-    /* Container */
     .contest-container {
         max-width: 1400px;
         margin: 0 auto 40px;
@@ -115,7 +111,6 @@ function getContesterImage($contester, $conn) {
         box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
     }
 
-    /* Election section */
     .election-section {
         margin-bottom: 24px;
         border: 1px solid #e5e7eb;
@@ -145,16 +140,10 @@ function getContesterImage($contester, $conn) {
         gap: 10px;
     }
 
-    body.dark-theme .election-section h2 {
-        background-color: #0f172a;
-    }
+    body.dark-theme .election-section h2 { background-color: #0f172a; }
 
-    .election-section h2 i {
-        font-size: 14px;
-        opacity: 0.85;
-    }
+    .election-section h2 i { font-size: 14px; opacity: 0.85; }
 
-    /* Post section */
     .post-section {
         margin: 16px;
         padding: 16px;
@@ -166,9 +155,7 @@ function getContesterImage($contester, $conn) {
 
     .post-section:last-child { margin-bottom: 16px; }
 
-    body.dark-theme .post-section {
-        background: #2d2d3d;
-    }
+    body.dark-theme .post-section { background: #2d2d3d; }
 
     .post-section h3 {
         color: #1f2937;
@@ -187,7 +174,6 @@ function getContesterImage($contester, $conn) {
 
     .post-section h3 i { color: #2c7a7b; font-size: 12px; }
 
-    /* Table */
     .contester-table {
         width: 100%;
         border-collapse: collapse;
@@ -197,9 +183,7 @@ function getContesterImage($contester, $conn) {
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
-    body.dark-theme .contester-table {
-        background: #1e1e2e;
-    }
+    body.dark-theme .contester-table { background: #1e1e2e; }
 
     .contester-table th,
     .contester-table td {
@@ -230,14 +214,8 @@ function getContesterImage($contester, $conn) {
     }
 
     .contester-table tr:last-child td { border-bottom: none; }
-
-    .contester-table tr:hover {
-        background-color: #f9fafb;
-    }
-
-    body.dark-theme .contester-table tr:hover {
-        background-color: #2d2d3d;
-    }
+    .contester-table tr:hover { background-color: #f9fafb; }
+    body.dark-theme .contester-table tr:hover { background-color: #2d2d3d; }
 
     .contester-image {
         width: 44px;
@@ -281,7 +259,6 @@ function getContesterImage($contester, $conn) {
         color: #a7f3d0;
     }
 
-    /* Empty states */
     .no-data {
         text-align: center;
         padding: 50px 20px;
@@ -324,40 +301,22 @@ function getContesterImage($contester, $conn) {
 
     body.dark-theme .error-text { color: #fca5a5; }
 
-    /* Mobile */
     @media (max-width: 768px) {
         .contest-hero { padding: 18px 20px; gap: 14px; }
         .contest-hero-icon { width: 42px; height: 42px; font-size: 22px; }
         .contest-hero-text h1 { font-size: 18px; }
         .contest-hero-text p { font-size: 12px; }
-        .contest-container {
-            padding: 16px;
-            margin: 0 0 30px;
-        }
-        .post-section {
-            margin: 12px;
-            padding: 12px;
-        }
-        .contester-table th,
-        .contester-table td {
-            padding: 9px 10px;
-            font-size: 12px;
-        }
-        .contester-image {
-            width: 36px;
-            height: 36px;
-        }
-        .election-section h2 {
-            font-size: 15px;
-            padding: 12px 16px;
-        }
+        .contest-container { padding: 16px; margin: 0 0 30px; }
+        .post-section { margin: 12px; padding: 12px; }
+        .contester-table th, .contester-table td { padding: 9px 10px; font-size: 12px; }
+        .contester-image { width: 36px; height: 36px; }
+        .election-section h2 { font-size: 15px; padding: 12px 16px; }
         .post-section h3 { font-size: 13px; }
         .candidate-name { font-size: 13px; }
         .candidate-bio { font-size: 12px; }
     }
 </style>
 
-<!-- Compact hero -->
 <div class="contest-hero">
     <div class="contest-hero-icon">
         <i class="fas fa-users"></i>
@@ -386,7 +345,12 @@ function getContesterImage($contester, $conn) {
                     $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
 
                     if (empty($posts)) {
-                        $postsStmt2 = $conn->prepare("SELECT DISTINCT postname FROM contesters WHERE election_id = ? ORDER BY postname");
+                        // Only fall back to posts that actually have approved candidates
+                        $postsStmt2 = $conn->prepare("
+                            SELECT DISTINCT postname FROM contesters
+                            WHERE election_id = ? AND status = 'approved'
+                            ORDER BY postname
+                        ");
                         $postsStmt2->execute([$election['id']]);
                         $posts = $postsStmt2->fetchAll(PDO::FETCH_ASSOC);
                     }
@@ -413,10 +377,11 @@ function getContesterImage($contester, $conn) {
                                     </thead>
                                     <tbody>
                                         <?php
+                                        // Only show APPROVED contestants
                                         $contestersStmt = $conn->prepare("
                                             SELECT id, user_id, name, bio, profile_photo, votes
                                             FROM contesters
-                                            WHERE election_id = ? AND postname = ?
+                                            WHERE election_id = ? AND postname = ? AND status = 'approved'
                                             ORDER BY votes DESC
                                         ");
                                         $contestersStmt->execute([$election['id'], $post['postname']]);
