@@ -42,7 +42,7 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
         }
     } else {
         $subjectLine = 'Your registration was REJECTED';
-        $messageBody = 'We regret to inform you that your request to register as a voter for "' . $electionTitle . '" was REJECTED. Please contact the electoral commission for more information. If you believe this is a system error, please comtact the syste admin: wittyhighbrowtechnologies@gmail.com';
+        $messageBody = 'We regret to inform you that your request to register as a voter for "' . $electionTitle . '" was REJECTED.';
         if ($reason !== '') {
             $messageBody .= "\n\nReason: " . $reason;
         }
