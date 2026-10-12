@@ -233,7 +233,6 @@ if (isset($_GET['edit_id'])) {
 <head>
     <meta charset="UTF-8">
     <title>Manage Elections | Voting System</title>
-    <meta name="csrf-token" content="<?= htmlspecialchars(csrfToken()) ?>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -384,7 +383,6 @@ if (isset($_GET['edit_id'])) {
                             <td><?php echo getRegisteredVoterCountForElection($conn, $election['id']); ?></td>
                             <td>
                                 <form method="post" action="main.php?page=elections" style="display: inline-block; margin: 0;">
-                                    <?= csrfField() ?>
                                     <input type="hidden" name="election_id" value="<?php echo $election['id']; ?>">
                                     <select name="status" style="padding: 5px; margin-right: 5px;">
                                         <option value="upcoming"  <?php echo $election['status'] == 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
@@ -426,10 +424,6 @@ if (isset($_GET['edit_id'])) {
     </div>
 
     <script>
-    // ─────────────────────────────────────────────────────────────
-    // CSRF token — read once from the meta tag, attached to every AJAX call
-    // ─────────────────────────────────────────────────────────────
-    const CSRF_TOKEN = document.querySelector('meta[name="csrf-token"]')?.content || '';
 
     // Helper: POST with CSRF header always attached
     async function apiFetch(url, params) {
