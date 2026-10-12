@@ -261,6 +261,10 @@ $currentPage = $page;
         }
 
         @media (max-width: 768px) {
+            .admin-info, .logout-btn {
+                 width: 100%;
+                justify-content: center;
+            }
             header {
                 padding: 12px 20px;
             }
