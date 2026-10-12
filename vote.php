@@ -1,7 +1,9 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
 include("conn.php");
@@ -22,7 +24,7 @@ $username = $_SESSION["username"];
 $userStmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
 $userStmt->execute([$username]);
 $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-$userId = $user ? $user['id'] : null;
+$userId = $user ? (int)$user['id'] : null;
 
 // Fetch Open Elections
 $openElectionsStmt = $conn->prepare("SELECT id, title FROM elections WHERE status = 'active'");
@@ -57,8 +59,8 @@ if ($electionId !== null) {
         if ($userRegisteredStmt->rowCount() === 0) {
             $errorMessage = "You are not registered for this election. Please register first.";
         } else {
-            $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE username = ? AND election_id = ? LIMIT 1");
-            $alreadyVotedStmt->execute([$username, $electionId]);
+            $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE user_id = ? AND election_id = ? LIMIT 1");
+            $alreadyVotedStmt->execute([$userId, $electionId]);
 
             if ($alreadyVotedStmt->rowCount() > 0) {
                 $errorMessage = "You have already voted in this election.";
@@ -105,25 +107,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
         $conn->beginTransaction();
 
         try {
-            // Defense-in-depth: re-check just before insert (catches most races cheaply)
-            $recheck = $conn->prepare("SELECT 1 FROM votes WHERE username = ? AND election_id = ? LIMIT 1");
-            $recheck->execute([$username, $electionId]);
+            // Defense-in-depth: re-check just before insert
+            $recheck = $conn->prepare("SELECT 1 FROM votes WHERE user_id = ? AND election_id = ? LIMIT 1");
+            $recheck->execute([$userId, $electionId]);
             if ($recheck->rowCount() > 0) {
                 throw new DuplicateVoteException("You have already voted in this election.");
             }
 
             foreach ($votes as $postKey => $candidateId) {
-                $candidateStmt = $conn->prepare("SELECT name FROM contesters WHERE id = ?");
+                // Verify this candidate is approved before accepting the vote
+                $candidateStmt = $conn->prepare("
+                    SELECT name FROM contesters
+                    WHERE id = ? AND status = 'approved'
+                ");
                 $candidateStmt->execute([$candidateId]);
                 $candidate = $candidateStmt->fetch(PDO::FETCH_ASSOC);
-                $candidateName = $candidate ? $candidate['name'] : '';
+
+                if (!$candidate) {
+                    throw new Exception("Invalid candidate selection — the candidate may not be approved.");
+                }
+
+                $candidateName = $candidate['name'];
                 $originalPostName = str_replace('_', ' ', $postKey);
 
                 $voteStmt = $conn->prepare("
-                    INSERT INTO votes (username, election_id, postname, candidate_name, voted_at)
-                    VALUES (?, ?, ?, ?, NOW())
+                    INSERT INTO votes (user_id, username, election_id, postname, candidate_name, voted_at)
+                    VALUES (?, ?, ?, ?, ?, NOW())
                 ");
-                $voteStmt->execute([$username, $electionId, $originalPostName, $candidateName]);
+                $voteStmt->execute([$userId, $username, $electionId, $originalPostName, $candidateName]);
 
                 $updateStmt = $conn->prepare("UPDATE contesters SET votes = votes + 1 WHERE id = ?");
                 $updateStmt->execute([$candidateId]);
@@ -141,7 +152,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
         } catch (PDOException $e) {
             $conn->rollBack();
 
-            // SQLSTATE 23000 = integrity constraint violation (our UNIQUE key fired)
             if ($e->getCode() === '23000') {
                 $errorMessage = "You have already voted in this election.";
                 $showVoteForm = false;
@@ -152,12 +162,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
 
         } catch (Exception $e) {
             $conn->rollBack();
-            $errorMessage = "Error submitting your vote. Please try again.";
+            $errorMessage = $e->getMessage() ?: "Error submitting your vote. Please try again.";
             error_log("Vote error: " . $e->getMessage());
         }
     }
 }
-
 
 function getCandidateImage($candidate, $conn) {
     if (!empty($candidate['user_id'])) {
@@ -221,10 +230,7 @@ function getCandidateImage($candidate, $conn) {
         flex-shrink: 0;
     }
 
-    .vote-hero-text {
-        flex: 1;
-        min-width: 200px;
-    }
+    .vote-hero-text { flex: 1; min-width: 200px; }
 
     .vote-hero-text h1 {
         font-size: 20px;
@@ -267,10 +273,7 @@ function getCandidateImage($candidate, $conn) {
 
     body.dark-theme .selector-label { color: #cbd5e1; }
 
-    .selector-label i {
-        color: #2c7a7b;
-        font-size: 14px;
-    }
+    .selector-label i { color: #2c7a7b; font-size: 14px; }
 
     .election-select {
         width: 100%;
@@ -342,10 +345,7 @@ function getCandidateImage($candidate, $conn) {
 
     body.dark-theme .position-title { color: #f3f4f6; }
 
-    .position-title i {
-        color: #2c7a7b;
-        font-size: 16px;
-    }
+    .position-title i { color: #2c7a7b; font-size: 16px; }
 
     .position-description {
         color: #6b7280;
@@ -426,13 +426,9 @@ function getCandidateImage($candidate, $conn) {
         border-color: #3d3d4d;
     }
 
-    .candidate-item:hover .candidate-image {
-        transform: scale(1.05);
-    }
+    .candidate-item:hover .candidate-image { transform: scale(1.05); }
 
-    .candidate-item.selected .candidate-image {
-        border-color: #fbbf24;
-    }
+    .candidate-item.selected .candidate-image { border-color: #fbbf24; }
 
     .candidate-name {
         font-size: 14px;
@@ -616,7 +612,6 @@ function getCandidateImage($candidate, $conn) {
         </div>
     </div>
 
-    <!-- Election selector -->
     <div class="election-selector-wrapper">
         <div class="selector-label">
             <i class="fas fa-calendar-alt"></i>
@@ -651,10 +646,11 @@ function getCandidateImage($candidate, $conn) {
                 $postName = $post['postname'];
                 $postKey = strtolower(str_replace(' ', '_', $postName));
 
+                // Only show APPROVED candidates
                 $candidateStmt = $conn->prepare("
                     SELECT id, user_id, name, profile_photo
                     FROM contesters
-                    WHERE postname = ? AND election_id = ?
+                    WHERE postname = ? AND election_id = ? AND status = 'approved'
                     ORDER BY name
                 ");
                 $candidateStmt->execute([$postName, $electionId]);
