@@ -33,6 +33,12 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
     if ($decision === 'approved') {
         $subjectLine = 'Your registration has been approved';
         $messageBody = 'Great news — your request to register as a voter for "' . $electionTitle . '" has been approved. You can now cast your vote when the election opens.';
+    } elseif ($decision === 'unapproved') {
+        $subjectLine = 'Your registration has been revoked';
+        $messageBody = 'Your previously approved registration for "' . $electionTitle . '" has been revoked by an administrator. You have been returned to the pending queue. If you believe this is in error, please contact support.';
+        if ($reason !== '') {
+            $messageBody .= "\n\nReason: " . $reason;
+        }
     } else {
         $subjectLine = 'Your registration was not approved';
         $messageBody = 'We regret to inform you that your request to register as a voter for "' . $electionTitle . '" was not approved.';
@@ -83,7 +89,22 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
     return ['sent' => false, 'error' => $err];
 }
 
-// Handle approve/reject action
+/**
+ * Check whether a user has cast any votes in the given election.
+ * Used as a safety guard before unapproving.
+ */
+function userHasVotesInElection(PDO $conn, int $userId, int $electionId): int {
+    try {
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM votes WHERE user_id = ? AND election_id = ?");
+        $stmt->execute([$userId, $electionId]);
+        return (int)$stmt->fetchColumn();
+    } catch (PDOException $e) {
+        error_log("Vote check error: " . $e->getMessage());
+        return 0;
+    }
+}
+
+// Handle approve/reject/unapprove action
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST['decision'])) {
     $requestId = (int)$_POST['request_id'];
     $decision = $_POST['decision'];
@@ -93,7 +114,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
     $returnStatus = $_POST['return_status'] ?? 'pending';
     $returnElectionId = isset($_POST['return_election_id']) ? (int)$_POST['return_election_id'] : 0;
 
-    if (!in_array($decision, ['approve', 'reject'], true)) {
+    if (!in_array($decision, ['approve', 'reject', 'unapprove'], true)) {
         $message = "Invalid decision.";
         $messageType = "error";
     } else {
@@ -131,7 +152,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
 
                 $logDesc = "Approved voter registration: {$request['username']} for '{$request['election_title']}'";
                 $message = "Approved registration for {$request['username']}.";
-            } else {
+
+            } elseif ($decision === 'reject') {
                 $conn->prepare("
                     UPDATE election_registration_requests
                     SET status = 'rejected', reviewed_at = NOW(), reviewed_by = ?, rejection_reason = ?
@@ -140,6 +162,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
 
                 $logDesc = "Rejected voter registration: {$request['username']} for '{$request['election_title']}'";
                 $message = "Rejected registration for {$request['username']}.";
+
+            } else { // unapprove
+                // Safety check — block unapproval if the user has already cast votes
+                $voteCount = userHasVotesInElection($conn, (int)$request['user_id'], (int)$request['election_id']);
+                if ($voteCount > 0) {
+                    throw new Exception("Cannot unapprove — this voter has already cast {$voteCount} vote(s) in this election.");
+                }
+
+                // Remove from user_elections
+                $conn->prepare("
+                    DELETE FROM user_elections
+                    WHERE user_id = ? AND election_id = ?
+                ")->execute([$request['user_id'], $request['election_id']]);
+
+                // Reset the request back to pending so it can be re-reviewed
+                $conn->prepare("
+                    UPDATE election_registration_requests
+                    SET status = 'pending', reviewed_at = NULL, reviewed_by = NULL, rejection_reason = NULL
+                    WHERE id = ?
+                ")->execute([$requestId]);
+
+                $logDesc = "Unapproved voter registration: {$request['username']} for '{$request['election_title']}'";
+                $message = "Unapproved registration for {$request['username']}. The request is back in the pending queue.";
             }
 
             $conn->prepare("
@@ -152,13 +197,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
 
             // Send email AFTER commit — email failure doesn't roll back the decision
             $recipientName = !empty($request['full_name']) ? $request['full_name'] : $request['username'];
-            $emailResult = sendDecisionEmail(
-                $request['email'],
-                $recipientName,
-                $request['election_title'],
-                $decision === 'approve' ? 'approved' : 'rejected',
-                $reason
-            );
+
+            if ($decision === 'approve') {
+                $emailResult = sendDecisionEmail(
+                    $request['email'], $recipientName, $request['election_title'],
+                    'approved', ''
+                );
+            } elseif ($decision === 'reject') {
+                $emailResult = sendDecisionEmail(
+                    $request['email'], $recipientName, $request['election_title'],
+                    'rejected', $reason
+                );
+            } else {
+                $emailResult = sendDecisionEmail(
+                    $request['email'], $recipientName, $request['election_title'],
+                    'unapproved', $reason
+                );
+            }
 
             if ($emailResult['sent']) {
                 $message .= " Email notification sent.";
@@ -168,8 +223,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
 
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
-            error_log("Approve/reject error: " . $e->getMessage());
-            $message = "Could not process the request. Please try again.";
+            error_log("Approve/reject/unapprove error: " . $e->getMessage());
+            $message = $e->getMessage() ?: "Could not process the request. Please try again.";
             $messageType = "error";
         }
     }
@@ -212,7 +267,8 @@ $stmt = $conn->prepare("
     SELECT
         r.id, r.status, r.requested_at, r.reviewed_at, r.rejection_reason,
         u.id AS user_id, u.username, u.name AS full_name, u.email, u.profile_photo,
-        e.id AS election_id, e.title AS election_title, e.status AS election_status
+        e.id AS election_id, e.title AS election_title, e.status AS election_status,
+        (SELECT COUNT(*) FROM votes v WHERE v.user_id = r.user_id AND v.election_id = r.election_id) AS votes_cast
     FROM election_registration_requests r
     JOIN users u ON r.user_id = u.id
     JOIN elections e ON r.election_id = e.id
@@ -451,12 +507,35 @@ function tabUrl(string $status, ?int $electionId): string {
     }
     .btn-reject:hover { background: #b91c1c; }
 
+    .btn-unapprove {
+        background: #f59e0b;
+        color: white;
+    }
+    .btn-unapprove:hover { background: #d97706; }
+
+    .btn-unapprove:disabled {
+        background: #cbd5e1;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+
     .reject-note {
         font-size: 11px;
         color: #991b1b;
         margin-top: 4px;
         font-style: italic;
     }
+
+    .votes-warning {
+        font-size: 11px;
+        color: #b45309;
+        margin-top: 4px;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    body.dark-theme .votes-warning { color: #fbbf24; }
 
     .message {
         padding: 12px 18px;
@@ -624,6 +703,7 @@ function tabUrl(string $status, ?int $electionId): string {
                         if (!empty($r['profile_photo']) && preg_match('#^https?://#i', $r['profile_photo'])) {
                             $avatar = $r['profile_photo'];
                         }
+                        $hasVoted = (int)$r['votes_cast'] > 0;
                     ?>
                     <tr>
                         <td>
@@ -681,6 +761,29 @@ function tabUrl(string $status, ?int $electionId): string {
                                         </button>
                                     </form>
                                 </div>
+                            <?php elseif ($r['status'] === 'approved'): ?>
+                                <?php if ($hasVoted): ?>
+                                    <button type="button" class="btn-unapprove" disabled
+                                            title="Cannot unapprove — this voter has already cast votes in this election.">
+                                        <i class="fas fa-lock"></i> Unapprove
+                                    </button>
+                                    <div class="votes-warning">
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        Voter has cast <?= (int)$r['votes_cast'] ?> vote(s) — cannot unapprove.
+                                    </div>
+                                <?php else: ?>
+                                    <form method="post" style="display:inline;"
+                                          onsubmit="return confirmUnapprove(this, '<?= htmlspecialchars(addslashes($r['username'])) ?>');">
+                                        <input type="hidden" name="request_id" value="<?= $r['id'] ?>">
+                                        <input type="hidden" name="decision" value="unapprove">
+                                        <input type="hidden" name="reason" value="">
+                                        <input type="hidden" name="return_status" value="<?= htmlspecialchars($filterStatus) ?>">
+                                        <input type="hidden" name="return_election_id" value="<?= (int)$filterElectionId ?>">
+                                        <button type="submit" class="btn-unapprove">
+                                            <i class="fas fa-undo"></i> Unapprove
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
                             <?php else: ?>
                                 <span style="color:#9ca3af;font-size:12px;">
                                     <?= !empty($r['reviewed_at']) ? 'Reviewed ' . date('M d', strtotime($r['reviewed_at'])) : '—' ?>
@@ -697,6 +800,20 @@ function tabUrl(string $status, ?int $electionId): string {
 <script>
 function handleReject(form) {
     const reason = prompt("Reason for rejection (optional, will be shown to the user and included in the email):");
+    if (reason === null) return false;
+    form.querySelector('input[name="reason"]').value = reason;
+    return true;
+}
+
+function confirmUnapprove(form, username) {
+    const msg = 'Unapprove ' + username + ' for this election?\n\n' +
+                'This will:\n' +
+                '  - Remove them from the registered voters list\n' +
+                '  - Return their request to the pending queue\n' +
+                '  - Send them an email notification\n\n' +
+                'You can optionally provide a reason:';
+
+    const reason = prompt(msg);
     if (reason === null) return false;
     form.querySelector('input[name="reason"]').value = reason;
     return true;
