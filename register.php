@@ -144,7 +144,11 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             justify-content: center;
             align-items: flex-start;
             padding: 30px 20px;
+            transition: background-color 0.3s ease;
         }
+
+        body.light-theme { background-color: #2c7a7b; }
+        body.dark-theme  { background-color: #1e293b; }
 
         .registration-container {
             background: white;
@@ -154,7 +158,10 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             max-width: 100%;
             overflow: hidden;
             animation: fadeInUp 0.5s ease-out;
+            transition: background 0.3s ease;
         }
+
+        body.dark-theme .registration-container { background: #1e1e2e; }
 
         @keyframes fadeInUp {
             from {
@@ -173,6 +180,8 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             text-align: center;
             color: white;
         }
+
+        body.dark-theme .registration-header { background-color: #0f172a; }
 
         .registration-header h2 {
             font-size: 28px;
@@ -205,6 +214,8 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             color: #333;
             font-size: 14px;
         }
+
+        body.dark-theme .form-label { color: #e5e7eb; }
 
         .form-label i {
             margin-right: 8px;
@@ -246,6 +257,16 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
 
+        body.dark-theme .form-input,
+        body.dark-theme .form-input-file {
+            background: #2d2d3d;
+            border-color: #3d3d4d;
+            color: #f3f4f6;
+            -webkit-text-fill-color: #f3f4f6;
+        }
+
+        body.dark-theme .form-input::placeholder { color: #6b7280; }
+
         /* Autofill overrides */
         .form-input:-webkit-autofill,
         .form-input:-webkit-autofill:hover,
@@ -255,16 +276,27 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             transition: background-color 5000s ease-in-out 0s;
         }
 
+        body.dark-theme .form-input:-webkit-autofill,
+        body.dark-theme .form-input:-webkit-autofill:hover,
+        body.dark-theme .form-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: #f3f4f6;
+            -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
+        }
+
         .form-input-file {
             padding: 10px 16px;
             background: #f9fafb;
         }
+
+        body.dark-theme .form-input-file { background: #2d2d3d; }
 
         .file-hint {
             font-size: 12px;
             color: #9ca3af;
             margin-top: 6px;
         }
+
+        body.dark-theme .file-hint { color: #6b7280; }
 
         .elections-grid {
             display: grid;
@@ -284,8 +316,18 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             cursor: pointer;
         }
 
+        body.dark-theme .form-check {
+            background: #2d2d3d;
+            border-color: #3d3d4d;
+        }
+
         .form-check:hover {
             background: #f3f4f6;
+            border-color: #2c7a7b;
+        }
+
+        body.dark-theme .form-check:hover {
+            background: #3d3d4d;
             border-color: #2c7a7b;
         }
 
@@ -307,6 +349,8 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             align-items: center;
         }
 
+        body.dark-theme .form-check-label { color: #e5e7eb; }
+
         .election-status {
             font-size: 11px;
             padding: 2px 8px;
@@ -318,9 +362,19 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             color: #065f46;
         }
 
+        body.dark-theme .status-active {
+            background: #064e3b;
+            color: #a7f3d0;
+        }
+
         .status-upcoming {
             background: #fef3c7;
             color: #92400e;
+        }
+
+        body.dark-theme .status-upcoming {
+            background: #78350f;
+            color: #fde68a;
         }
 
         .register-btn {
@@ -349,9 +403,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
         }
 
-        .register-btn:active {
-            transform: translateY(0);
-        }
+        .register-btn:active { transform: translateY(0); }
 
         .register-btn.loading {
             opacity: 0.8;
@@ -374,17 +426,10 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             animation: spin 0.8s linear infinite;
         }
 
-        .register-btn.loading .spinner {
-            display: inline-block;
-        }
+        .register-btn.loading .spinner { display: inline-block; }
+        .register-btn.loading .btn-text  { display: inline-block; }
 
-        .register-btn.loading .btn-text {
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .error-message {
             background: #fee2e2;
@@ -399,9 +444,12 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             gap: 10px;
         }
 
-        .error-message i {
-            font-size: 18px;
+        body.dark-theme .error-message {
+            background: #7f1d1d;
+            color: #fecaca;
         }
+
+        .error-message i { font-size: 18px; }
 
         .success-message {
             background: #d1fae5;
@@ -416,16 +464,22 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             gap: 10px;
         }
 
-        .success-message i {
-            font-size: 18px;
+        body.dark-theme .success-message {
+            background: #064e3b;
+            color: #a7f3d0;
         }
+
+        .success-message i { font-size: 18px; }
 
         .footer-links {
             text-align: center;
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
+            transition: border-color 0.3s ease;
         }
+
+        body.dark-theme .footer-links { border-top-color: #3d3d4d; }
 
         .footer-links a {
             color: #2c7a7b;
@@ -437,10 +491,14 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             gap: 6px;
         }
 
+        body.dark-theme .footer-links a { color: #4fd1c5; }
+
         .footer-links a:hover {
             color: #236162;
             text-decoration: underline;
         }
+
+        body.dark-theme .footer-links a:hover { color: #a7f3d0; }
 
         .back-to-site {
             display: inline-block;
@@ -449,23 +507,47 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-size: 13px !important;
         }
 
+        .theme-toggle-container {
+            text-align: center;
+            margin-top: 18px;
+            padding-top: 18px;
+            border-top: 1px solid #e5e7eb;
+            transition: border-color 0.3s ease;
+        }
+
+        body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
+
+        .theme-toggle-btn {
+            background: none;
+            border: 1px solid #e5e7eb;
+            padding: 8px 16px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+            color: #6b7280;
+            font-family: inherit;
+        }
+
+        body.dark-theme .theme-toggle-btn {
+            border-color: #3d3d4d;
+            color: #9ca3af;
+        }
+
+        .theme-toggle-btn:hover {
+            background: rgba(44, 122, 123, 0.1);
+            border-color: #2c7a7b;
+        }
+
         /* Responsive */
         @media (max-width: 640px) {
-            .registration-header {
-                padding: 30px 20px;
-            }
-
-            .registration-form {
-                padding: 25px 20px;
-            }
-
-            .registration-header h2 {
-                font-size: 24px;
-            }
-
-            .elections-grid {
-                grid-template-columns: 1fr;
-            }
+            .registration-header { padding: 30px 20px; }
+            .registration-form   { padding: 25px 20px; }
+            .registration-header h2 { font-size: 24px; }
+            .elections-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -569,6 +651,13 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                     </a>
                 </div>
             </form>
+
+            <div class="theme-toggle-container">
+                <button id="themeToggleBtn" class="theme-toggle-btn" type="button">
+                    <i class="fas fa-moon"></i>
+                    <span>Switch to Dark Mode</span>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -579,7 +668,38 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         const passwordInput = document.getElementById('password');
         const electionsCheckboxes = document.querySelectorAll('input[name="elections[]"]');
 
-        // Password validation visual hint
+        // ---------- Theme management ----------
+        function setTheme(theme) {
+            const themeBtn = document.getElementById('themeToggleBtn');
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+                document.body.classList.remove('dark-theme');
+                localStorage.setItem('voting_theme', 'light');
+                if (themeBtn) {
+                    themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Switch to Dark Mode</span>';
+                }
+            } else {
+                document.body.classList.remove('light-theme');
+                document.body.classList.add('dark-theme');
+                localStorage.setItem('voting_theme', 'dark');
+                if (themeBtn) {
+                    themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Switch to Light Mode</span>';
+                }
+            }
+        }
+
+        const savedTheme = localStorage.getItem('voting_theme') || 'light';
+        setTheme(savedTheme);
+
+        const themeToggleBtn = document.getElementById('themeToggleBtn');
+        if (themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', function() {
+                const isLight = document.body.classList.contains('light-theme');
+                setTheme(isLight ? 'dark' : 'light');
+            });
+        }
+
+        // ---------- Password validation visual hint ----------
         if (passwordInput) {
             passwordInput.addEventListener('input', function() {
                 if (this.value.length > 0 && this.value.length < 6) {
@@ -590,7 +710,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             });
         }
 
-        // Form validation and submission
+        // ---------- Form validation and submission ----------
         if (form && submitBtn) {
             form.addEventListener('submit', function(e) {
                 let atLeastOneSelected = false;
@@ -617,7 +737,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             });
         }
 
-        // File validation
+        // ---------- File validation ----------
         const fileInput = document.getElementById('profile_photo');
         if (fileInput) {
             fileInput.addEventListener('change', function(e) {
