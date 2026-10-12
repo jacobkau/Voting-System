@@ -90,6 +90,33 @@ try {
 <?php include("header.php"); ?>
 
 <style>
+.candidate-row-link {
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.candidate-row-link:hover {
+    background: #f0fdfa; 
+}
+
+body.dark-theme .candidate-row-link:hover {
+    background: #1a3a3a;
+}
+
+.candidate-bio-line {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+
+body.dark-theme .candidate-bio-line {
+    color: #9ca3af;
+}
+
+.candidate-row-link td:first-child::after {
+    content: '';
+}
     .results-hero {
         background-color: #2c7a7b;
         border-radius: 16px;
@@ -339,6 +366,7 @@ try {
         line-height: 1.2;
         transition: color 0.3s ease;
     }
+    
 
     body.dark-theme .card-stat .cs-num { color: #4fd1c5; }
 
@@ -807,12 +835,11 @@ try {
         </div>
     </div>
 </div>
-
 <script>
 (function() {
     const POLL_INTERVAL_MS = 15000;
-const RESULTS_API = 'api/election_results.php';
-const SUMMARY_API = 'api/election_summary.php';
+    const RESULTS_API = 'api/election_results.php';
+    const SUMMARY_API = 'api/election_summary.php';
 
     let currentElectionId = null;
     let resultsPollTimer = null;
@@ -831,10 +858,8 @@ const SUMMARY_API = 'api/election_summary.php';
         document.body.style.overflow = 'hidden';
         body.innerHTML = '<div class="results-loading"><div class="spinner"></div>Loading results...</div>';
 
-        // Load immediately
         fetchResults();
 
-        // Start polling while modal is open
         if (resultsPollTimer) clearInterval(resultsPollTimer);
         resultsPollTimer = setInterval(fetchResults, POLL_INTERVAL_MS);
     };
@@ -849,7 +874,6 @@ const SUMMARY_API = 'api/election_summary.php';
         }
     };
 
-    // Escape key closes the modal
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && currentElectionId !== null) {
             closeResults();
@@ -857,7 +881,7 @@ const SUMMARY_API = 'api/election_summary.php';
     });
 
     // ────────────────────────────────────────────────────
-    // Fetch + render results for the open election
+    // Fetch + render results
     // ────────────────────────────────────────────────────
     async function fetchResults() {
         if (!currentElectionId) return;
@@ -887,6 +911,13 @@ const SUMMARY_API = 'api/election_summary.php';
         return d.innerHTML;
     }
 
+    function shortBio(bio, max) {
+        if (!bio) return 'No manifesto provided.';
+        const clean = String(bio).trim();
+        if (clean.length <= max) return clean;
+        return clean.substring(0, max) + '…';
+    }
+
     function renderResults(data) {
         const body = document.getElementById('resultsModalBody');
 
@@ -904,18 +935,29 @@ const SUMMARY_API = 'api/election_summary.php';
             const rows = post.candidates.map(function(c, idx) {
                 const isWinner = idx === 0 && post.total_votes > 0;
                 const pct = post.total_votes > 0 ? (c.votes / post.total_votes) * 100 : 0;
-                return '<tr class="' + (isWinner ? 'winner-row' : '') + '">' +
+                const hasUserId = c.user_id && c.user_id > 0;
+                const profileUrl = hasUserId ? ('candidate.php?user_id=' + c.user_id) : '';
+
+                // The whole row is a link if we have a user_id
+                const rowTag = hasUserId
+                    ? '<tr class="' + (isWinner ? 'winner-row' : '') + ' candidate-row-link" onclick="window.location.href=\'' + profileUrl + '\'">'
+                    : '<tr class="' + (isWinner ? 'winner-row' : '') + '">';
+
+                const bio = shortBio(c.bio, 140);
+
+                return rowTag +
                     '<td style="text-align:center; width:60px;">' +
                         '<img src="' + escapeHtml(c.photo) + '" alt="" class="candidate-image">' +
                     '</td>' +
                     '<td>' +
                         '<strong>' + escapeHtml(c.name) + '</strong>' +
                         (isWinner ? ' <span class="winner-badge"><i class="fas fa-crown"></i> Winner</span>' : '') +
+                        '<div class="candidate-bio-line">' + escapeHtml(bio) + '</div>' +
                     '</td>' +
-                    '<td style="width:110px;">' +
+                    '<td style="width:100px;">' +
                         '<span class="vote-count" data-candidate-id="' + c.id + '">' + c.votes.toLocaleString() + '</span> votes' +
                     '</td>' +
-                    '<td style="width:180px;">' +
+                    '<td style="width:170px;">' +
                         '<div style="display:flex; align-items:center; gap:10px;">' +
                             '<div class="percentage-bar" style="flex:1;">' +
                                 '<div class="percentage-fill" style="width:' + pct.toFixed(1) + '%;"></div>' +
@@ -930,9 +972,9 @@ const SUMMARY_API = 'api/election_summary.php';
                    '<table class="votes-table">' +
                        '<thead><tr>' +
                            '<th style="width:60px;">Photo</th>' +
-                           '<th>Candidate Name</th>' +
-                           '<th style="width:110px;">Votes</th>' +
-                           '<th style="width:180px;">Percentage</th>' +
+                           '<th>Candidate &amp; Manifesto</th>' +
+                           '<th style="width:100px;">Votes</th>' +
+                           '<th style="width:170px;">Percentage</th>' +
                        '</tr></thead>' +
                        '<tbody>' + rows + '</tbody>' +
                    '</table>';
@@ -942,8 +984,7 @@ const SUMMARY_API = 'api/election_summary.php';
     }
 
     // ────────────────────────────────────────────────────
-    // Poll the election card summary counts (votes per election)
-    // Updates the numbers on each card in place — no reload.
+    // Poll the summary counts on the cards
     // ────────────────────────────────────────────────────
     async function pollSummary() {
         if (document.visibilityState === 'hidden') return;
@@ -978,13 +1019,10 @@ const SUMMARY_API = 'api/election_summary.php';
         }
     }
 
-    // Only poll the summary while the modal is closed.
-    // While the modal is open, we poll the full results instead.
     setInterval(function() {
         if (currentElectionId === null) pollSummary();
     }, POLL_INTERVAL_MS);
 
-    // Immediate catch-up when tab becomes visible
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') {
             if (currentElectionId === null) {
@@ -995,7 +1033,6 @@ const SUMMARY_API = 'api/election_summary.php';
         }
     });
 
-    // Prime the cache once so the first poll cycle knows the current counts
     pollSummary();
 })();
 </script>
