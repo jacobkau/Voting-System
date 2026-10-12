@@ -135,7 +135,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: #2c7a7b;
@@ -144,77 +144,82 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             justify-content: center;
             align-items: flex-start;
             padding: 30px 20px;
-            transition: background-color 0.3s ease;
         }
-        
-        body.light-theme { background-color: #2c7a7b; }
-        body.dark-theme  { background-color: #1e293b; }
-        
+
         .registration-container {
-            width: 100%;
-            max-width: 640px;
             background: white;
             border-radius: 24px;
-            padding: 45px 40px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            transition: background 0.3s ease;
+            width: 640px;
+            max-width: 100%;
+            overflow: hidden;
             animation: fadeInUp 0.5s ease-out;
         }
-        
+
         @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to   { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
-        
-        body.dark-theme .registration-container { background: #1e1e2e; }
-        
-        .registration-title {
+
+        .registration-header {
+            background-color: #2c7a7b;
+            padding: 40px 30px;
             text-align: center;
-            margin-bottom: 10px;
-            color: #1f2937;
-            font-size: 32px;
+            color: white;
+        }
+
+        .registration-header h2 {
+            font-size: 28px;
             font-weight: 700;
+            margin-bottom: 10px;
         }
-        
-        body.dark-theme .registration-title { color: #f3f4f6; }
-        
-        .registration-title i {
-            color: #2c7a7b;
-            margin-right: 10px;
-        }
-        
-        .registration-subtitle {
-            text-align: center;
-            color: #6b7280;
-            margin-bottom: 35px;
+
+        .registration-header p {
             font-size: 14px;
+            opacity: 0.9;
         }
-        
-        body.dark-theme .registration-subtitle { color: #9ca3af; }
-        
-        .form-group { margin-bottom: 25px; }
-        
+
+        .registration-icon {
+            font-size: 64px;
+            margin-bottom: 15px;
+        }
+
+        .registration-form {
+            padding: 35px 30px;
+        }
+
+        .form-group {
+            margin-bottom: 22px;
+        }
+
         .form-label {
             display: block;
             margin-bottom: 8px;
-            color: #374151;
-            font-weight: 500;
+            font-weight: 600;
+            color: #333;
             font-size: 14px;
         }
-        
-        body.dark-theme .form-label { color: #e5e7eb; }
-        
+
         .form-label i {
             margin-right: 8px;
             color: #2c7a7b;
         }
-        
+
         .required:after {
             content: " *";
             color: #dc2626;
         }
-        
-        /* -------- Input visibility fix -------- */
+
+        .input-wrapper {
+            position: relative;
+        }
+
         .form-input,
         .form-input-file {
             width: 100%;
@@ -222,10 +227,9 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             border: 2px solid #e5e7eb;
             border-radius: 12px;
             font-size: 15px;
-            transition: all 0.3s;
-            font-family: inherit;
-            box-sizing: border-box;
-            background: white;
+            transition: all 0.3s ease;
+            font-family: 'Inter', sans-serif;
+            background: #ffffff;
             color: #1f2937;
             -webkit-text-fill-color: #1f2937;
         }
@@ -242,18 +246,6 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
 
-        body.dark-theme .form-input,
-        body.dark-theme .form-input-file {
-            background: #2d2d3d;
-            border-color: #3d3d4d;
-            color: #f3f4f6;
-            -webkit-text-fill-color: #f3f4f6;
-        }
-
-        body.dark-theme .form-input::placeholder {
-            color: #6b7280;
-        }
-
         /* Autofill overrides */
         .form-input:-webkit-autofill,
         .form-input:-webkit-autofill:hover,
@@ -263,38 +255,24 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             transition: background-color 5000s ease-in-out 0s;
         }
 
-        body.dark-theme .form-input:-webkit-autofill,
-        body.dark-theme .form-input:-webkit-autofill:hover,
-        body.dark-theme .form-input:-webkit-autofill:focus {
-            -webkit-text-fill-color: #f3f4f6;
-            -webkit-box-shadow: 0 0 0px 1000px #2d2d3d inset;
-        }
-        /* ------------------------------------- */
-        
         .form-input-file {
             padding: 10px 16px;
             background: #f9fafb;
         }
-        
-        body.dark-theme .form-input-file {
-            background: #2d2d3d;
-        }
-        
+
         .file-hint {
             font-size: 12px;
             color: #9ca3af;
             margin-top: 6px;
         }
-        
-        body.dark-theme .file-hint { color: #6b7280; }
-        
+
         .elections-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 10px;
             margin-top: 5px;
         }
-        
+
         .form-check {
             display: flex;
             align-items: center;
@@ -305,22 +283,12 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             transition: all 0.3s;
             cursor: pointer;
         }
-        
-        body.dark-theme .form-check {
-            background: #2d2d3d;
-            border-color: #3d3d4d;
-        }
-        
+
         .form-check:hover {
             background: #f3f4f6;
             border-color: #2c7a7b;
         }
-        
-        body.dark-theme .form-check:hover {
-            background: #3d3d4d;
-            border-color: #2c7a7b;
-        }
-        
+
         .form-check-input {
             margin-right: 12px;
             width: 18px;
@@ -328,7 +296,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             cursor: pointer;
             accent-color: #2c7a7b;
         }
-        
+
         .form-check-label {
             color: #374151;
             font-size: 14px;
@@ -338,72 +306,65 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             justify-content: space-between;
             align-items: center;
         }
-        
-        body.dark-theme .form-check-label { color: #e5e7eb; }
-        
+
         .election-status {
             font-size: 11px;
             padding: 2px 8px;
             border-radius: 20px;
         }
-        
+
         .status-active {
             background: #d1fae5;
             color: #065f46;
         }
-        
-        body.dark-theme .status-active {
-            background: #064e3b;
-            color: #a7f3d0;
-        }
-        
+
         .status-upcoming {
             background: #fef3c7;
             color: #92400e;
         }
-        
-        body.dark-theme .status-upcoming {
-            background: #78350f;
-            color: #fde68a;
-        }
-        
-        .submit-btn {
+
+        .register-btn {
             width: 100%;
             background-color: #2c7a7b;
             color: white;
-            padding: 14px 20px;
+            padding: 14px;
             border: none;
             border-radius: 12px;
             font-size: 16px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.3s ease;
+            position: relative;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 10px;
-            margin-top: 10px;
             font-family: inherit;
+            margin-top: 10px;
         }
-        
-        .submit-btn:hover {
+
+        .register-btn:hover {
             background-color: #236162;
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(44, 122, 123, 0.4);
+            box-shadow: 0 5px 20px rgba(44, 122, 123, 0.4);
         }
-        
-        .submit-btn.loading {
-            opacity: 0.7;
+
+        .register-btn:active {
+            transform: translateY(0);
+        }
+
+        .register-btn.loading {
+            opacity: 0.8;
             cursor: not-allowed;
             transform: none;
         }
-        
-        .submit-btn.loading:hover {
+
+        .register-btn.loading:hover {
             transform: none;
             box-shadow: none;
         }
-        
-        .submit-btn .spinner {
+
+        .register-btn .spinner {
             display: none;
             width: 20px;
             height: 20px;
@@ -412,199 +373,202 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             border-top-color: white;
             animation: spin 0.8s linear infinite;
         }
-        
-        .submit-btn.loading .spinner { display: inline-block; }
-        
-        @keyframes spin { to { transform: rotate(360deg); } }
-        
-        .message {
-            padding: 14px 18px;
+
+        .register-btn.loading .spinner {
+            display: inline-block;
+        }
+
+        .register-btn.loading .btn-text {
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #fee2e2;
+            color: #dc2626;
+            padding: 12px 16px;
             border-radius: 12px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            border-left: 4px solid #dc2626;
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-size: 14px;
+            gap: 10px;
         }
-        
-        .message.success {
-            background-color: #d1fae5;
+
+        .error-message i {
+            font-size: 18px;
+        }
+
+        .success-message {
+            background: #d1fae5;
             color: #065f46;
-            border-left: 4px solid #10b981;
-        }
-        
-        body.dark-theme .message.success {
-            background-color: #064e3b;
-            color: #a7f3d0;
-        }
-        
-        .message.error {
-            background-color: #fee2e2;
-            color: #991b1b;
-            border-left: 4px solid #dc2626;
-        }
-        
-        body.dark-theme .message.error {
-            background-color: #7f1d1d;
-            color: #fecaca;
-        }
-        
-        .login-link {
-            text-align: center;
-            margin-top: 25px;
-            padding-top: 20px;
-            border-top: 1px solid #e5e7eb;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
             font-size: 14px;
-            color: #6b7280;
+            border-left: 4px solid #10b981;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
-        body.dark-theme .login-link {
-            border-top-color: #3d3d4d;
-            color: #9ca3af;
+
+        .success-message i {
+            font-size: 18px;
         }
-        
-        .login-link a {
-            color: #2c7a7b;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .login-link a:hover {
-            color: #236162;
-            text-decoration: underline;
-        }
-        
-        .theme-toggle-container {
+
+        .footer-links {
             text-align: center;
             margin-top: 20px;
             padding-top: 20px;
             border-top: 1px solid #e5e7eb;
         }
-        
-        body.dark-theme .theme-toggle-container { border-top-color: #3d3d4d; }
-        
-        .theme-toggle-btn {
-            background: none;
-            border: 1px solid #e5e7eb;
-            padding: 8px 16px;
-            border-radius: 30px;
-            cursor: pointer;
-            font-size: 13px;
+
+        .footer-links a {
+            color: #2c7a7b;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s;
             display: inline-flex;
             align-items: center;
-            gap: 8px;
-            transition: all 0.3s;
-            color: #6b7280;
-            font-family: inherit;
+            gap: 6px;
         }
-        
-        body.dark-theme .theme-toggle-btn {
-            border-color: #3d3d4d;
-            color: #9ca3af;
+
+        .footer-links a:hover {
+            color: #236162;
+            text-decoration: underline;
         }
-        
-        .theme-toggle-btn:hover {
-            background: rgba(44, 122, 123, 0.1);
-            border-color: #2c7a7b;
+
+        .back-to-site {
+            display: inline-block;
+            margin-top: 15px;
+            color: #9ca3af !important;
+            font-size: 13px !important;
         }
-        
-        @media (max-width: 768px) {
-            .registration-container { padding: 30px 25px; }
-            .registration-title { font-size: 24px; }
-            .elections-grid { grid-template-columns: 1fr; }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .registration-header {
+                padding: 30px 20px;
+            }
+
+            .registration-form {
+                padding: 25px 20px;
+            }
+
+            .registration-header h2 {
+                font-size: 24px;
+            }
+
+            .elections-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="registration-container">
-        <h1 class="registration-title">
-            <i class="fas fa-vote-yea"></i> Create Account
-        </h1>
-        <p class="registration-subtitle">Join our voting system to participate in elections</p>
-        
-        <?php if (!empty($message)): ?>
-            <div class="message <?php echo $messageType; ?>">
-                <i class="fas <?php echo $messageType == 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
-                <span><?php echo $message; ?></span>
+        <div class="registration-header">
+            <div class="registration-icon">
+                <i class="fas fa-user-plus"></i>
             </div>
-        <?php endif; ?>
-        
-        <form method="post" action="register.php" enctype="multipart/form-data" id="registrationForm">
-            <div class="form-group">
-                <label for="username" class="form-label required">
-                    <i class="fas fa-user"></i> Username
-                </label>
-                <input type="text" name="username" id="username" class="form-input" placeholder="Choose a username" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="name" class="form-label required">
-                    <i class="fas fa-signature"></i> Full Name
-                </label>
-                <input type="text" name="name" id="name" class="form-input" placeholder="Enter your full name" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="email" class="form-label required">
-                    <i class="fas fa-envelope"></i> Email Address
-                </label>
-                <input type="email" name="email" id="email" class="form-input" placeholder="your@email.com" required>
-            </div>
-            
-            <div class="form-group">
-                <label for="password" class="form-label required">
-                    <i class="fas fa-lock"></i> Password
-                </label>
-                <input type="password" name="password" id="password" class="form-input" placeholder="Create a password" required>
-                <div class="file-hint">Password must be at least 6 characters</div>
-            </div>
-            
-            <div class="form-group">
-                <label for="profile_photo" class="form-label">
-                    <i class="fas fa-camera"></i> Profile Photo
-                </label>
-                <input type="file" name="profile_photo" id="profile_photo" class="form-input-file" accept="image/*">
-                <div class="file-hint">Optional: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
-            </div>
-            
-            <div class="form-group">
-                <label class="form-label required">
-                    <i class="fas fa-poll"></i> Select Elections
-                </label>
-                <div class="elections-grid" id="electionsGrid">
-                    <?php if (empty($activeElections)): ?>
-                        <p style="color: #9ca3af; grid-column: 1/-1; text-align: center;">No active elections available for registration.</p>
-                    <?php else: ?>
-                        <?php foreach ($activeElections as $election): ?>
-                            <div class="form-check">
-                                <input type="checkbox" name="elections[]" value="<?php echo $election['id']; ?>" id="election_<?php echo $election['id']; ?>" class="form-check-input">
-                                <label class="form-check-label" for="election_<?php echo $election['id']; ?>">
-                                    <?php echo htmlspecialchars($election['title']); ?>
-                                    <span class="election-status status-<?php echo $election['status']; ?>">
-                                        <?php echo ucfirst($election['status']); ?>
-                                    </span>
-                                </label>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+            <h2>Create Account</h2>
+            <p>Join our voting system to participate in elections</p>
+        </div>
+
+        <div class="registration-form">
+            <?php if (!empty($message)): ?>
+                <div class="<?php echo $messageType === 'success' ? 'success-message' : 'error-message'; ?>">
+                    <i class="fas <?php echo $messageType === 'success' ? 'fa-check-circle' : 'fa-exclamation-triangle'; ?>"></i>
+                    <span><?php echo $message; ?></span>
                 </div>
-            </div>
-            
-            <button type="submit" class="submit-btn" id="submitBtn">
-                <span class="spinner"></span>
-                <span><i class="fas fa-user-plus"></i> Register Account</span>
-            </button>
-            
-            <div class="login-link">
-                Already have an account? <a href="login.php"><i class="fas fa-sign-in-alt"></i> Login here</a>
-            </div>
-        </form>
-        
-        <div class="theme-toggle-container">
-            <button id="themeToggleBtn" class="theme-toggle-btn" type="button">
-                <i class="fas fa-moon"></i>
-                <span>Switch to Dark Mode</span>
-            </button>
+            <?php endif; ?>
+
+            <form method="post" action="register.php" enctype="multipart/form-data" id="registrationForm">
+                <div class="form-group">
+                    <label class="form-label required" for="username">
+                        <i class="fas fa-user"></i> Username
+                    </label>
+                    <div class="input-wrapper">
+                        <input type="text" name="username" id="username" class="form-input" placeholder="Choose a username" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required" for="name">
+                        <i class="fas fa-signature"></i> Full Name
+                    </label>
+                    <div class="input-wrapper">
+                        <input type="text" name="name" id="name" class="form-input" placeholder="Enter your full name" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required" for="email">
+                        <i class="fas fa-envelope"></i> Email Address
+                    </label>
+                    <div class="input-wrapper">
+                        <input type="email" name="email" id="email" class="form-input" placeholder="your@email.com" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required" for="password">
+                        <i class="fas fa-lock"></i> Password
+                    </label>
+                    <div class="input-wrapper">
+                        <input type="password" name="password" id="password" class="form-input" placeholder="Create a password" required>
+                    </div>
+                    <div class="file-hint">Password must be at least 6 characters</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="profile_photo">
+                        <i class="fas fa-camera"></i> Profile Photo
+                    </label>
+                    <input type="file" name="profile_photo" id="profile_photo" class="form-input-file" accept="image/*">
+                    <div class="file-hint">Optional: JPG, PNG, GIF, WEBP (Max 2MB). Uploaded to Cloudinary.</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label required">
+                        <i class="fas fa-poll"></i> Select Elections
+                    </label>
+                    <div class="elections-grid" id="electionsGrid">
+                        <?php if (empty($activeElections)): ?>
+                            <p style="color: #9ca3af; grid-column: 1/-1; text-align: center; padding: 12px;">No active elections available for registration.</p>
+                        <?php else: ?>
+                            <?php foreach ($activeElections as $election): ?>
+                                <div class="form-check">
+                                    <input type="checkbox" name="elections[]" value="<?php echo $election['id']; ?>" id="election_<?php echo $election['id']; ?>" class="form-check-input">
+                                    <label class="form-check-label" for="election_<?php echo $election['id']; ?>">
+                                        <?php echo htmlspecialchars($election['title']); ?>
+                                        <span class="election-status status-<?php echo $election['status']; ?>">
+                                            <?php echo ucfirst($election['status']); ?>
+                                        </span>
+                                    </label>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <button type="submit" class="register-btn" id="submitBtn">
+                    <span class="spinner"></span>
+                    <span class="btn-text"><i class="fas fa-user-plus"></i> Register Account</span>
+                </button>
+
+                <div class="footer-links">
+                    <a href="login.php"><i class="fas fa-sign-in-alt"></i> Already have an account? Login here</a>
+                    <br>
+                    <a href="index.php" class="back-to-site">
+                        <i class="fas fa-arrow-left"></i> Back to Voting Site
+                    </a>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -614,7 +578,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
         const submitBtn = document.getElementById('submitBtn');
         const passwordInput = document.getElementById('password');
         const electionsCheckboxes = document.querySelectorAll('input[name="elections[]"]');
-        
+
         // Password validation visual hint
         if (passwordInput) {
             passwordInput.addEventListener('input', function() {
@@ -625,7 +589,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 }
             });
         }
-        
+
         // Form validation and submission
         if (form && submitBtn) {
             form.addEventListener('submit', function(e) {
@@ -633,26 +597,26 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 electionsCheckboxes.forEach(checkbox => {
                     if (checkbox.checked) atLeastOneSelected = true;
                 });
-                
+
                 if (!atLeastOneSelected) {
                     e.preventDefault();
                     alert('Please select at least one election to register for.');
                     return false;
                 }
-                
+
                 if (passwordInput && passwordInput.value.length > 0 && passwordInput.value.length < 6) {
                     e.preventDefault();
                     alert('Password must be at least 6 characters long.');
                     return false;
                 }
-                
+
                 submitBtn.classList.add('loading');
                 submitBtn.disabled = true;
-                
+
                 return true;
             });
         }
-        
+
         // File validation
         const fileInput = document.getElementById('profile_photo');
         if (fileInput) {
@@ -670,38 +634,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                 }
             });
         }
-        
-        // Theme management
-        function setTheme(theme) {
-            const themeBtn = document.getElementById('themeToggleBtn');
-            if (theme === 'light') {
-                document.body.classList.add('light-theme');
-                document.body.classList.remove('dark-theme');
-                localStorage.setItem('voting_theme', 'light');
-                if (themeBtn) {
-                    themeBtn.innerHTML = '<i class="fas fa-moon"></i> <span>Switch to Dark Mode</span>';
-                }
-            } else {
-                document.body.classList.remove('light-theme');
-                document.body.classList.add('dark-theme');
-                localStorage.setItem('voting_theme', 'dark');
-                if (themeBtn) {
-                    themeBtn.innerHTML = '<i class="fas fa-sun"></i> <span>Switch to Light Mode</span>';
-                }
-            }
-        }
-        
-        const savedTheme = localStorage.getItem('voting_theme') || 'light';
-        setTheme(savedTheme);
-        
-        const themeToggleBtn = document.getElementById('themeToggleBtn');
-        if (themeToggleBtn) {
-            themeToggleBtn.addEventListener('click', function() {
-                const isLight = document.body.classList.contains('light-theme');
-                setTheme(isLight ? 'dark' : 'light');
-            });
-        }
-        
+
         // Reset loading state if user navigates back
         window.addEventListener('pageshow', function() {
             if (submitBtn) {
