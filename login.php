@@ -5,7 +5,6 @@ include("conn.php");
 $error = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($_POST['password'])) {
-    verifyCsrf();
     $username = trim($_POST['username']);
     $password = trim($_POST['password']);
 
@@ -392,7 +391,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['username']) && isset($
             <?php endif; ?>
             
             <form method="post" action="login.php" class="login-form" id="loginForm">
-                 <?= csrfField() ?>
                 <div class="form-group">
                     <label for="username" class="form-label">
                         <i class="fas fa-user"></i> Username
