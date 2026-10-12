@@ -694,7 +694,7 @@ $currentPage = $page;
         // ────────────────────────────────────────────────────────────
         (function() {
             const POLL_INTERVAL_MS = 15000;
-            const API_URL = 'api_admin_notifications.php';
+            const API_URL = 'api/api_admin_notifications.php';
 
             const btn = document.getElementById('notifBtn');
             const badge = document.getElementById('notifBadge');
