@@ -3,6 +3,7 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 include __DIR__ . '/conn.php';
+require_once __DIR__ . '/../cloudinary.php';
 
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
@@ -12,6 +13,74 @@ if (!isset($_SESSION['admin_id'])) {
 $adminId = (int)$_SESSION['admin_id'];
 $message = "";
 $messageType = "";
+
+/**
+ * Send an approval/rejection email via EmailJS.
+ *
+ * Returns ['sent' => bool, 'error' => string|null].
+ */
+function sendDecisionEmail(string $email, string $userName, string $electionTitle, string $decision, string $reason = ''): array {
+    $serviceId  = getenv('EMAILJS_SERVICE_ID');
+    $templateId = getenv('EMAILJS_DECISION_TEMPLATE_ID');
+    $publicKey  = getenv('EMAILJS_PUBLIC_KEY');
+    $privateKey = getenv('EMAILJS_PRIVATE_KEY');
+
+    if (!$serviceId || !$templateId || !$publicKey) {
+        return ['sent' => false, 'error' => 'EmailJS not configured.'];
+    }
+
+    if ($decision === 'approved') {
+        $subjectLine = 'Your registration has been approved';
+        $messageBody = 'Great news — your request to register as a voter for "' . $electionTitle . '" has been approved. You can now cast your vote when the election opens.';
+    } else {
+        $subjectLine = 'Your registration was not approved';
+        $messageBody = 'We regret to inform you that your request to register as a voter for "' . $electionTitle . '" was not approved.';
+        if ($reason !== '') {
+            $messageBody .= "\n\nReason: " . $reason;
+        }
+    }
+
+    $payload = [
+        'service_id'      => $serviceId,
+        'template_id'     => $templateId,
+        'user_id'         => $publicKey,
+        'template_params' => [
+            'user_name'     => $userName,
+            'user_email'    => $email,
+            'election_title'=> $electionTitle,
+            'decision'      => $decision,
+            'subject_line'  => $subjectLine,
+            'message_body'  => $messageBody,
+            'reason'        => $reason,
+        ],
+    ];
+
+    if ($privateKey) {
+        $payload['accessToken'] = $privateKey;
+    }
+
+    $ch = curl_init('https://api.emailjs.com/api/v1.0/email/send');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_TIMEOUT        => 15,
+    ]);
+
+    $response  = curl_exec($ch);
+    $httpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200 && !$curlError) {
+        return ['sent' => true, 'error' => null];
+    }
+
+    $err = "HTTP {$httpCode} — " . ($response ?: $curlError);
+    error_log("EmailJS decision email error: " . $err);
+    return ['sent' => false, 'error' => $err];
+}
 
 // Handle approve/reject action
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST['decision'])) {
@@ -26,9 +95,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
         try {
             $conn->beginTransaction();
 
-            // Fetch the request
+            // Fetch the request + user details in one shot
             $reqStmt = $conn->prepare("
-                SELECT r.*, u.username, e.title AS election_title
+                SELECT r.*,
+                       u.username, u.name AS full_name, u.email,
+                       e.title AS election_title
                 FROM election_registration_requests r
                 JOIN users u ON r.user_id = u.id
                 JOIN elections e ON r.election_id = e.id
@@ -42,7 +113,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
             }
 
             if ($decision === 'approve') {
-                // Add to user_elections (idempotent thanks to unique key)
                 $conn->prepare("
                     INSERT IGNORE INTO user_elections (user_id, election_id)
                     VALUES (?, ?)
@@ -74,6 +144,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
 
             $conn->commit();
             $messageType = "success";
+
+            // Send email AFTER commit — email failure doesn't roll back the decision
+            $recipientName = !empty($request['full_name']) ? $request['full_name'] : $request['username'];
+            $emailResult = sendDecisionEmail(
+                $request['email'],
+                $recipientName,
+                $request['election_title'],
+                $decision === 'approve' ? 'approved' : 'rejected',
+                $reason
+            );
+
+            if ($emailResult['sent']) {
+                $message .= " Email notification sent.";
+            } else {
+                $message .= " (Email could not be sent — please notify manually.)";
+            }
+
         } catch (Exception $e) {
             if ($conn->inTransaction()) $conn->rollBack();
             error_log("Approve/reject error: " . $e->getMessage());
@@ -438,7 +525,6 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
         </div>
     <?php endif; ?>
 
-    <!-- Status tabs -->
     <div class="filter-tabs">
         <a href="?status=pending<?= $filterElectionId ? '&election_id=' . $filterElectionId : '' ?>"
            class="filter-tab <?= $filterStatus === 'pending' ? 'active' : '' ?>">
@@ -461,7 +547,6 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
         </a>
     </div>
 
-    <!-- Election filter -->
     <div class="filters">
         <form method="get">
             <input type="hidden" name="status" value="<?= htmlspecialchars($filterStatus) ?>">
@@ -477,7 +562,6 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
         </form>
     </div>
 
-    <!-- Requests table -->
     <?php if (empty($requests)): ?>
         <div class="empty-state">
             <i class="fas fa-inbox"></i>
@@ -497,7 +581,6 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
             <tbody>
                 <?php foreach ($requests as $r): ?>
                     <?php
-                        // Resolve user avatar (Cloudinary URL or default)
                         $avatar = defaultAvatarUrl();
                         if (!empty($r['profile_photo']) && preg_match('#^https?://#i', $r['profile_photo'])) {
                             $avatar = $r['profile_photo'];
@@ -538,7 +621,7 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
                             <?php if ($r['status'] === 'pending'): ?>
                                 <div class="action-buttons">
                                     <form method="post" style="display:inline;"
-                                          onsubmit="return confirm('Approve <?= htmlspecialchars(addslashes($r['username'])) ?> as a voter?');">
+                                          onsubmit="return confirm('Approve <?= htmlspecialchars(addslashes($r['username'])) ?> as a voter? An email will be sent to them.');">
                                         <input type="hidden" name="request_id" value="<?= $r['id'] ?>">
                                         <input type="hidden" name="decision" value="approve">
                                         <button type="submit" class="btn-approve">
@@ -570,8 +653,8 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
 
 <script>
 function handleReject(form) {
-    const reason = prompt("Reason for rejection (optional, shown to the user):");
-    if (reason === null) return false; // user cancelled
+    const reason = prompt("Reason for rejection (optional, will be shown to the user and included in the email):");
+    if (reason === null) return false;
     form.querySelector('input[name="reason"]').value = reason;
     return true;
 }
