@@ -325,7 +325,7 @@ $currentPage = $page;
         <aside class="sidebar" id="sidebar">
             <ul>
                 <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> Manage Voters</a></li>
+                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> Manage Voters</a></li>
                 <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> Manage All Users</a></li>
                 <li><a href="main.php?page=votes" class="<?php echo $currentPage === 'votes' ? 'active' : ''; ?>"><i class="fas fa-vote-yea"></i> Manage Votes</a></li>
                 <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
