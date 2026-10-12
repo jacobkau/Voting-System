@@ -36,6 +36,20 @@ $adminPhotoDisplay = (!empty($adminPhoto) && preg_match('#^https?://#i', $adminP
 
 // Determine which content to load
 $page = isset($_GET['page']) ? $_GET['page'] : 'home';
+if ($page === '') {
+    $inferred = [
+        'election_id'  => 'voters',   
+        'status'       => 'voters',   
+        'user_id'      => 'users',    
+        'q'            => 'users',    
+    ];
+    foreach ($inferred as $param => $target) {
+        if (isset($_GET[$param])) {
+            $page = $target;
+            break;
+        }
+    }
+}
 $currentPage = $page;
 ?>
 <!DOCTYPE html>
@@ -347,7 +361,7 @@ $currentPage = $page;
                     case 'users':
                         include("manage_users.php");
                         break;
-                    case 'voters';
+                    case 'voters':
                         include("manage_election_voters.php");
                         break;
                     case 'votes':
