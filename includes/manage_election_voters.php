@@ -10,6 +10,16 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
+
+error_log(sprintf(
+    "EmailJS DEBUG: SERVICE=[%s] TEMPLATE=[%s] PUBLIC=[%s] PRIVATE=[%s]",
+    getenv('EMAILJS_SERVICE_ID') ?: 'MISSING',
+    getenv('EMAILJS_DECISION_TEMPLATE_ID') ?: 'MISSING',
+    getenv('EMAILJS_PUBLIC_KEY') ? 'SET' : 'MISSING',
+    getenv('EMAILJS_PRIVATE_KEY') ? 'SET' : 'MISSING'
+));
+
+
 $adminId = (int)$_SESSION['admin_id'];
 $message = "";
 $messageType = "";
