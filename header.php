@@ -398,6 +398,9 @@ function navActive($file, $currentPage) {
 
             <div class="nav-center">
                 <?php if ($isLoggedIn): ?>
+                    <a href="elections.php" class="<?php echo trim(navActive('elections.php', $currentPage)); ?>">
+                        <i class="fas fa-calendar-check"></i> <span>Elections</span>
+                    </a>
                     <a href="vote.php" class="<?php echo trim(navActive('vote.php', $currentPage)); ?>">
                         <i class="fas fa-check-circle"></i> <span>Vote</span>
                     </a>
