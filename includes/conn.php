@@ -65,7 +65,7 @@ session_set_cookie_params([
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
+$conn->exec("SET time_zone = '+03:00'");  
 // =====================================================================
 // HTTPS ENFORCEMENT
 // =====================================================================
@@ -96,6 +96,7 @@ if (php_sapi_name() !== 'cli'
 
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
+
 
 // =====================================================================
 // DATABASE CONNECTION
