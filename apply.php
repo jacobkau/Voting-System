@@ -1,11 +1,12 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -21,12 +22,23 @@ $username = $_SESSION["username"];
 $userStmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
 $userStmt->execute([$username]);
 $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-$userId = $user ? $user['id'] : null;
+$userId = $user ? (int)$user['id'] : null;
 
-// Fetch active elections
-$electionsStmt = $conn->prepare("SELECT id, title FROM elections WHERE status = 'active'");
+// ─────────────────────────────────────────────────────────────
+// Fetch elections open for candidacy applications (derived)
+// Fetch all, filter in PHP with the helper.
+// ─────────────────────────────────────────────────────────────
+$electionsStmt = $conn->prepare("
+    SELECT id, title, status, start_date, end_date, manual_status, manual_until
+    FROM elections
+    ORDER BY start_date DESC
+");
 $electionsStmt->execute();
-$elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+$allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$elections = array_values(array_filter($allElections, function ($e) {
+    return effectiveElectionStatus($e) === 'active';
+}));
 
 // Handle form submission
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -51,39 +63,54 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $message = "File is too large. Maximum size is 2MB.";
             $messageType = "error";
         } else {
-            // Check existing application for this election
-            $checkExistingStmt = $conn->prepare("SELECT postname FROM contesters WHERE election_id = ? AND user_id = ?");
-            $checkExistingStmt->execute([$electionId, $userId]);
-            $existingApplication = $checkExistingStmt->fetch(PDO::FETCH_ASSOC);
+            // Re-verify election is still active (derived)
+            $recheck = $conn->prepare("
+                SELECT id, status, start_date, end_date, manual_status, manual_until
+                FROM elections
+                WHERE id = ?
+            ");
+            $recheck->execute([$electionId]);
+            $targetElection = $recheck->fetch(PDO::FETCH_ASSOC);
+            $targetStatus = $targetElection ? effectiveElectionStatus($targetElection) : null;
 
-            if ($existingApplication) {
-                $message = "You have already applied for the position of '" . htmlspecialchars($existingApplication['postname']) . "' in this election. You cannot apply for multiple positions in the same election.";
+            if ($targetStatus !== 'active') {
+                $message = "That election is no longer accepting candidacy applications.";
                 $messageType = "error";
             } else {
-                // Check for same post
-                $checkStmt = $conn->prepare("SELECT 1 FROM contesters WHERE election_id = ? AND postname = ? AND user_id = ?");
-                $checkStmt->execute([$electionId, $postName, $userId]);
+                // Check existing application for this election
+                $checkExistingStmt = $conn->prepare("SELECT postname FROM contesters WHERE election_id = ? AND user_id = ?");
+                $checkExistingStmt->execute([$electionId, $userId]);
+                $existingApplication = $checkExistingStmt->fetch(PDO::FETCH_ASSOC);
 
-                if ($checkStmt->rowCount() > 0) {
-                    $message = "You have already applied for this position in this election.";
+                if ($existingApplication) {
+                    $message = "You have already applied for the position of '" . htmlspecialchars($existingApplication['postname']) . "' in this election. You cannot apply for multiple positions in the same election.";
                     $messageType = "error";
                 } else {
-                    // Upload to Cloudinary
-                    $profilePhotoUrl = uploadToCloudinary($_FILES['profile_photo']['tmp_name'], 'candidates');
+                    // Check for same post
+                    $checkStmt = $conn->prepare("SELECT 1 FROM contesters WHERE election_id = ? AND postname = ? AND user_id = ?");
+                    $checkStmt->execute([$electionId, $postName, $userId]);
 
-                    if (!$profilePhotoUrl) {
-                        $message = "Failed to upload profile photo. Please try again.";
+                    if ($checkStmt->rowCount() > 0) {
+                        $message = "You have already applied for this position in this election.";
                         $messageType = "error";
                     } else {
-                        $insertStmt = $conn->prepare("INSERT INTO contesters (election_id, postname, user_id, name, bio, profile_photo, votes) VALUES (?, ?, ?, ?, ?, ?, 0)");
+                        // Upload to Cloudinary
+                        $profilePhotoUrl = uploadToCloudinary($_FILES['profile_photo']['tmp_name'], 'candidates');
 
-                        if ($insertStmt->execute([$electionId, $postName, $userId, $username, $bio, $profilePhotoUrl])) {
-                            $message = "Application submitted successfully. You are now a candidate for " . htmlspecialchars($postName) . ".";
-                            $messageType = "success";
-                            $_POST = array();
-                        } else {
-                            $message = "Error submitting application. Please try again.";
+                        if (!$profilePhotoUrl) {
+                            $message = "Failed to upload profile photo. Please try again.";
                             $messageType = "error";
+                        } else {
+                            $insertStmt = $conn->prepare("INSERT INTO contesters (election_id, postname, user_id, name, bio, profile_photo, votes) VALUES (?, ?, ?, ?, ?, ?, 0)");
+
+                            if ($insertStmt->execute([$electionId, $postName, $userId, $username, $bio, $profilePhotoUrl])) {
+                                $message = "Application submitted successfully. You are now a candidate for " . htmlspecialchars($postName) . ".";
+                                $messageType = "success";
+                                $_POST = array();
+                            } else {
+                                $message = "Error submitting application. Please try again.";
+                                $messageType = "error";
+                            }
                         }
                     }
                 }
@@ -93,7 +120,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 }
 
 // Get selected election ID for displaying posts
-$selectedElectionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : (isset($_GET['election_id']) ? intval($_GET['election_id']) : null);
+$selectedElectionId = isset($_POST['election_id'])
+    ? intval($_POST['election_id'])
+    : (isset($_GET['election_id']) ? intval($_GET['election_id']) : null);
+
 $availablePosts = [];
 
 if ($selectedElectionId) {
