@@ -6,7 +6,7 @@ ini_set('display_errors', $isLocal ? '1' : '0');
 ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -47,7 +47,11 @@ try {
 try {
     $cStmt = $conn->prepare("
         SELECT c.id, c.postname, c.bio, c.votes, c.profile_photo, c.date AS applied_at,
-               e.id AS election_id, e.title AS election_title, e.status AS election_status
+               e.id AS election_id, e.title AS election_title,
+               e.status AS election_status,
+               e.start_date AS election_start_date,
+               e.end_date AS election_end_date,
+               e.manual_status, e.manual_until
         FROM contesters c
         JOIN elections e ON c.election_id = e.id
         WHERE c.user_id = ? AND c.status = 'approved'
@@ -55,6 +59,19 @@ try {
     ");
     $cStmt->execute([$candidateUserId]);
     $applications = $cStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Attach derived election status
+    foreach ($applications as &$app) {
+        $app['live_election_status'] = effectiveElectionStatus([
+            'status'        => $app['election_status'],
+            'start_date'    => $app['election_start_date'],
+            'end_date'      => $app['election_end_date'],
+            'manual_status' => $app['manual_status'],
+            'manual_until'  => $app['manual_until'],
+        ]);
+    }
+    unset($app);
+
 } catch (PDOException $e) {
     error_log("Candidate applications fetch error: " . $e->getMessage());
     $applications = [];
@@ -68,7 +85,6 @@ if (!empty($user['profile_photo']) && preg_match('#^https?://#i', $user['profile
     $avatar = $user['profile_photo'];
 }
 
-// Fallback to a contester snapshot if the user has no photo
 if ($avatar === defaultAvatarUrl() && !empty($applications)) {
     $snap = $applications[0]['profile_photo'] ?? '';
     if (!empty($snap) && preg_match('#^https?://#i', $snap)) {
@@ -78,7 +94,6 @@ if ($avatar === defaultAvatarUrl() && !empty($applications)) {
 
 $displayName = !empty($user['full_name']) ? $user['full_name'] : $user['username'];
 
-// Total votes across all positions
 $totalVotes = 0;
 foreach ($applications as $a) {
     $totalVotes += (int)$a['votes'];
@@ -110,7 +125,6 @@ foreach ($applications as $a) {
 
     body.dark-theme .candidate-back { color: #4fd1c5; }
 
-    /* Profile card */
     .candidate-profile {
         background: #ffffff;
         border: 1px solid #e5e7eb;
@@ -186,7 +200,6 @@ foreach ($applications as $a) {
         color: #a7f3d0;
     }
 
-    /* Applications list */
     .candidate-section-title {
         font-size: 16px;
         font-weight: 700;
@@ -331,7 +344,6 @@ foreach ($applications as $a) {
         <i class="fas fa-arrow-left"></i> Back
     </a>
 
-    <!-- Profile card -->
     <div class="candidate-profile">
         <img src="<?php echo htmlspecialchars($avatar); ?>" alt="<?php echo htmlspecialchars($displayName); ?>" class="candidate-avatar-lg">
 
@@ -355,7 +367,6 @@ foreach ($applications as $a) {
         </div>
     </div>
 
-    <!-- Manifestos per position -->
     <div class="candidate-section-title">
         <i class="fas fa-file-alt"></i> Manifestos
     </div>
@@ -376,7 +387,7 @@ foreach ($applications as $a) {
                         </div>
                         <div class="application-election">
                             <i class="fas fa-poll"></i> <?php echo htmlspecialchars($app['election_title']); ?>
-                            · <?php echo ucfirst(htmlspecialchars($app['election_status'])); ?>
+                            · <?php echo ucfirst(htmlspecialchars($app['live_election_status'])); ?>
                         </div>
                     </div>
                     <div class="application-votes">
