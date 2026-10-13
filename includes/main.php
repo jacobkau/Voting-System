@@ -737,6 +737,7 @@ $currentPage = $page;
                 <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> <span>View Results</span></a></li>
                 <li><a href="main.php?page=admins" class="<?php echo $currentPage === 'admins' ? 'active' : ''; ?>"><i class="fas fa-user-shield"></i> <span>Manage Admins</span></a></li>
                 <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> <span>Profile Settings</span></a></li>
+                <li><a href="main.php?page=activity_logs" class="<?php echo $currentPage === 'activity_logs' ? 'active' : ''; ?>"><i class="fas fa-history"></i> <span>Activity Logs</span></a></li>
             </ul>
         </aside>
 
@@ -771,6 +772,9 @@ $currentPage = $page;
                     case 'home':
                     default:
                         include("manage_dashboard.php");
+                        break;
+                    case 'activity_logs':
+                        include("manage_activity_logs.php");
                         break;
                 }
                 ?>
