@@ -405,22 +405,6 @@ Every page supports light and dark themes. Preference stored in localStorage und
 - Navbar: #0f172a
 - Accent: #2c7a7b
 
-### Input visibility
-
-All form inputs include:
-
-```css
-input {
-    color: #1f2937;
-    -webkit-text-fill-color: #1f2937;
-}
-body.dark-theme input {
-    color: #f3f4f6;
-    -webkit-text-fill-color: #f3f4f6;
-}
-input:-webkit-autofill { /* autofill override */ }
-```
-
 ---
 
 ## Security Notes
