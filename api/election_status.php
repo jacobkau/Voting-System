@@ -1,6 +1,6 @@
 <?php
 session_start();
-include("conn.php");
+require_once __DIR__ . '/../conn.php';
 
 header('Content-Type: application/json');
 
@@ -24,10 +24,18 @@ if (!$user) {
 
 $userId = (int)$user['id'];
 
+// ────────────────────────────────────────────────────────────
+// Fetch all elections with registration + vote info, plus date columns
+// ────────────────────────────────────────────────────────────
 $stmt = $conn->prepare("
     SELECT
         e.id,
+        e.title,
         e.status            AS election_status,
+        e.start_date,
+        e.end_date,
+        e.manual_status,
+        e.manual_until,
         r.status            AS request_status,
         r.rejection_reason,
         ue.id               AS approved_registration_id,
@@ -37,15 +45,21 @@ $stmt = $conn->prepare("
         ON r.election_id = e.id AND r.user_id = ?
     LEFT JOIN user_elections ue
         ON ue.election_id = e.id AND ue.user_id = ?
-    WHERE e.status IN ('active','upcoming')
     ORDER BY e.start_date ASC
 ");
 $stmt->execute([$userId, $userId, $userId]);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Normalize the effective registration status the same way elections.php does
+// Filter by derived status — active OR upcoming only
 $out = [];
 foreach ($rows as $row) {
+    $derived = effectiveElectionStatus($row);
+
+    // The elections.php page only shows active/upcoming elections
+    if (!in_array($derived, ['active', 'upcoming'], true)) {
+        continue;
+    }
+
     if (!empty($row['approved_registration_id'])) {
         $regStatus = 'approved';
     } elseif (!empty($row['request_status'])) {
@@ -55,16 +69,14 @@ foreach ($rows as $row) {
     }
 
     $out[] = [
-        'election_id'     => (int)$row['id'],
-        'election_status' => $row['election_status'],
-        'reg_status'      => $regStatus,
-        'rejection_reason'=> $row['rejection_reason'],
-        'votes_cast'      => (int)$row['votes_cast'],
+        'election_id'      => (int)$row['id'],
+        'election_status'  => $derived,
+        'reg_status'       => $regStatus,
+        'rejection_reason' => $row['rejection_reason'],
+        'votes_cast'       => (int)$row['votes_cast'],
     ];
 }
 
-// Also compute a lightweight fingerprint so the front end knows when
-// the election list itself changed (new election, closed election, etc.)
 echo json_encode([
     'ok'        => true,
     'timestamp' => time(),
