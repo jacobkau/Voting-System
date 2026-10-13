@@ -10,10 +10,8 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-// Cloudinary helpers (defaultAvatarUrl)
 require_once __DIR__ . '/../cloudinary.php';
 
-// Get admin name + profile photo
 $adminName = "";
 $adminPhoto = "";
 try {
@@ -30,12 +28,10 @@ try {
     $adminName = $_SESSION['username'] ?? 'Admin';
 }
 
-// Resolve displayable URL — Cloudinary only, fall back to system default
 $adminPhotoDisplay = (!empty($adminPhoto) && preg_match('#^https?://#i', $adminPhoto))
     ? $adminPhoto
     : defaultAvatarUrl();
 
-// Determine which content to load
 $page = isset($_GET['page']) ? $_GET['page'] : 'home';
 if ($page === '') {
     $inferred = [
@@ -82,6 +78,9 @@ $currentPage = $page;
             color: #333;
         }
 
+        /* ────────────────────────────────────────
+           Fixed Header
+           ──────────────────────────────────────── */
         header {
             position: fixed;
             top: 0;
@@ -135,9 +134,7 @@ $currentPage = $page;
             transform: translateY(-2px);
         }
 
-        .admin-info i {
-            font-size: 22px;
-        }
+        .admin-info i { font-size: 22px; }
 
         .admin-info span {
             font-weight: 500;
@@ -187,25 +184,101 @@ $currentPage = $page;
             padding: 5px;
         }
 
+        /* ────────────────────────────────────────
+           Layout: fixed sidebar + scrollable main
+           ──────────────────────────────────────── */
         .container {
             display: flex;
             position: fixed;
-            top: 70px;               
+            top: 70px;
             left: 0;
             right: 0;
             bottom: 0;
         }
 
-        
         .sidebar {
             background-color: #1e293b;
-            width: 280px;
-            padding: 20px 0;
+            width: 250px;
+            padding: 16px 12px; 
             box-sizing: border-box;
             color: #fff;
             flex-shrink: 0;
-            overflow-y: auto;           
+            overflow-y: auto;
+            overflow-x: hidden;
             height: 100%;
+            transition: width 0.25s ease, padding 0.25s ease;
+        }
+
+        .sidebar.collapsed {
+            width: 72px;
+            padding: 16px 8px;
+        }
+
+        .sidebar-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px 12px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #f1f5f9;
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            transition: opacity 0.2s ease;
+        }
+
+        .sidebar-brand i {
+            color: #2c7a7b;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-brand span {
+            transition: opacity 0.2s ease, width 0.2s ease;
+        }
+
+        .sidebar.collapsed .sidebar-brand span {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+
+        .sidebar-collapse-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            color: #94a3b8;
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .sidebar-collapse-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+
+        .sidebar-collapse-btn i {
+            transition: transform 0.25s ease;
+        }
+
+        .sidebar.collapsed .sidebar-collapse-btn i {
+            transform: rotate(180deg);
         }
 
         .sidebar ul {
@@ -215,24 +288,64 @@ $currentPage = $page;
         }
 
         .sidebar li {
-            margin-bottom: 5px;
+            margin-bottom: 2px;
+        }
+
+        .sidebar .nav-section {
+            padding: 14px 8px 5px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #64748b;
+            font-weight: 700;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            transition: opacity 0.2s ease, height 0.25s ease, padding 0.25s ease;
+        }
+
+        .sidebar.collapsed .nav-section {
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            margin: 0;
+            border: none;
         }
 
         .sidebar a {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 12px 20px;
+            padding: 10px 12px;
             text-decoration: none;
             color: #cbd5e1;
-            border-radius: 0;
-            transition: all 0.3s ease;
-            font-size: 14px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            font-size: 13.5px;
+            white-space: nowrap;
+            overflow: hidden;
         }
 
         .sidebar a i {
             width: 20px;
-            font-size: 16px;
+            font-size: 15px;
+            flex-shrink: 0;
+            text-align: center;
+        }
+
+        .sidebar a span {
+            transition: opacity 0.2s ease;
+        }
+
+        .sidebar.collapsed a {
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        .sidebar.collapsed a span {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
         }
 
         .sidebar a:hover {
@@ -243,13 +356,20 @@ $currentPage = $page;
         .sidebar a.active {
             background-color: #2c7a7b;
             color: white;
+        }
+
+        .sidebar.collapsed a.active {
+            border-left: none;
+        }
+
+        .sidebar a.active {
             border-left: 3px solid #fff;
         }
 
         .sidebar .refresh-link {
-            margin-top: 20px;
+            margin-top: 14px;
             border-top: 1px solid #334155;
-            padding-top: 15px;
+            padding-top: 12px;
         }
 
         .sidebar .refresh-link a {
@@ -260,13 +380,16 @@ $currentPage = $page;
             background-color: rgba(248, 113, 113, 0.1);
         }
 
+        /* ────────────────────────────────────────
+           Main content
+           ──────────────────────────────────────── */
         main {
             flex-grow: 1;
             padding: 25px;
             box-sizing: border-box;
             background-color: #f4f7f9;
             height: 100%;
-            overflow-y: auto;           
+            overflow-y: auto;
             overflow-x: hidden;
         }
 
@@ -275,9 +398,12 @@ $currentPage = $page;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            min-height: 100%;         
+            min-height: 100%;
         }
 
+        /* ────────────────────────────────────────
+           Notification bell
+           ──────────────────────────────────────── */
         .notif-wrap {
             position: relative;
             display: inline-flex;
@@ -336,9 +462,7 @@ $currentPage = $page;
             line-height: 1;
         }
 
-        .notif-badge.show {
-            display: inline-flex;
-        }
+        .notif-badge.show { display: inline-flex; }
 
         .notif-panel {
             position: absolute;
@@ -408,7 +532,6 @@ $currentPage = $page;
         }
 
         .notif-item:last-child { border-bottom: none; }
-
         .notif-item:hover { background: #f9fafb; }
 
         .notif-item-icon {
@@ -422,15 +545,8 @@ $currentPage = $page;
             flex-shrink: 0;
         }
 
-        .notif-item-icon.registration {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .notif-item-icon.candidacy {
-            background: #e6f4f4;
-            color: #2c7a7b;
-        }
+        .notif-item-icon.registration { background: #fef3c7; color: #92400e; }
+        .notif-item-icon.candidacy    { background: #e6f4f4; color: #2c7a7b; }
 
         .notif-item-body { flex: 1; min-width: 0; }
 
@@ -461,23 +577,20 @@ $currentPage = $page;
             color: #d1d5db;
         }
 
+        /* ────────────────────────────────────────
+           Mobile — sidebar 
+           ──────────────────────────────────────── */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
                 height: auto;
             }
 
-            .header-left h1 {
-                font-size: 1.2rem;
-            }
+            .header-left h1 { font-size: 1.2rem; }
 
-            .menu-toggle {
-                display: block;
-            }
+            .menu-toggle { display: block; }
 
-            .header-right {
-                display: none;
-            }
+            .header-right { display: none; }
 
             .header-right.show {
                 display: flex;
@@ -527,9 +640,7 @@ $currentPage = $page;
                 display: none;
             }
 
-            .notif-panel.open {
-                display: block;
-            }
+            .notif-panel.open { display: block; }
 
             .container {
                 top: 0;
@@ -540,21 +651,20 @@ $currentPage = $page;
                 overflow: visible;
             }
 
-            .sidebar {
+            .sidebar,
+            .sidebar.collapsed {
                 position: fixed;
                 top: 0;
                 left: -280px;
-                width: 280px;
+                width: 280px !important;
                 height: 100%;
                 z-index: 1200;
-                padding: 20px 0;
+                padding: 20px 12px !important;
                 overflow-y: auto;
                 transition: left 0.3s ease-out;
             }
 
-            .sidebar.open {
-                left: 0;
-            }
+            .sidebar.open { left: 0; }
 
             .sidebar.open::after {
                 content: '';
@@ -563,17 +673,27 @@ $currentPage = $page;
                 background: rgba(0, 0, 0, 0.4);
                 z-index: -1;
             }
-            .sidebar .nav-section {
-                padding: 16px 20px 6px;
-                font-size: 10px;
-                text-transform: uppercase;
-                letter-spacing: 0.8px;
-                color: #64748b;
-                font-weight: 700;
+
+            .sidebar.collapsed .sidebar-brand span,
+            .sidebar.collapsed a span {
+                opacity: 1;
+                width: auto;
+                overflow: visible;
             }
 
-            .sidebar .nav-section:first-child {
-            padding-top: 0;
+            .sidebar.collapsed .nav-section {
+                opacity: 1;
+                height: auto;
+                padding: 14px 8px 5px;
+            }
+
+            .sidebar.collapsed a {
+                justify-content: flex-start;
+                padding: 10px 12px;
+            }
+
+            .sidebar-collapse-btn {
+                display: none;
             }
 
             main {
@@ -590,7 +710,7 @@ $currentPage = $page;
 
         @media (max-width: 480px) {
             .sidebar a {
-                padding: 10px 15px;
+                padding: 10px 12px;
                 font-size: 13px;
             }
         }
@@ -642,26 +762,36 @@ $currentPage = $page;
 
     <div class="container">
         <aside class="sidebar" id="sidebar">
-             <ul>
+            <div class="sidebar-top">
+                <a href="main.php?page=home" class="sidebar-brand">
+                    <i class="fas fa-vote-yea"></i>
+                    <span>Admin Panel</span>
+                </a>
+                <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
+
+            <ul>
                 <li class="nav-section">Overview</li>
-                <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+                <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
 
                 <li class="nav-section">Configuration</li>
-                <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> Manage Elections</a></li>
-                <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> Manage Posts</a></li>
+                <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> <span>Manage Elections</span></a></li>
+                <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> <span>Manage Posts</span></a></li>
 
                 <li class="nav-section">Candidates</li>
-                <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
+                <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> <span>Manage Candidates</span></a></li>
 
                 <li class="nav-section">Voters</li>
-                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> Manage Voters</a></li>
-                <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> Manage All Users</a></li>
+                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> <span>Manage Voters</span></a></li>
+                <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> <span>Manage All Users</span></a></li>
 
                 <li class="nav-section">Reporting</li>
-                <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
+                <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> <span>View Results</span></a></li>
 
                 <li class="nav-section">Account</li>
-                <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> Profile Settings</a></li>
+                <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> <span>Profile Settings</span></a></li>
             </ul>
         </aside>
 
@@ -702,7 +832,7 @@ $currentPage = $page;
 
     <script>
         // ────────────────────────────────────────────────────────────
-        // Hamburger menu toggle
+        // Hamburger menu toggle (mobile)
         // ────────────────────────────────────────────────────────────
         const menuToggle = document.getElementById('menuToggle');
         const sidebar = document.getElementById('sidebar');
@@ -731,6 +861,30 @@ $currentPage = $page;
                 headerRight.classList.remove('show');
             }
         });
+
+        // ────────────────────────────────────────────────────────────
+        // Sidebar collapse toggle (desktop)
+        // ────────────────────────────────────────────────────────────
+        (function() {
+            const collapseBtn = document.getElementById('sidebarCollapseBtn');
+            if (!collapseBtn) return;
+
+            const STORAGE_KEY = 'admin_sidebar_collapsed';
+
+            try {
+                if (localStorage.getItem(STORAGE_KEY) === '1') {
+                    sidebar.classList.add('collapsed');
+                }
+            } catch (e) 
+
+            collapseBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                try {
+                    localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
+                } catch (e)
+            });
+        })();
 
         // ────────────────────────────────────────────────────────────
         // Live notification bell
@@ -834,7 +988,7 @@ $currentPage = $page;
                     lastTotal = data.total;
 
                 } catch (err) {
-                    // Silent — next tick will retry
+                    
                 }
             }
 
