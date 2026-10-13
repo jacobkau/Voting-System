@@ -1,8 +1,8 @@
 <?php
-if (session_status() == PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-include("conn.php");
+require_once __DIR__ . '/conn.php';
 
 // Admin Authentication
 if (!isset($_SESSION['admin_id'])) {
@@ -10,16 +10,45 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-// Fetch Elections and their Posts
+// ────────────────────────────────────────────────────────────
+// Fetch Elections (with derived status) + their Posts
+// ────────────────────────────────────────────────────────────
 try {
-    $electionsStmt = $conn->prepare("SELECT id, title FROM elections ORDER BY id DESC");
+    $electionsStmt = $conn->prepare("
+        SELECT id, title, status, start_date, end_date, manual_status, manual_until
+        FROM elections
+        ORDER BY id DESC
+    ");
     $electionsStmt->execute();
-    $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+    // Attach derived status per election
+    foreach ($allElections as &$e) {
+        $e['live_status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
+
+    // Sort: active first, then upcoming, then completed
+    usort($allElections, function ($a, $b) {
+        $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+        $oa = $order[$a['live_status']] ?? 4;
+        $ob = $order[$b['live_status']] ?? 4;
+        if ($oa !== $ob) return $oa - $ob;
+        return $b['id'] - $a['id'];
+    });
+
+    $elections = $allElections;
+
+    // Fetch posts grouped by election
     $postsByElection = [];
     foreach ($elections as $election) {
         $electionId = $election['id'];
-        $postsStmt = $conn->prepare("SELECT id, postname FROM election_posts WHERE election_id = ? ORDER BY postname");
+        $postsStmt = $conn->prepare("
+            SELECT id, postname
+            FROM election_posts
+            WHERE election_id = ?
+            ORDER BY postname
+        ");
         $postsStmt->execute([$electionId]);
         $postsByElection[$electionId] = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -29,7 +58,9 @@ try {
     exit();
 }
 
-// Handle AJAX Requests for Adding and Deleting Posts
+// ────────────────────────────────────────────────────────────
+// Handle AJAX Requests
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
     header('Content-Type: application/json');
 
@@ -46,7 +77,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     echo json_encode(["status" => "error", "message" => "This post already exists for this election."]);
                     exit();
                 }
-                
+
                 $addStmt = $conn->prepare("INSERT INTO election_posts (election_id, postname) VALUES (?, ?)");
                 if ($addStmt->execute([$electionId, $postName])) {
                     $newId = $conn->lastInsertId();
@@ -68,14 +99,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         $deleteId = intval($_POST['delete_id']);
         if ($deleteId > 0) {
             try {
-                // Check if post has any candidates before deleting
-                $checkCandidatesStmt = $conn->prepare("SELECT id FROM contesters WHERE postname = (SELECT postname FROM election_posts WHERE id = ?) AND election_id = (SELECT election_id FROM election_posts WHERE id = ?)");
+                // Block deletion if there are candidates for this post
+                $checkCandidatesStmt = $conn->prepare("
+                    SELECT id FROM contesters
+                    WHERE postname = (SELECT postname FROM election_posts WHERE id = ?)
+                      AND election_id = (SELECT election_id FROM election_posts WHERE id = ?)
+                ");
                 $checkCandidatesStmt->execute([$deleteId, $deleteId]);
                 if ($checkCandidatesStmt->rowCount() > 0) {
                     echo json_encode(["status" => "error", "message" => "Cannot delete post with existing candidates. Remove candidates first."]);
                     exit();
                 }
-                
+
                 $deleteStmt = $conn->prepare("DELETE FROM election_posts WHERE id = ?");
                 if ($deleteStmt->execute([$deleteId])) {
                     echo json_encode(["status" => "success"]);
@@ -105,45 +140,69 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
         .admin-container { width: 90%; max-width: 1200px; margin: 20px auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
         h2 { color: #333; margin-bottom: 20px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        h3 { color: #555; margin: 15px 0 10px 0; }
+        h3 {
+            color: #555;
+            margin: 0 0 10px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
         .election-section { margin-bottom: 30px; border: 1px solid #e0e0e0; padding: 15px; border-radius: 8px; background-color: #fafafa; }
         .election-section:hover { box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); }
         .post-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
         .post-table th, .post-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
         .post-table th { background-color: #3498db; color: white; font-weight: 600; }
         .post-table tr:hover { background-color: #f5f5f5; }
-        input[type="text"] { 
-            padding: 8px 12px; 
-            margin-top: 5px; 
-            border: 1px solid #ddd; 
-            border-radius: 4px; 
+        input[type="text"] {
+            padding: 8px 12px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
             width: 200px;
             font-size: 14px;
         }
-        button { 
-            padding: 8px 16px; 
-            margin-top: 5px; 
+        button {
+            padding: 8px 16px;
+            margin-top: 5px;
             margin-left: 10px;
-            background-color: #3498db; 
-            color: white; 
-            border: none; 
-            border-radius: 4px; 
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
             cursor: pointer;
             font-size: 14px;
             transition: background-color 0.3s;
         }
         button:hover { background-color: #2980b9; }
-        .delete-btn { 
-            color: #e74c3c; 
-            text-decoration: none; 
-            cursor: pointer; 
+        .delete-btn {
+            color: #e74c3c;
+            text-decoration: none;
+            cursor: pointer;
             font-weight: 500;
             transition: color 0.3s;
         }
         .delete-btn:hover { color: #c0392b; text-decoration: underline; }
         .add-post-form { margin-top: 10px; }
         .empty-posts { color: #999; font-style: italic; padding: 10px; text-align: center; }
-        
+
+        /* Derived-status pill */
+        .live-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+        .live-status-pill.status-active    { background: #d1fae5; color: #065f46; }
+        .live-status-pill.status-upcoming  { background: #fef3c7; color: #92400e; }
+        .live-status-pill.status-completed { background: #e5e7eb; color: #374151; }
+
         @media (max-width: 768px) {
             .admin-container { width: 95%; padding: 15px; }
             input[type="text"] { width: 100%; margin-bottom: 10px; }
@@ -155,16 +214,21 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 <body>
     <div class="admin-container">
         <h2>Manage Election Posts</h2>
-        
+
         <?php if (empty($elections)): ?>
             <div style="text-align: center; padding: 40px; background: #f9f9f9; border-radius: 8px;">
                 <p style="color: #666;">No elections found. Please create an election first.</p>
-                <button onclick="window.location.href='manage_elections.php'" style="margin-top: 10px;">Create Election</button>
+                <button onclick="window.location.href='main.php?page=elections'" style="margin-top: 10px;">Create Election</button>
             </div>
         <?php else: ?>
             <?php foreach ($elections as $election): ?>
                 <div class="election-section">
-                    <h3><?php echo htmlspecialchars($election['title']); ?></h3>
+                    <h3>
+                        <?php echo htmlspecialchars($election['title']); ?>
+                        <span class="live-status-pill status-<?php echo htmlspecialchars($election['live_status']); ?>">
+                            <?php echo ucfirst(htmlspecialchars($election['live_status'])); ?>
+                        </span>
+                    </h3>
                     <table class="post-table">
                         <thead>
                             <tr>
@@ -173,9 +237,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                             </tr>
                         </thead>
                         <tbody id="post-list-<?php echo $election['id']; ?>">
-                            <?php 
+                            <?php
                             $posts = $postsByElection[$election['id']] ?? [];
-                            if (empty($posts)): 
+                            if (empty($posts)):
                             ?>
                                 <tr class="empty-row-<?php echo $election['id']; ?>">
                                     <td colspan="2" class="empty-posts">No posts created yet. Add your first post below.</td>
@@ -205,27 +269,28 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
     $(document).ready(function() {
         // Delete Post
         $(document).on("click", ".delete-btn", function() {
-            if (!confirm(" Are you sure you want to delete this post?\n\nThis action cannot be undone.")) return;
-            
+            if (!confirm("Are you sure you want to delete this post?\n\nThis action cannot be undone.")) return;
+
             let postId = $(this).data("id");
             let $row = $("#post-" + postId);
-            
+
             $.post("manage_posts.php", { action: "delete_post", delete_id: postId }, function(response) {
                 if (response.status === "success") {
-                    $row.fadeOut(400, function() { 
+                    // Find the election section this row belongs to
+                    let $section = $row.closest('.election-section');
+                    let electionId = $section.find('.add-post-form').data('election');
+
+                    $row.fadeOut(400, function() {
                         $(this).remove();
-                        
-                        // Check if this election section now has no posts
-                        let electionSection = $row.closest('.election-section');
-                        let postCount = electionSection.find('#post-list-' + electionSection.find('h3').text() + ' tr').not('.empty-row').length;
-                        
-                        if (postCount === 0) {
-                            // Add empty message if no posts remain
-                            let electionId = electionSection.find('.add-post-form').data('election');
-                            let emptyRow = `<tr class="empty-row-${electionId}">
-                                                <td colspan="2" class="empty-posts">No posts created yet. Add your first post below.</td>
-                                            </tr>`;
-                            $("#post-list-" + electionId).append(emptyRow);
+
+                        // If no more posts, show the empty message
+                        let remaining = $("#post-list-" + electionId + " tr").not(".empty-posts-row").length;
+                        if (remaining === 0) {
+                            $("#post-list-" + electionId).append(
+                                '<tr class="empty-row-' + electionId + '">' +
+                                '<td colspan="2" class="empty-posts">No posts created yet. Add your first post below.</td>' +
+                                '</tr>'
+                            );
                         }
                     });
                 } else {
@@ -238,56 +303,47 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
 
         // Add Post
         $(".add-post-form").on("submit", function(e) {
-            e.preventDefault(); 
-            
+            e.preventDefault();
+
             let electionId = $(this).data("election");
             let postNameInput = $(this).find("input[name='postname']");
             let postName = postNameInput.val().trim();
-            
+
             if (postName === "") {
                 alert("Please enter a post name.");
                 return;
             }
-            
-            // Disable submit button to prevent double submission
+
             let submitBtn = $(this).find("button[type='submit']");
             submitBtn.prop("disabled", true).text("Adding...");
-            
-            $.post("manage_posts.php", { 
-                action: "add_post", 
-                election_id: electionId, 
-                postname: postName 
+
+            $.post("manage_posts.php", {
+                action: "add_post",
+                election_id: electionId,
+                postname: postName
             }, function(response) {
                 if (response.status === "success") {
-                    let newRow = `<tr id="post-${response.id}">
-                                    <td>${response.postname}</td>
-                                    <td><span class="delete-btn" data-id="${response.id}"> Delete</span></td>
-                                  </tr>`;
-                    
-                    let tbody = $("#post-list-" + electionId);
-                    
-                    // Remove empty message if it exists
-                    tbody.find(".empty-posts").closest('tr').remove();
-                    
-                    // Append new row
-                    tbody.append(newRow);
-                    
-                    // Clear input
+                    let newRow = `
+                        <tr id="post-${response.id}">
+                            <td>${response.postname}</td>
+                            <td><span class="delete-btn" data-id="${response.id}">Delete</span></td>
+                        </tr>
+                    `;
+
+                    let $tbody = $("#post-list-" + electionId);
+                    $tbody.find(".empty-posts").closest('tr').remove();
+                    $tbody.append(newRow);
                     postNameInput.val("");
-                    
-                    // Show success message briefly
                     let successMsg = $('<div style="color: green; font-size: 12px; margin-top: 5px;">Post added successfully!</div>');
                     $(this).append(successMsg);
                     setTimeout(function() { successMsg.fadeOut(300, function() { $(this).remove(); }); }, 2000);
-                    
                 } else {
                     alert("Error: " + (response.message || "Failed to add post"));
                 }
             }, "json").fail(function(xhr) {
                 alert("Request failed: " + xhr.responseText);
             }).always(function() {
-                // Re-enable submit button
-                submitBtn.prop("disabled", false).text("+ Add Post");
+                submitBtn.prop("disabled", false).text("Add Post");
             });
         });
     });
