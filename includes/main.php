@@ -48,6 +48,78 @@ if ($page === '') {
     }
 }
 $currentPage = $page;
+
+// ─────────────────────────────────────────────────────────────
+// Determine which sub-page to load
+// ─────────────────────────────────────────────────────────────
+$subpageMap = [
+    'users'         => 'manage_users.php',
+    'voters'        => 'manage_election_voters.php',
+    'candidates'    => 'manage_candidates.php',
+    'elections'     => 'manage_elections.php',
+    'posts'         => 'manage_posts.php',
+    'results'       => 'manage_results.php',
+    'admins'        => 'manage_admins.php',
+    'profile'       => 'manage_profile.php',
+    'activity_logs' => 'manage_activity_logs.php',
+    'home'          => 'manage_dashboard.php',
+];
+
+$subpageFile = $subpageMap[$currentPage] ?? $subpageMap['home'];
+
+// ─────────────────────────────────────────────────────────────
+// Render the sub-page into a buffer and extract its body content
+// ─────────────────────────────────────────────────────────────
+$subpageStyles      = '';
+$subpageScriptTags  = '';
+$subpageBodyHtml    = '';
+$subpageError       = '';
+
+if (file_exists(__DIR__ . '/' . $subpageFile)) {
+    ob_start();
+    try {
+        include(__DIR__ . '/' . $subpageFile);
+    } catch (Throwable $e) {
+        error_log("Sub-page include error ({$subpageFile}): " . $e->getMessage());
+        echo '<div style="padding:40px;text-align:center;color:#991b1b;">'
+           . 'Could not load this page. Please try again.'
+           . '</div>';
+    }
+    $rawHtml = ob_get_clean();
+
+    // ---- Extract <style>...</style> blocks ----
+    if (preg_match_all('#<style\b[^>]*>.*?</style>#is', $rawHtml, $styleMatches)) {
+        foreach ($styleMatches[0] as $styleTag) {
+            $subpageStyles .= $styleTag . "\n";
+        }
+        // Remove them from the body so they don't render inside <main>
+        $rawHtml = preg_replace('#<style\b[^>]*>.*?</style>#is', '', $rawHtml);
+    }
+
+    // ---- Extract external <script src="..."> tags ----
+    if (preg_match_all('#<script\b[^>]*\bsrc\s*=\s*["\'][^"\']+["\'][^>]*>\s*</script>#is', $rawHtml, $scriptMatches)) {
+        foreach ($scriptMatches[0] as $scriptTag) {
+            // Skip jQuery if main already loads it (dedupe)
+            if (stripos($scriptTag, 'jquery') === false) {
+                $subpageScriptTags .= $scriptTag . "\n";
+            }
+        }
+        // Leave external scripts in the body — they work fine there too.
+        // (We only extracted them into a variable so we can opt to dedupe;
+        //  the ones we want to keep are still in $rawHtml.)
+    }
+
+    // ---- Extract just the <body>...</body> content ----
+    if (preg_match('#<body\b[^>]*>(.*?)</body>#is', $rawHtml, $bodyMatch)) {
+        $subpageBodyHtml = $bodyMatch[1];
+    } else {
+        // No <body> tag — assume the file is already content-only
+        $subpageBodyHtml = $rawHtml;
+    }
+
+} else {
+    $subpageError = "Page file not found: {$subpageFile}";
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,10 +128,17 @@ $currentPage = $page;
     <title>Admin Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <meta name="description" content="An online Voting Management System.">
     <meta name="keywords" content="portfolio, projects, web development, design">
     <meta name="author" content="Jacob witty">
     <link rel="icon" href="../logo.jpg" type="image/x-icon">
+
+    <?php if (!empty($subpageStyles)): ?>
+        <!-- Styles lifted from the included sub-page -->
+        <?php echo $subpageStyles; ?>
+    <?php endif; ?>
+
     <style>
         * {
             margin: 0;
@@ -336,20 +415,6 @@ $currentPage = $page;
             border-left: none;
         }
 
-        .sidebar .refresh-link {
-            margin-top: 14px;
-            border-top: 1px solid #334155;
-            padding-top: 12px;
-        }
-
-        .sidebar .refresh-link a {
-            color: #f87171;
-        }
-
-        .sidebar .refresh-link a:hover {
-            background-color: rgba(248, 113, 113, 0.1);
-        }
-
         main {
             flex-grow: 1;
             padding: 25px;
@@ -541,6 +606,7 @@ $currentPage = $page;
             color: #d1d5db;
         }
 
+        /* Mobile */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
@@ -744,38 +810,12 @@ $currentPage = $page;
         <main>
             <div class="main-content">
                 <?php
-                switch ($page) {
-                    case 'users':
-                        include("manage_users.php");
-                        break;
-                    case 'voters':
-                        include("manage_election_voters.php");
-                        break;
-                    case 'candidates':
-                        include("manage_candidates.php");
-                        break;
-                    case 'elections':
-                        include("manage_elections.php");
-                        break;
-                    case 'posts':
-                        include("manage_posts.php");
-                        break;
-                    case 'results':
-                        include("manage_results.php");
-                        break;
-                    case 'admins':
-                        include("manage_admins.php");
-                        break;
-                    case 'profile':
-                        include("manage_profile.php");
-                        break;
-                    case 'home':
-                    default:
-                        include("manage_dashboard.php");
-                        break;
-                    case 'activity_logs':
-                        include("manage_activity_logs.php");
-                        break;
+                if (!empty($subpageError)) {
+                    echo '<div style="padding:40px;text-align:center;color:#991b1b;">'
+                       . htmlspecialchars($subpageError)
+                       . '</div>';
+                } else {
+                    echo $subpageBodyHtml;
                 }
                 ?>
             </div>
@@ -828,7 +868,7 @@ $currentPage = $page;
                     sidebar.classList.add('collapsed');
                 }
             } catch (e) {
-              
+                // localStorage unavailable — ignore
             }
 
             collapseBtn.addEventListener('click', function() {
@@ -837,7 +877,7 @@ $currentPage = $page;
                 try {
                     localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
                 } catch (e) {
-                   
+                    // localStorage unavailable — ignore
                 }
             });
         })();
@@ -946,7 +986,7 @@ $currentPage = $page;
                     lastTotal = data.total;
 
                 } catch (err) {
-                    
+                    // silent
                 }
             }
 
