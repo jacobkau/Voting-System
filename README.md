@@ -90,6 +90,11 @@ VOTING-SYSTEM/
 
 
 USER PAGES
+|── api/
+|        |── election_contestants.php
+|        |── election_results.php
+|        |── election_status.php
+|        |── election_summary.php
 ├── cloudinary.php
 ├── conn.php
 ├── header.php
@@ -113,18 +118,26 @@ USER PAGES
 
 ADMIN PAGES
 ├── includes/
+|   |── api/
+|        |── api_admin_notifications.php
+|        |── election_results_admin.php
+|        |── get_posts.php
+|        |── get_user_info.php
+|        |── reset_election.php
 |   |── admin_login.php
 |   ├── main.php
-|   |── reg.php
-│   ├── admin.php
-│   ├── admin_settings.php
-│   ├── admin_manage_posts.php
+|   |── manage_adminreg.php
+│   ├── manage_admins.php
+│   ├── manage_profile.php
+│   ├── manage_posts.php
 │   ├── manage_candidates.php
 │   ├── manage_elections.php
 │   ├── manage_users.php
-│   ├── manage_votes.php
-│   ├── refreshdb.php
-│   ├── view_results.php
+│   ├── manage_election_votes.php
+│   ├── logout.php
+│   ├── manage_results.php
+|   |── conn.php
+|   |── ca.pem
 |───── voting_settings.php
 
 ```
@@ -497,5 +510,5 @@ For questions or licensing inquiries: wittyhighbrowtechnologies@gmail.com
 | 1.0.0 | 2026-10-08 | Initial release |
 ---
 
-BUILT BY Witty Highbrow Technologies
+[BUILT BY Witty Highbrow Technologies](https://witty-highbrow-technologies.onrender.com)
 ---
