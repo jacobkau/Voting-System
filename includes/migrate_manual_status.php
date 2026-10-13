@@ -8,7 +8,7 @@ if (!isset($_GET['token']) || !hash_equals(MIGRATION_TOKEN, $_GET['token'])) {
 }
 
 header('Content-Type: text/plain; charset=utf-8');
-require __DIR__ . '/conn.php';
+require_once __DIR__ . '/conn.php';
 
 echo "=== Elections migration + timezone check ===\n\n";
 
