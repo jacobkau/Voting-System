@@ -1,10 +1,8 @@
 <?php
-if (session_status() == PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-include("conn.php");
-
-// Cloudinary helpers
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
@@ -24,7 +22,7 @@ if (!empty($_GET['msg'])) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Email helper — same pattern as manage_election_voters.php
+// Email helper
 // ────────────────────────────────────────────────────────────
 function sendCandidateDecisionEmail(string $email, string $userName, string $electionTitle, string $position, string $decision, string $reason = ''): array {
     $serviceId  = getenv('EMAILJS_SERVICE_ID2');
@@ -97,7 +95,7 @@ function sendCandidateDecisionEmail(string $email, string $userName, string $ele
 }
 
 // ────────────────────────────────────────────────────────────
-// Live avatar lookup — same pattern as header.php
+// Live avatar lookup
 // ────────────────────────────────────────────────────────────
 function getCandidateAvatar($candidate, $conn) {
     if (!empty($candidate['user_id'])) {
@@ -165,7 +163,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['candidate_id'], $_POS
         try {
             $conn->beginTransaction();
 
-            // Fetch candidate + user + election details in one query
             $cStmt = $conn->prepare("
                 SELECT c.id, c.user_id, c.election_id, c.postname, c.votes,
                        u.username, u.name AS full_name, u.email,
@@ -203,7 +200,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['candidate_id'], $_POS
                 $message = "Rejected candidacy for {$candidate['username']}.";
 
             } else { // unapprove
-                // Safety: block unapproval if the candidate has already received votes
                 $voteCount = (int)$candidate['votes'];
                 if ($voteCount > 0) {
                     throw new Exception("Cannot unapprove — this candidate already has {$voteCount} vote(s). Remove the votes first if you truly need to.");
@@ -227,7 +223,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['candidate_id'], $_POS
             $conn->commit();
             $messageType = "success";
 
-            // Email after commit — failure doesn't roll back
             $recipientName = !empty($candidate['full_name']) ? $candidate['full_name'] : $candidate['username'];
 
             if ($decision === 'approve') {
@@ -264,7 +259,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['candidate_id'], $_POS
         }
     }
 
-    // Post/Redirect/Get
     $redirect = 'main.php?page=candidates'
               . '&status=' . urlencode($returnStatus)
               . ($returnElectionId ? '&election_id=' . $returnElectionId : '')
@@ -275,12 +269,34 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['candidate_id'], $_POS
 }
 
 // ────────────────────────────────────────────────────────────
-// Fetch Elections
+// Fetch Elections — with derived status
 // ────────────────────────────────────────────────────────────
 try {
-    $electionsStmt = $conn->prepare("SELECT id, title FROM elections ORDER BY id DESC");
+    $electionsStmt = $conn->prepare("
+        SELECT id, title, status, start_date, end_date, manual_status, manual_until
+        FROM elections
+        ORDER BY id DESC
+    ");
     $electionsStmt->execute();
-    $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Attach derived status
+    foreach ($allElections as &$e) {
+        $e['live_status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
+
+    // Sort: active first, then upcoming, then completed
+    usort($allElections, function ($a, $b) {
+        $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+        $oa = $order[$a['live_status']] ?? 4;
+        $ob = $order[$b['live_status']] ?? 4;
+        if ($oa !== $ob) return $oa - $ob;
+        return $b['id'] - $a['id'];
+    });
+
+    $elections = $allElections;
+
 } catch (Exception $e) {
     error_log("Election fetch error: " . $e->getMessage());
     echo "Error fetching election data. Please try again.";
@@ -358,7 +374,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 
     try {
-        // Block deletion if the candidate has votes
         $voteStmt = $conn->prepare("SELECT votes FROM contesters WHERE id = ?");
         $voteStmt->execute([$candidateId]);
         $row = $voteStmt->fetch(PDO::FETCH_ASSOC);
@@ -371,7 +386,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             exit();
         }
 
-        // Fetch profile photo URL for Cloudinary cleanup
         $stmt_select = $conn->prepare("SELECT profile_photo FROM contesters WHERE id = ?");
         $stmt_select->execute([$candidateId]);
         $candidate = $stmt_select->fetch(PDO::FETCH_ASSOC);
@@ -451,7 +465,7 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     $counts[$row['status']] = (int)$row['c'];
 }
 
-// Helper for tab URLs (keeps `page=candidates` on every link)
+// Helper for tab URLs
 function candidateTabUrl(string $status, ?int $electionId): string {
     $url = '?page=candidates&status=' . urlencode($status);
     if ($electionId) {
@@ -468,6 +482,7 @@ function candidateTabUrl(string $status, ?int $electionId): string {
     <title>Admin | Manage Candidates</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
         .admin-container { width: 100%; max-width: 1200px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
@@ -475,7 +490,6 @@ function candidateTabUrl(string $status, ?int $electionId): string {
         .page-title { font-size: 20px; font-weight: 700; color: #1f2937; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
         .page-title i { color: #2c7a7b; }
 
-        /* Status tabs */
         .filter-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
         .filter-tab {
             padding: 7px 14px; border-radius: 20px; font-size: 13px;
@@ -527,6 +541,20 @@ function candidateTabUrl(string $status, ?int $electionId): string {
         .status-approved { background: #d1fae5; color: #065f46; }
         .status-rejected { background: #fee2e2; color: #991b1b; }
 
+        .election-live-status {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-left: 6px;
+        }
+        .election-live-status.status-active    { background: #d1fae5; color: #065f46; }
+        .election-live-status.status-upcoming  { background: #fef3c7; color: #92400e; }
+        .election-live-status.status-completed { background: #e5e7eb; color: #374151; }
+
         .action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
         .action-buttons button, .action-buttons span {
             padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
@@ -572,7 +600,6 @@ function candidateTabUrl(string $status, ?int $electionId): string {
             </div>
         <?php endif; ?>
 
-        <!-- Status tabs -->
         <div class="filter-tabs">
             <a href="<?= candidateTabUrl('pending', $filterElectionId) ?>"
                class="filter-tab <?= $filterStatus === 'pending' ? 'active' : '' ?>">
@@ -595,7 +622,6 @@ function candidateTabUrl(string $status, ?int $electionId): string {
             </a>
         </div>
 
-        <!-- Add Candidate -->
         <div class="form-container">
             <h3>Add Candidate</h3>
             <form id="add-candidate-form" enctype="multipart/form-data" method="POST">
@@ -603,7 +629,7 @@ function candidateTabUrl(string $status, ?int $electionId): string {
                     <option value="">Select Election</option>
                     <?php foreach ($elections as $election): ?>
                         <option value="<?php echo $election['id']; ?>" <?php if ($selectedElectionId == $election['id']) echo 'selected'; ?>>
-                            <?php echo htmlspecialchars($election['title']); ?>
+                            <?php echo htmlspecialchars($election['title']); ?> (<?php echo ucfirst($election['live_status']); ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
@@ -636,7 +662,6 @@ function candidateTabUrl(string $status, ?int $electionId): string {
             </form>
         </div>
 
-        <!-- Election filter -->
         <div class="filter-bar">
             <form method="get" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                 <input type="hidden" name="page" value="candidates">
@@ -646,14 +671,13 @@ function candidateTabUrl(string $status, ?int $electionId): string {
                     <option value="">All elections</option>
                     <?php foreach ($elections as $e): ?>
                         <option value="<?= $e['id'] ?>" <?= $filterElectionId == $e['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($e['title']) ?>
+                            <?= htmlspecialchars($e['title']) ?> (<?= ucfirst($e['live_status']) ?>)
                         </option>
                     <?php endforeach; ?>
                 </select>
             </form>
         </div>
 
-        <!-- Candidate table -->
         <?php if (empty($candidates)): ?>
             <div class="empty-state">
                 <i class="fas fa-user-tie"></i>
@@ -679,6 +703,15 @@ function candidateTabUrl(string $status, ?int $electionId): string {
                             $imgSrc = getCandidateAvatar($candidate, $conn);
                             $candidateStatus = $candidate['status'] ?? 'approved';
                             $hasVotes = (int)$candidate['votes'] > 0;
+
+                            // Look up derived status of this candidate's election
+                            $candidateElectionStatus = 'upcoming';
+                            foreach ($elections as $el) {
+                                if ($el['id'] == $candidate['election_id']) {
+                                    $candidateElectionStatus = $el['live_status'];
+                                    break;
+                                }
+                            }
                         ?>
                         <tr id="candidate-<?php echo $candidate['id']; ?>">
                             <td><?php echo $candidate['id']; ?></td>
@@ -689,7 +722,12 @@ function candidateTabUrl(string $status, ?int $electionId): string {
                                 <strong><?php echo htmlspecialchars($candidate['full_name'] ?: $candidate['username']); ?></strong>
                                 <div style="font-size:11px; color:#6b7280;">@<?php echo htmlspecialchars($candidate['username']); ?></div>
                             </td>
-                            <td><?php echo htmlspecialchars($candidate['election_title']); ?></td>
+                            <td>
+                                <?php echo htmlspecialchars($candidate['election_title']); ?>
+                                <span class="election-live-status status-<?php echo htmlspecialchars($candidateElectionStatus); ?>">
+                                    <?php echo ucfirst(htmlspecialchars($candidateElectionStatus)); ?>
+                                </span>
+                            </td>
                             <td><?php echo htmlspecialchars($candidate['postname']); ?></td>
                             <td><strong><?php echo (int)$candidate['votes']; ?></strong></td>
                             <td>
@@ -768,7 +806,7 @@ function candidateTabUrl(string $status, ?int $electionId): string {
                                         </div>
                                     <?php endif; ?>
 
-                                <?php else: // rejected ?>
+                                <?php else: ?>
                                     <span style="color:#9ca3af;font-size:12px;">
                                         <?= !empty($candidate['reviewed_at']) ? 'Reviewed ' . date('M d, Y', strtotime($candidate['reviewed_at'])) : '—' ?>
                                     </span>
@@ -801,7 +839,6 @@ function candidateTabUrl(string $status, ?int $electionId): string {
         return true;
     }
 
-    // Legacy AJAX delete (kept for backwards compat)
     $(document).ready(function() {
         $(document).on("click", ".ajax-delete-btn", function() {
             if (!confirm("Are you sure you want to delete this candidate?")) return;
