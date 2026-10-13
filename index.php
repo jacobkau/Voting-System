@@ -6,8 +6,7 @@ ini_set('display_errors', $isLocal ? '1' : '0');
 ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -18,29 +17,46 @@ if (empty($_SESSION["username"])) {
 $username = $_SESSION["username"];
 
 // ────────────────────────────────────────────────────────────
-// Fetch all elections (with aggregated counts for the cards)
+// Fetch all elections + aggregated counts, filter by derived status
 // ────────────────────────────────────────────────────────────
 try {
     $electionsStmt = $conn->prepare("
-        SELECT e.id, e.title, e.description, e.start_date, e.end_date, e.status,
+        SELECT e.id, e.title, e.description, e.start_date, e.end_date,
+               e.status, e.manual_status, e.manual_until,
                (SELECT COUNT(*) FROM election_posts WHERE election_id = e.id) AS positions_count,
-               (SELECT COUNT(DISTINCT postname) FROM contesters WHERE election_id = e.id AND status = 'approved') AS approved_posts,
-               (SELECT COUNT(*) FROM contesters WHERE election_id = e.id AND status = 'approved') AS candidates_count,
+               (SELECT COUNT(DISTINCT postname) FROM contesters
+                 WHERE election_id = e.id AND status = 'approved') AS approved_posts,
+               (SELECT COUNT(*) FROM contesters
+                 WHERE election_id = e.id AND status = 'approved') AS candidates_count,
                (SELECT COUNT(*) FROM votes WHERE election_id = e.id) AS votes_count
         FROM elections e
-        ORDER BY 
-            CASE e.status WHEN 'active' THEN 1 WHEN 'upcoming' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END,
-            e.start_date DESC
+        ORDER BY e.start_date DESC
     ");
     $electionsStmt->execute();
-    $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allElections as &$e) {
+        $e['live_status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
+
+    usort($allElections, function ($a, $b) {
+        $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+        $oa = $order[$a['live_status']] ?? 4;
+        $ob = $order[$b['live_status']] ?? 4;
+        if ($oa !== $ob) return $oa - $ob;
+        return strtotime($b['start_date']) - strtotime($a['start_date']);
+    });
+
+    $elections = $allElections;
+
 } catch (PDOException $e) {
     error_log("Error fetching elections: " . $e->getMessage());
     $elections = [];
 }
 
 // ────────────────────────────────────────────────────────────
-// Live avatar helper (unchanged from previous version)
+// Live avatar helper
 // ────────────────────────────────────────────────────────────
 function getCandidateImage($candidate, $conn) {
     if (!empty($candidate['user_id'])) {
@@ -96,7 +112,7 @@ try {
 }
 
 .candidate-row-link:hover {
-    background: #f0fdfa; 
+    background: #f0fdfa;
 }
 
 body.dark-theme .candidate-row-link:hover {
@@ -242,9 +258,6 @@ body.dark-theme .candidate-bio-line {
 
     body.dark-theme .stat-box .label { color: #9ca3af; }
 
-    /* ────────────────────────────────────────────────
-       Election cards grid
-       ──────────────────────────────────────────────── */
     .elections-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -343,7 +356,6 @@ body.dark-theme .candidate-bio-line {
         font-size: 11px;
     }
 
-    /* Mini live stats inside each card */
     .card-stats {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -366,7 +378,6 @@ body.dark-theme .candidate-bio-line {
         line-height: 1.2;
         transition: color 0.3s ease;
     }
-    
 
     body.dark-theme .card-stat .cs-num { color: #4fd1c5; }
 
@@ -442,9 +453,6 @@ body.dark-theme .candidate-bio-line {
 
     .no-data p { color: #9ca3af; font-size: 14px; }
 
-    /* ────────────────────────────────────────────────
-       Results modal
-       ──────────────────────────────────────────────── */
     .results-modal {
         display: none;
         position: fixed;
@@ -563,7 +571,6 @@ body.dark-theme .candidate-bio-line {
     body.dark-theme .results-loading { color: #9ca3af; }
     body.dark-theme .results-loading .spinner { border-color: #3d3d4d; border-top-color: #4fd1c5; }
 
-    /* Results table inside modal */
     .results-modal-body h3 {
         color: #374151;
         margin-top: 22px;
@@ -691,7 +698,6 @@ body.dark-theme .candidate-bio-line {
 
     body.dark-theme .inline-info { color: #9ca3af; }
 
-    /* Live pulse animation when a vote count changes */
     @keyframes countPulse {
         0%   { color: #10b981; }
         100% { color: inherit; }
@@ -702,7 +708,6 @@ body.dark-theme .candidate-bio-line {
         font-weight: 800;
     }
 
-    /* Mobile */
     @media (max-width: 900px) {
         .stats-row { grid-template-columns: 1fr; }
     }
@@ -761,7 +766,6 @@ body.dark-theme .candidate-bio-line {
     </div>
 </div>
 
-<!-- Elections as clickable cards -->
 <div class="elections-grid">
     <?php if (empty($elections)): ?>
         <div class="no-data">
@@ -771,14 +775,15 @@ body.dark-theme .candidate-bio-line {
         </div>
     <?php else: ?>
         <?php foreach ($elections as $election): ?>
+            <?php $liveStatus = $election['live_status']; ?>
             <div class="election-card"
                  data-election-id="<?php echo (int)$election['id']; ?>"
                  onclick="openResults(<?php echo (int)$election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')">
                 <div class="election-card-header">
                     <h3><?php echo htmlspecialchars($election['title']); ?></h3>
-                    <span class="status-pill status-<?php echo htmlspecialchars($election['status']); ?>">
-                        <i class="fas <?php echo $election['status'] === 'active' ? 'fa-play' : ($election['status'] === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
-                        <?php echo ucfirst(htmlspecialchars($election['status'])); ?>
+                    <span class="status-pill status-<?php echo htmlspecialchars($liveStatus); ?>">
+                        <i class="fas <?php echo $liveStatus === 'active' ? 'fa-play' : ($liveStatus === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
+                        <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
                     </span>
                 </div>
 
@@ -818,7 +823,6 @@ body.dark-theme .candidate-bio-line {
     <?php endif; ?>
 </div>
 
-<!-- Results modal -->
 <div class="results-modal" id="resultsModal" onclick="if(event.target === this) closeResults()">
     <div class="results-modal-content" onclick="event.stopPropagation()">
         <div class="results-modal-header">
@@ -835,6 +839,7 @@ body.dark-theme .candidate-bio-line {
         </div>
     </div>
 </div>
+
 <script>
 (function() {
     const POLL_INTERVAL_MS = 15000;
@@ -844,9 +849,6 @@ body.dark-theme .candidate-bio-line {
     let currentElectionId = null;
     let resultsPollTimer = null;
 
-    // ────────────────────────────────────────────────────
-    // Modal open / close
-    // ────────────────────────────────────────────────────
     window.openResults = function(electionId, title) {
         currentElectionId = electionId;
         document.getElementById('resultsModalTitle').textContent = title;
@@ -880,9 +882,6 @@ body.dark-theme .candidate-bio-line {
         }
     });
 
-    // ────────────────────────────────────────────────────
-    // Fetch + render results
-    // ────────────────────────────────────────────────────
     async function fetchResults() {
         if (!currentElectionId) return;
 
@@ -938,7 +937,6 @@ body.dark-theme .candidate-bio-line {
                 const hasUserId = c.user_id && c.user_id > 0;
                 const profileUrl = hasUserId ? ('candidate.php?user_id=' + c.user_id) : '';
 
-                // The whole row is a link if we have a user_id
                 const rowTag = hasUserId
                     ? '<tr class="' + (isWinner ? 'winner-row' : '') + ' candidate-row-link" onclick="window.location.href=\'' + profileUrl + '\'">'
                     : '<tr class="' + (isWinner ? 'winner-row' : '') + '">';
@@ -983,9 +981,6 @@ body.dark-theme .candidate-bio-line {
         body.innerHTML = html;
     }
 
-    // ────────────────────────────────────────────────────
-    // Poll the summary counts on the cards
-    // ────────────────────────────────────────────────────
     async function pollSummary() {
         if (document.visibilityState === 'hidden') return;
 
@@ -1015,7 +1010,6 @@ body.dark-theme .candidate-bio-line {
             });
 
         } catch (err) {
-            // Silent — retry next cycle
         }
     }
 
