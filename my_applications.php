@@ -1,12 +1,12 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
-// Cloudinary helpers 
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -32,7 +32,7 @@ try {
     // Handle Unapply Request
     if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['unapply'])) {
         $electionId = intval($_POST['election_id']);
-        $postname = trim($_POST['postname']);
+        $postname   = trim($_POST['postname']);
 
         try {
             $conn->beginTransaction();
@@ -56,8 +56,23 @@ try {
         }
     }
 
-    // Fetch User's Registered Elections
-    $registeredStmt = $conn->prepare("SELECT ue.election_id, e.title AS election_title, e.status FROM user_elections ue JOIN elections e ON ue.election_id = e.id WHERE ue.user_id = ?");
+    // ────────────────────────────────────────────────────────────
+    // Fetch User's Registered Elections WITH date/override columns
+    // so we can derive the correct status
+    // ────────────────────────────────────────────────────────────
+    $registeredStmt = $conn->prepare("
+        SELECT ue.election_id,
+               e.title AS election_title,
+               e.status,
+               e.start_date,
+               e.end_date,
+               e.manual_status,
+               e.manual_until
+        FROM user_elections ue
+        JOIN elections e ON ue.election_id = e.id
+        WHERE ue.user_id = ?
+        ORDER BY e.start_date DESC
+    ");
     $registeredStmt->execute([$userId]);
     $registeredElections = $registeredStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -70,6 +85,10 @@ try {
     $mergedElections = [];
     foreach ($registeredElections as $election) {
         $electionId = $election['election_id'];
+
+        // Derive status once per election
+        $election['live_status'] = effectiveElectionStatus($election);
+
         if (!isset($mergedElections[$electionId])) {
             $mergedElections[$electionId] = $election;
             $mergedElections[$electionId]['contested_posts'] = [];
@@ -81,24 +100,33 @@ try {
         if (isset($mergedElections[$electionId])) {
             $mergedElections[$electionId]['contested_posts'][] = [
                 'postname' => $application['postname'],
-                'id' => $application['id']
+                'id'       => $application['id'],
             ];
         } else {
-            $electionInfo = $conn->prepare("SELECT title, status FROM elections WHERE id = ?");
+            $electionInfo = $conn->prepare("
+                SELECT title, status, start_date, end_date, manual_status, manual_until
+                FROM elections
+                WHERE id = ?
+            ");
             $electionInfo->execute([$electionId]);
             $electionData = $electionInfo->fetch(PDO::FETCH_ASSOC);
 
+            if ($electionData) {
+                $electionData['live_status'] = effectiveElectionStatus($electionData);
+            }
+
             if (!isset($mergedElections[$electionId])) {
                 $mergedElections[$electionId] = [
-                    'election_id' => $electionId,
-                    'election_title' => $electionData['title'] ?? 'Unknown Election',
-                    'status' => $electionData['status'] ?? 'unknown',
-                    'contested_posts' => []
+                    'election_id'     => $electionId,
+                    'election_title'  => $electionData['title'] ?? 'Unknown Election',
+                    'status'          => $electionData['status'] ?? 'unknown',
+                    'live_status'     => $electionData['live_status'] ?? 'upcoming',
+                    'contested_posts' => [],
                 ];
             }
             $mergedElections[$electionId]['contested_posts'][] = [
                 'postname' => $application['postname'],
-                'id' => $application['id']
+                'id'       => $application['id'],
             ];
         }
     }
@@ -169,7 +197,6 @@ try {
         line-height: 1.5;
     }
 
-    /* Section card */
     .applications-card {
         background-color: #ffffff;
         padding: 24px;
@@ -212,7 +239,6 @@ try {
 
     body.dark-theme .section-header h2 { color: #f3f4f6; }
 
-    /* Election list */
     .election-list {
         list-style: none;
         padding: 0;
@@ -230,9 +256,7 @@ try {
 
     .election-list li:last-child { margin-bottom: 0; }
 
-    body.dark-theme .election-list li {
-        background-color: #2d2d3d;
-    }
+    body.dark-theme .election-list li { background-color: #2d2d3d; }
 
     .election-list li:hover {
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -278,35 +302,13 @@ try {
 
     .election-status i { font-size: 10px; }
 
-    .status-active {
-        background: #d1fae5;
-        color: #065f46;
-    }
+    .status-active    { background: #d1fae5; color: #065f46; }
+    .status-upcoming  { background: #fef3c7; color: #92400e; }
+    .status-completed { background: #fee2e2; color: #991b1b; }
 
-    body.dark-theme .status-active {
-        background: #064e3b;
-        color: #a7f3d0;
-    }
-
-    .status-upcoming {
-        background: #fef3c7;
-        color: #92400e;
-    }
-
-    body.dark-theme .status-upcoming {
-        background: #78350f;
-        color: #fde68a;
-    }
-
-    .status-completed {
-        background: #fee2e2;
-        color: #991b1b;
-    }
-
-    body.dark-theme .status-completed {
-        background: #7f1d1d;
-        color: #fecaca;
-    }
+    body.dark-theme .status-active    { background: #064e3b; color: #a7f3d0; }
+    body.dark-theme .status-upcoming  { background: #78350f; color: #fde68a; }
+    body.dark-theme .status-completed { background: #7f1d1d; color: #fecaca; }
 
     .badge-contesting {
         display: inline-flex;
@@ -329,7 +331,6 @@ try {
 
     .badge-contesting i { font-size: 10px; }
 
-    /* Contested posts */
     .contest-posts-label {
         color: #6b7280;
         display: block;
@@ -551,7 +552,6 @@ try {
 </style>
 
 <div class="applications-container">
-    <!-- Compact hero -->
     <div class="applications-hero">
         <div class="applications-hero-icon">
             <i class="fas fa-file-alt"></i>
@@ -586,6 +586,7 @@ try {
         <?php else: ?>
             <ul class="election-list">
                 <?php foreach ($finalElections as $election): ?>
+                    <?php $ls = $election['live_status'] ?? 'upcoming'; ?>
                     <li>
                         <div class="election-header">
                             <div class="election-title">
@@ -597,9 +598,9 @@ try {
                                 <?php endif; ?>
                             </div>
                             <div>
-                                <span class="election-status status-<?php echo htmlspecialchars($election['status'] ?? 'upcoming'); ?>">
-                                    <i class="fas <?php echo $election['status'] == 'active' ? 'fa-play' : ($election['status'] == 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
-                                    <?php echo ucfirst(htmlspecialchars($election['status'] ?? 'Upcoming')); ?>
+                                <span class="election-status status-<?php echo htmlspecialchars($ls); ?>">
+                                    <i class="fas <?php echo $ls === 'active' ? 'fa-play' : ($ls === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
+                                    <?php echo ucfirst(htmlspecialchars($ls)); ?>
                                 </span>
                             </div>
                         </div>
@@ -614,7 +615,10 @@ try {
                                                 <i class="fas fa-user-tie post-icon"></i>
                                                 <span class="post-name"><?php echo htmlspecialchars($post['postname']); ?></span>
                                             </div>
-                                            <button class="unapply-btn" data-election-id="<?php echo $election['election_id']; ?>" data-postname="<?php echo htmlspecialchars($post['postname']); ?>" data-post-id="<?php echo $post['id']; ?>">
+                                            <button class="unapply-btn"
+                                                    data-election-id="<?php echo $election['election_id']; ?>"
+                                                    data-postname="<?php echo htmlspecialchars($post['postname']); ?>"
+                                                    data-post-id="<?php echo $post['id']; ?>">
                                                 <span class="spinner"></span>
                                                 <span class="btn-text"><i class="fas fa-times-circle"></i> Withdraw</span>
                                             </button>
