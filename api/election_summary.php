@@ -1,6 +1,6 @@
 <?php
 session_start();
-include __DIR__ . '/../conn.php';
+require_once __DIR__ . '/../conn.php';
 
 header('Content-Type: application/json');
 
