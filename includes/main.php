@@ -98,7 +98,6 @@ if (file_exists($subpageFullPath)) {
            . '</div>';
     }
 
-    // Pull up the buffer to the level we started at
     $captured = '';
     while (ob_get_level() > $nestedLevel) {
         $captured = ob_get_clean() . $captured;
@@ -124,7 +123,6 @@ if (file_exists($subpageFullPath)) {
         $subpageBodyHtml = $bodyMatch[1];
         $subpageDebug['extraction_mode'] = 'body';
     } else {
-        // No body tag — strip any leftover document-level tags
         $cleaned = $rawHtml;
         $cleaned = preg_replace('#<!DOCTYPE[^>]*>#is', '', $cleaned);
         $cleaned = preg_replace('#</?html\b[^>]*>#is', '', $cleaned);
@@ -155,7 +153,7 @@ if (file_exists($subpageFullPath)) {
     <link rel="icon" href="../logo.jpg" type="image/x-icon">
 
     <?php if (!empty($subpageStyles)): ?>
-        <!-- Styles lifted from the included sub-page (kept inline so main.php wins any tie) -->
+        <!-- Styles lifted from the included sub-page -->
         <?php echo $subpageStyles; ?>
     <?php endif; ?>
 
@@ -653,11 +651,13 @@ if (file_exists($subpageFullPath)) {
         }
 
         /* ═════════════════════════════════════════════════════════
-           DEFENSIVE LAYOUT LOCKS — placed LAST so they win any tie.
-           Sub-pages can redefine .container, .header, .sidebar, etc.
-           in their own <style> blocks. These rules make sure the
-           admin shell keeps working regardless.
+           DEFENSIVE LAYOUT LOCKS
+           Placed LAST so they win any cascade tie. These use
+           `body >` descendant chains that can only match the
+           admin shell, never a sub-page's own elements.
            ═════════════════════════════════════════════════════════ */
+
+        /* Outer container — the fixed-position flex wrapper */
         body > .container {
             display: flex !important;
             position: fixed !important;
@@ -672,6 +672,7 @@ if (file_exists($subpageFullPath)) {
             margin: 0 !important;
         }
 
+        /* Sidebar */
         body > .container > .sidebar {
             display: flex !important;
             flex-direction: column !important;
@@ -694,6 +695,7 @@ if (file_exists($subpageFullPath)) {
             padding: 16px 8px !important;
         }
 
+        /* <main> column */
         body > .container > main {
             flex-grow: 1 !important;
             padding: 25px !important;
@@ -712,6 +714,54 @@ if (file_exists($subpageFullPath)) {
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
             min-height: 100% !important;
             overflow: visible !important;
+        }
+
+        /* ─────────────────────────────────────────────────────
+           Sub-page's own .container wrapper — flatten it.
+           Sub-pages like manage_admins.php define their own
+           `.container { background:white; border-radius:16px;
+           overflow:hidden; box-shadow:… }` designed for
+           standalone pages. Inside <main>, flatten it so it
+           doesn't clip its own children (tables, forms, etc.)
+           ───────────────────────────────────────────────────── */
+        body > .container > main > .main-content > .container {
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        body > .container > main > .main-content > .container > .content {
+            padding: 0 !important;
+            overflow: visible !important;
+        }
+
+        /* The sub-page's title header ("Manage Admins", etc.) — keep
+           it but strip the padding / rounding that assumed a
+           standalone page */
+        body > .container > main > .main-content > .container > .header,
+        body > .container > main > .main-content > .header {
+            border-radius: 0 !important;
+            background: transparent !important;
+            padding: 10px 0 20px 0 !important;
+            text-align: left !important;
+            margin-bottom: 10px !important;
+        }
+
+        /* Guard against horizontal clipping inside tables */
+        body > .container > main > .main-content > .container table,
+        body > .container > main > .main-content > .container .table-responsive {
+            max-width: 100% !important;
+            margin-left: 0 !important;
+        }
+
+        /* Modals must escape any overflow:hidden */
+        body > .container > main > .main-content > .container .modal {
+            overflow: auto !important;
         }
     </style>
 </head>
