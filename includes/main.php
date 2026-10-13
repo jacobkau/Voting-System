@@ -73,7 +73,7 @@ $currentPage = $page;
 
         html, body {
             height: 100%;
-            overflow: hidden; /* body doesn't scroll — only main does */
+            overflow: hidden;
         }
 
         body {
@@ -82,9 +82,6 @@ $currentPage = $page;
             color: #333;
         }
 
-        /* ────────────────────────────────────────
-           Fixed Header
-           ──────────────────────────────────────── */
         header {
             position: fixed;
             top: 0;
@@ -190,19 +187,16 @@ $currentPage = $page;
             padding: 5px;
         }
 
-        /* ────────────────────────────────────────
-           Layout: fixed sidebar + scrollable main
-           ──────────────────────────────────────── */
         .container {
             display: flex;
             position: fixed;
-            top: 70px;                 /* below header */
+            top: 70px;               
             left: 0;
             right: 0;
             bottom: 0;
         }
 
-        /* Fixed sidebar (its own scroll if nav is long) */
+        
         .sidebar {
             background-color: #1e293b;
             width: 280px;
@@ -210,7 +204,7 @@ $currentPage = $page;
             box-sizing: border-box;
             color: #fff;
             flex-shrink: 0;
-            overflow-y: auto;           /* scrolls internally if menu is long */
+            overflow-y: auto;           
             height: 100%;
         }
 
@@ -266,14 +260,13 @@ $currentPage = $page;
             background-color: rgba(248, 113, 113, 0.1);
         }
 
-        /* Scrollable main */
         main {
             flex-grow: 1;
             padding: 25px;
             box-sizing: border-box;
             background-color: #f4f7f9;
             height: 100%;
-            overflow-y: auto;            /* the only vertical scroll on the page */
+            overflow-y: auto;           
             overflow-x: hidden;
         }
 
@@ -282,12 +275,9 @@ $currentPage = $page;
             padding: 25px;
             border-radius: 12px;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-            min-height: 100%;             /* fills the visible area */
+            min-height: 100%;         
         }
 
-        /* ────────────────────────────────────────
-           Notification bell (unchanged)
-           ──────────────────────────────────────── */
         .notif-wrap {
             position: relative;
             display: inline-flex;
@@ -471,9 +461,6 @@ $currentPage = $page;
             color: #d1d5db;
         }
 
-        /* ────────────────────────────────────────
-           Mobile: turn sidebar into a slide-out drawer
-           ──────────────────────────────────────── */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
@@ -544,7 +531,6 @@ $currentPage = $page;
                 display: block;
             }
 
-            /* Container becomes relative on mobile so sidebar can overlay */
             .container {
                 top: 0;
                 position: relative;
@@ -554,7 +540,6 @@ $currentPage = $page;
                 overflow: visible;
             }
 
-            /* Sidebar becomes an overlay drawer */
             .sidebar {
                 position: fixed;
                 top: 0;
@@ -571,13 +556,24 @@ $currentPage = $page;
                 left: 0;
             }
 
-            /* When sidebar is open, dim the background */
             .sidebar.open::after {
                 content: '';
                 position: fixed;
                 top: 0; left: 280px; right: 0; bottom: 0;
                 background: rgba(0, 0, 0, 0.4);
                 z-index: -1;
+            }
+            .sidebar .nav-section {
+                padding: 16px 20px 6px;
+                font-size: 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+                color: #64748b;
+                font-weight: 700;
+            }
+
+            .sidebar .nav-section:first-child {
+            padding-top: 0;
             }
 
             main {
@@ -646,18 +642,26 @@ $currentPage = $page;
 
     <div class="container">
         <aside class="sidebar" id="sidebar">
-            <ul>
+             <ul>
+                <li class="nav-section">Overview</li>
                 <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> Manage Voters</a></li>
-                <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> Manage All Users</a></li>
-                <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
+
+                <li class="nav-section">Configuration</li>
                 <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> Manage Elections</a></li>
                 <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> Manage Posts</a></li>
+
+                <li class="nav-section">Candidates</li>
+                <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
+
+                <li class="nav-section">Voters</li>
+                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> Manage Voters</a></li>
+                <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> Manage All Users</a></li>
+
+                <li class="nav-section">Reporting</li>
                 <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
+
+                <li class="nav-section">Account</li>
                 <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> Profile Settings</a></li>
-            </ul>
-            <ul class="refresh-link">
-                <li><a href="main.php?page=refreshdb" class="<?php echo $currentPage === 'refreshdb' ? 'active' : ''; ?>"><i class="fas fa-sync-alt"></i> Refresh Vote</a></li>
             </ul>
         </aside>
 
@@ -678,20 +682,17 @@ $currentPage = $page;
                         include("manage_elections.php");
                         break;
                     case 'posts':
-                        include("admin_manage_posts.php");
+                        include("manage_posts.php");
                         break;
                     case 'results':
-                        include("view_results.php");
+                        include("manage_results.php");
                         break;
                     case 'profile':
-                        include("admin_settings.php");
-                        break;
-                    case 'refreshdb':
-                        include("refreshdb.php");
+                        include("manage_settings.php");
                         break;
                     case 'home':
                     default:
-                        include("admin.php");
+                        include("manage_dashboard.php");
                         break;
                 }
                 ?>
