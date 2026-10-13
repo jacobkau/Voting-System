@@ -68,7 +68,7 @@ An online voting management system built with PHP, MySQL, and Cloudinary. It pro
 | Layer | Technology |
 |---|---|
 | Backend | PHP 8.3+ |
-| Database | MySQL 8 / MariaDB 10.4+ |
+| Database | POSTGRE - AIVEN.COM|
 | Web server | Apache (with mod_rewrite) |
 | Container | Docker (php:8.3-apache base) |
 | Hosting | Render.com |
