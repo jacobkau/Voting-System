@@ -152,4 +152,40 @@ try {
     conn_fail("DB connection failed: " . $e->getMessage());
 }
 
-// ✅ No closing ?>
+/* =====================================================================
+   Election status helper — derives effective status from dates
+   ===================================================================== */
+
+if (!function_exists('effectiveElectionStatus')) {
+
+    function effectiveElectionStatus(array $e): string {
+        // 1. Manual override in force?
+        if (!empty($e['manual_status'])) {
+            if (empty($e['manual_until'])) {
+                return $e['manual_status'];
+            }
+            if (strtotime($e['manual_until']) > time()) {
+                return $e['manual_status'];
+            }
+        }
+
+        // 2. Derive from dates
+        $now   = time();
+        $start = !empty($e['start_date']) ? strtotime($e['start_date']) : null;
+        $end   = !empty($e['end_date'])   ? strtotime($e['end_date'])   : null;
+
+        if ($start !== null && $now < $start) {
+            return 'upcoming';
+        }
+        if ($end !== null && $now > $end) {
+            return 'completed';
+        }
+        if ($start !== null && $end !== null && $now >= $start && $now <= $end) {
+            return 'active';
+        }
+
+        // Fallback
+        return $e['status'] ?? 'upcoming';
+    }
+}
+?>
