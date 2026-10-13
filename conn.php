@@ -78,12 +78,20 @@ try {
     $db = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
 
+    // ============================================================
+    // 6. Force the MySQL session to Kenyan local time (EAT, UTC+3)
+    // ============================================================
+    // This makes NOW(), CURRENT_TIMESTAMP, CURDATE(), TIMESTAMPDIFF,
+    // and any date comparison inside SQL use East Africa Time instead
+    // of Aiven's default UTC.
+    //
+    // Kenya does not observe DST, so '+03:00' is correct year-round.
+    $conn->exec("SET time_zone = '+03:00'");
+
 } catch (Exception $e) {
     // If it still fails, let's see the error temporarily so we can fix it!
     die("Database Connection Error: " . $e->getMessage());
 }
-
-
 
 /* =====================================================================
    Election status helper — derives effective status from dates
