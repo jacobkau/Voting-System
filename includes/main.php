@@ -78,9 +78,6 @@ $currentPage = $page;
             color: #333;
         }
 
-        /* ────────────────────────────────────────
-           Fixed Header
-           ──────────────────────────────────────── */
         header {
             position: fixed;
             top: 0;
@@ -184,9 +181,6 @@ $currentPage = $page;
             padding: 5px;
         }
 
-        /* ────────────────────────────────────────
-           Layout: fixed sidebar + scrollable main
-           ──────────────────────────────────────── */
         .container {
             display: flex;
             position: fixed;
@@ -199,7 +193,7 @@ $currentPage = $page;
         .sidebar {
             background-color: #1e293b;
             width: 250px;
-            padding: 16px 12px; 
+            padding: 16px 12px;
             box-sizing: border-box;
             color: #fff;
             flex-shrink: 0;
@@ -288,28 +282,7 @@ $currentPage = $page;
         }
 
         .sidebar li {
-            margin-bottom: 2px;
-        }
-
-        .sidebar .nav-section {
-            padding: 14px 8px 5px;
-            font-size: 9px;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: #64748b;
-            font-weight: 700;
-            text-align: center;
-            white-space: nowrap;
-            overflow: hidden;
-            transition: opacity 0.2s ease, height 0.25s ease, padding 0.25s ease;
-        }
-
-        .sidebar.collapsed .nav-section {
-            opacity: 0;
-            height: 0;
-            padding: 0;
-            margin: 0;
-            border: none;
+            margin-bottom: 4px;
         }
 
         .sidebar a {
@@ -356,14 +329,11 @@ $currentPage = $page;
         .sidebar a.active {
             background-color: #2c7a7b;
             color: white;
+            border-left: 3px solid #fff;
         }
 
         .sidebar.collapsed a.active {
             border-left: none;
-        }
-
-        .sidebar a.active {
-            border-left: 3px solid #fff;
         }
 
         .sidebar .refresh-link {
@@ -380,9 +350,6 @@ $currentPage = $page;
             background-color: rgba(248, 113, 113, 0.1);
         }
 
-        /* ────────────────────────────────────────
-           Main content
-           ──────────────────────────────────────── */
         main {
             flex-grow: 1;
             padding: 25px;
@@ -401,9 +368,6 @@ $currentPage = $page;
             min-height: 100%;
         }
 
-        /* ────────────────────────────────────────
-           Notification bell
-           ──────────────────────────────────────── */
         .notif-wrap {
             position: relative;
             display: inline-flex;
@@ -577,9 +541,6 @@ $currentPage = $page;
             color: #d1d5db;
         }
 
-        /* ────────────────────────────────────────
-           Mobile — sidebar 
-           ──────────────────────────────────────── */
         @media (max-width: 768px) {
             header {
                 padding: 12px 20px;
@@ -681,12 +642,6 @@ $currentPage = $page;
                 overflow: visible;
             }
 
-            .sidebar.collapsed .nav-section {
-                opacity: 1;
-                height: auto;
-                padding: 14px 8px 5px;
-            }
-
             .sidebar.collapsed a {
                 justify-content: flex-start;
                 padding: 10px 12px;
@@ -773,24 +728,14 @@ $currentPage = $page;
             </div>
 
             <ul>
-                <li class="nav-section">Overview</li>
                 <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
-
-                <li class="nav-section">Configuration</li>
                 <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> <span>Manage Elections</span></a></li>
                 <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> <span>Manage Posts</span></a></li>
-
-                <li class="nav-section">Candidates</li>
                 <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> <span>Manage Candidates</span></a></li>
-
-                <li class="nav-section">Voters</li>
                 <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> <span>Manage Voters</span></a></li>
                 <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> <span>Manage All Users</span></a></li>
-
-                <li class="nav-section">Reporting</li>
                 <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> <span>View Results</span></a></li>
-
-                <li class="nav-section">Account</li>
+                <li><a href="main.php?page=admins" class="<?php echo $currentPage === 'admins' ? 'active' : ''; ?>"><i class="fas fa-user-shield"></i> <span>Manage Admins</span></a></li>
                 <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> <span>Profile Settings</span></a></li>
             </ul>
         </aside>
@@ -817,8 +762,11 @@ $currentPage = $page;
                     case 'results':
                         include("manage_results.php");
                         break;
+                    case 'admins':
+                        include("manage_admins.php");
+                        break;
                     case 'profile':
-                        include("manage_settings.php");
+                        include("manage_profile.php");
                         break;
                     case 'home':
                     default:
@@ -867,7 +815,7 @@ $currentPage = $page;
         // ────────────────────────────────────────────────────────────
         (function() {
             const collapseBtn = document.getElementById('sidebarCollapseBtn');
-            if (!collapseBtn) return;
+            if (!collapseBtn || !sidebar) return;
 
             const STORAGE_KEY = 'admin_sidebar_collapsed';
 
@@ -875,14 +823,18 @@ $currentPage = $page;
                 if (localStorage.getItem(STORAGE_KEY) === '1') {
                     sidebar.classList.add('collapsed');
                 }
-            } catch (e) 
+            } catch (e) {
+              
+            }
 
             collapseBtn.addEventListener('click', function() {
                 sidebar.classList.toggle('collapsed');
                 const isCollapsed = sidebar.classList.contains('collapsed');
                 try {
                     localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
-                } catch (e)
+                } catch (e) {
+                   
+                }
             });
         })();
 
@@ -905,7 +857,9 @@ $currentPage = $page;
 
             try {
                 lastSeenTotal = parseInt(localStorage.getItem('notif_seen_total') || '0', 10) || 0;
-            } catch (e) { lastSeenTotal = 0; }
+            } catch (e) {
+                lastSeenTotal = 0;
+            }
 
             function renderBadge(total) {
                 const unread = Math.max(0, total - lastSeenTotal);
