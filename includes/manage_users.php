@@ -2,14 +2,12 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-include("conn.php");
-
-// Cloudinary helpers (extractPublicIdFromUrl, defaultAvatarUrl)
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/../cloudinary.php';
 
 // Admin Authentication
 if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
-    header("Location: login.php");
+    header("Location: admin_login.php");
     exit();
 }
 
@@ -21,102 +19,137 @@ function resolveImageUrl($value) {
     return defaultAvatarUrl();
 }
 
-// Handle AJAX request for user info
+// ────────────────────────────────────────────────────────────
+// AJAX: get_user
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'get_user') {
     header('Content-Type: application/json');
-    
+
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    
+
     if ($userId <= 0) {
         echo json_encode(['error' => 'Invalid user ID']);
         exit();
     }
-    
+
     try {
         $userStmt = $conn->prepare("SELECT id, username, name as fullname, email, profile_photo, profile_photo_blob, profile_photo_type, date as registered_date FROM users WHERE id = ?");
         $userStmt->execute([$userId]);
         $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-        
+
         if (!$user) {
             echo json_encode(['error' => 'User not found']);
             exit();
         }
-        
+
+        // Registrations — include date + override columns so we can derive status
         $registrations = [];
         try {
-            $regStmt = $conn->prepare("SELECT e.id, e.title, e.status FROM user_elections ue JOIN elections e ON ue.election_id = e.id WHERE ue.user_id = ?");
+            $regStmt = $conn->prepare("
+                SELECT e.id, e.title,
+                       e.status,
+                       e.start_date,
+                       e.end_date,
+                       e.manual_status,
+                       e.manual_until
+                FROM user_elections ue
+                JOIN elections e ON ue.election_id = e.id
+                WHERE ue.user_id = ?
+                ORDER BY e.start_date DESC
+            ");
             $regStmt->execute([$userId]);
             $registrations = $regStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) { $registrations = []; }
 
+            // Attach derived status per registration
+            foreach ($registrations as &$reg) {
+                $reg['live_status'] = effectiveElectionStatus($reg);
+            }
+            unset($reg);
+        } catch (Exception $e) {
+            $registrations = [];
+        }
+
+        // Votes
         $votes = [];
         try {
             $votesStmt = $conn->prepare("SELECT election_id, postname, candidate_name, voted_at FROM votes WHERE user_id = ? ORDER BY voted_at DESC");
             $votesStmt->execute([$userId]);
             $votes = $votesStmt->fetchAll(PDO::FETCH_ASSOC);
+
             foreach ($votes as &$vote) {
                 $electionStmt = $conn->prepare("SELECT title FROM elections WHERE id = ?");
                 $electionStmt->execute([$vote['election_id']]);
                 $election = $electionStmt->fetch(PDO::FETCH_ASSOC);
                 $vote['title'] = $election['title'] ?? 'Unknown Election';
             }
-        } catch (Exception $e) { $votes = []; }
-        
+            unset($vote);
+        } catch (Exception $e) {
+            $votes = [];
+        }
+
+        // Contests
         $contests = [];
         try {
-            $contestsStmt = $conn->prepare("SELECT c.postname, c.profile_photo AS contester_photo, e.title as election FROM contesters c JOIN elections e ON c.election_id = e.id WHERE c.user_id = ?");
+            $contestsStmt = $conn->prepare("
+                SELECT c.postname, c.profile_photo AS contester_photo, e.title as election
+                FROM contesters c
+                JOIN elections e ON c.election_id = e.id
+                WHERE c.user_id = ?
+            ");
             $contestsStmt->execute([$userId]);
             $contests = $contestsStmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Exception $e) { $contests = []; }
-        
+        } catch (Exception $e) {
+            $contests = [];
+        }
+
         $profilePhoto = null;
         $profilePhotoBlob = null;
         $profilePhotoType = null;
-        
+
         if (!empty($user['profile_photo_blob'])) {
             $profilePhotoBlob = base64_encode($user['profile_photo_blob']);
             $profilePhotoType = $user['profile_photo_type'];
         } else {
-            // Always returns a valid URL: Cloudinary or the system default
             $profilePhoto = resolveImageUrl($user['profile_photo']);
         }
-        
+
         echo json_encode([
-            'success' => true,
-            'id' => $user['id'],
-            'username' => $user['username'],
-            'fullname' => $user['fullname'] ?? 'N/A',
-            'email' => $user['email'],
-            'profile_photo' => $profilePhoto,
-            'profile_photo_blob' => $profilePhotoBlob,
-            'profile_photo_type' => $profilePhotoType,
-            'registered_date' => $user['registered_date'],
-            'registrations' => $registrations,
-            'votes' => $votes,
-            'contests' => $contests
+            'success'             => true,
+            'id'                  => $user['id'],
+            'username'            => $user['username'],
+            'fullname'            => $user['fullname'] ?? 'N/A',
+            'email'               => $user['email'],
+            'profile_photo'       => $profilePhoto,
+            'profile_photo_blob'  => $profilePhotoBlob,
+            'profile_photo_type'  => $profilePhotoType,
+            'registered_date'     => $user['registered_date'],
+            'registrations'       => $registrations,
+            'votes'               => $votes,
+            'contests'            => $contests
         ]);
-        
+
     } catch (PDOException $e) {
         echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
     }
     exit();
 }
 
-// Handle Delete User
+// ────────────────────────────────────────────────────────────
+// AJAX: delete_user
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete_user') {
     header('Content-Type: application/json');
-    
+
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
-    
+
     if ($userId <= 0) {
         echo json_encode(['success' => false, 'message' => 'Invalid user ID']);
         exit();
     }
-    
+
     try {
         $conn->beginTransaction();
-        
-        // Collect Cloudinary URLs from contester rows
+
         $cloudinaryUrls = [];
         try {
             $photoStmt = $conn->prepare("SELECT profile_photo FROM contesters WHERE user_id = ?");
@@ -129,26 +162,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
         } catch (Exception $e) {
             error_log("Could not fetch contester photos: " . $e->getMessage());
         }
-        
-        // Delete user's votes
-        $stmt = $conn->prepare("DELETE FROM votes WHERE user_id = ?");
-        $stmt->execute([$userId]);
-        
-        // Delete user's contest applications
-        $stmt = $conn->prepare("DELETE FROM contesters WHERE user_id = ?");
-        $stmt->execute([$userId]);
-        
-        // Delete user's election registrations
-        $stmt = $conn->prepare("DELETE FROM user_elections WHERE user_id = ?");
-        $stmt->execute([$userId]);
-        
-        // Delete user
-        $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-        $stmt->execute([$userId]);
-        
+
+        $conn->prepare("DELETE FROM votes WHERE user_id = ?")->execute([$userId]);
+        $conn->prepare("DELETE FROM contesters WHERE user_id = ?")->execute([$userId]);
+        $conn->prepare("DELETE FROM user_elections WHERE user_id = ?")->execute([$userId]);
+        $conn->prepare("DELETE FROM users WHERE id = ?")->execute([$userId]);
+
         $conn->commit();
-        
-        // After successful DB commit, delete images from Cloudinary
+
         foreach ($cloudinaryUrls as $url) {
             $publicId = extractPublicIdFromUrl($url);
             if ($publicId) {
@@ -160,9 +181,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
                 }
             }
         }
-        
+
         echo json_encode(['success' => true, 'message' => 'User deleted successfully']);
-        
+
     } catch (PDOException $e) {
         $conn->rollBack();
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
@@ -170,22 +191,24 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     exit();
 }
 
-// Handle Register User to Election
+// ────────────────────────────────────────────────────────────
+// AJAX: register_election
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'register_election') {
     header('Content-Type: application/json');
-    
+
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
     $electionId = isset($_POST['election_id']) ? intval($_POST['election_id']) : 0;
-    
+
     if ($userId <= 0 || $electionId <= 0) {
         echo json_encode(['success' => false, 'message' => 'Invalid user ID or election ID']);
         exit();
     }
-    
+
     try {
         $stmt = $conn->prepare("INSERT IGNORE INTO user_elections (user_id, election_id) VALUES (?, ?)");
         $stmt->execute([$userId, $electionId]);
-        
+
         echo json_encode(['success' => true, 'message' => 'User registered to election successfully']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
@@ -193,24 +216,26 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     exit();
 }
 
-// Handle Update User
+// ────────────────────────────────────────────────────────────
+// AJAX: update_user
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'update_user') {
     header('Content-Type: application/json');
-    
+
     $userId = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
     $fullname = isset($_POST['fullname']) ? trim($_POST['fullname']) : '';
     $email = isset($_POST['email']) ? trim($_POST['email']) : '';
-    
+
     if ($userId <= 0 || empty($username) || empty($fullname) || empty($email)) {
         echo json_encode(['success' => false, 'message' => 'All fields are required']);
         exit();
     }
-    
+
     try {
         $stmt = $conn->prepare("UPDATE users SET username = ?, name = ?, email = ? WHERE id = ?");
         $stmt->execute([$username, $fullname, $email, $userId]);
-        
+
         echo json_encode(['success' => true, 'message' => 'User updated successfully']);
     } catch (PDOException $e) {
         echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
@@ -218,7 +243,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     exit();
 }
 
-// Fetch all users from the database
+// ────────────────────────────────────────────────────────────
+// Fetch all users
+// ────────────────────────────────────────────────────────────
 $users = [];
 $errorMessage = "";
 
@@ -231,12 +258,35 @@ try {
     $errorMessage = "Error loading users. Please try again later.";
 }
 
-// Fetch all elections for registration dropdown
+// ────────────────────────────────────────────────────────────
+// Fetch all elections for registration dropdown — with derived status
+// ────────────────────────────────────────────────────────────
 $elections = [];
 try {
-    $electionStmt = $conn->prepare("SELECT id, title, status FROM elections ORDER BY title");
+    $electionStmt = $conn->prepare("
+        SELECT id, title, status, start_date, end_date, manual_status, manual_until
+        FROM elections
+        ORDER BY title
+    ");
     $electionStmt->execute();
-    $elections = $electionStmt->fetchAll(PDO::FETCH_ASSOC);
+    $electionsRaw = $electionStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($electionsRaw as &$e) {
+        $e['live_status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
+
+    // Sort active first, then upcoming, then completed, each alphabetically
+    usort($electionsRaw, function ($a, $b) {
+        $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+        $oa = $order[$a['live_status']] ?? 4;
+        $ob = $order[$b['live_status']] ?? 4;
+        if ($oa !== $ob) return $oa - $ob;
+        return strcmp($a['title'], $b['title']);
+    });
+
+    $elections = $electionsRaw;
+
 } catch (PDOException $e) {
     $elections = [];
 }
@@ -468,6 +518,10 @@ try {
         .info-list li {
             margin: 8px 0;
             color: #555;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
         }
 
         .election-status {
@@ -475,11 +529,13 @@ try {
             padding: 2px 8px;
             border-radius: 12px;
             font-size: 11px;
-            margin-left: 8px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
         }
 
-        .status-active { background: #d4edda; color: #155724; }
-        .status-upcoming { background: #fff3cd; color: #856404; }
+        .status-active    { background: #d4edda; color: #155724; }
+        .status-upcoming  { background: #fff3cd; color: #856404; }
         .status-completed { background: #f8d7da; color: #721c24; }
 
         .loading {
@@ -547,9 +603,9 @@ try {
 <body>
     <div class="header">
         <h2>Manage Users</h2>
-        <p>View, edit, delete, and manage user election registrations</p>    
+        <p>View, edit, delete, and manage user election registrations</p>
     </div>
-    <div class="container">               
+    <div class="container">
         <div class="content">
             <?php if ($errorMessage): ?>
                 <div class="error-message">
@@ -585,13 +641,13 @@ try {
                                         <button class="btn btn-view" onclick="showUserInfo(<?php echo $user['id']; ?>)">
                                             <i class="fas fa-eye"></i> View
                                         </button>
-                                        <button class="btn btn-edit" onclick="editUser(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>', '<?php echo htmlspecialchars($user['full_name']); ?>', '<?php echo htmlspecialchars($user['email']); ?>')">
+                                        <button class="btn btn-edit" onclick="editUser(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>, <?php echo htmlspecialchars(json_encode($user['full_name'])); ?>, <?php echo htmlspecialchars(json_encode($user['email'])); ?>)">
                                             <i class="fas fa-edit"></i> Edit
                                         </button>
                                         <button class="btn btn-delete" onclick="deleteUser(<?php echo $user['id']; ?>)">
                                             <i class="fas fa-trash"></i> Delete
                                         </button>
-                                        <button class="btn btn-register" onclick="showRegisterModal(<?php echo $user['id']; ?>, '<?php echo htmlspecialchars($user['username']); ?>')">
+                                        <button class="btn btn-register" onclick="showRegisterModal(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>)">
                                             <i class="fas fa-plus"></i> Register Election
                                         </button>
                                     </td>
@@ -668,7 +724,7 @@ try {
                             <option value="">-- Select Election --</option>
                             <?php foreach ($elections as $election): ?>
                                 <option value="<?php echo $election['id']; ?>">
-                                    <?php echo htmlspecialchars($election['title']); ?> (<?php echo $election['status']; ?>)
+                                    <?php echo htmlspecialchars($election['title']); ?> (<?php echo ucfirst($election['live_status']); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -684,22 +740,22 @@ try {
         const modal = document.getElementById('userModal');
         const modalBody = document.getElementById('modalBody');
         const modalTitle = document.getElementById('modalTitle');
-        
+
         modal.style.display = 'block';
         modalBody.innerHTML = `<div class="loading"><div class="spinner"></div>Loading user information...</div>`;
         modalTitle.textContent = `User Information - ID: ${userId}`;
-        
+
         try {
             const response = await fetch('manage_users.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: 'action=get_user&user_id=' + userId
             });
-            
+
             const data = await response.json();
-            
+
             if (data.error) {
-                modalBody.innerHTML = `<div class="error-message">${data.error}</div>`;
+                modalBody.innerHTML = `<div class="error-message">${escapeHtml(data.error)}</div>`;
             } else if (data.success) {
                 displayUserInfo(data);
             }
@@ -707,40 +763,41 @@ try {
             modalBody.innerHTML = `<div class="error-message">Failed to load user information.</div>`;
         }
     }
-    
+
     function displayUserInfo(data) {
         const modalBody = document.getElementById('modalBody');
-        
-        // data.profile_photo is always a valid Cloudinary URL (user's photo or system default)
+
         let profilePhotoHtml = '';
         if (data.profile_photo_blob) {
             profilePhotoHtml = `<img src="data:image/${data.profile_photo_type};base64,${data.profile_photo_blob}" alt="Profile Photo">`;
         } else {
             profilePhotoHtml = `<img src="${escapeHtml(data.profile_photo)}" alt="Profile Photo">`;
         }
-        
+
         let registrationsHtml = '';
         if (data.registrations && data.registrations.length > 0) {
             registrationsHtml = '<ul class="info-list">';
             data.registrations.forEach(reg => {
-                let statusClass = reg.status === 'active' ? 'status-active' : (reg.status === 'upcoming' ? 'status-upcoming' : 'status-completed');
-                registrationsHtml += `<li> ${escapeHtml(reg.title)} <span class="election-status ${statusClass}">${escapeHtml(reg.status)}</span></li>`;
+                // Use derived status
+                const ls = reg.live_status || reg.status || 'upcoming';
+                const statusClass = 'status-' + ls;
+                registrationsHtml += `<li> <span>${escapeHtml(reg.title)}</span> <span class="election-status ${statusClass}">${escapeHtml(ls)}</span></li>`;
             });
             registrationsHtml += '</ul>';
         } else {
             registrationsHtml = '<p style="color:#999;">No election registrations</p>';
         }
-        
+
         modalBody.innerHTML = `
             <div class="profile-photo">${profilePhotoHtml}</div>
-            <div class="info-section"><strong> Username:</strong> ${escapeHtml(data.username)}</div>
-            <div class="info-section"><strong> Full Name:</strong> ${escapeHtml(data.fullname)}</div>
-            <div class="info-section"><strong> Email:</strong> ${escapeHtml(data.email)}</div>
-            <div class="info-section"><strong> Registered:</strong> ${escapeHtml(data.registered_date) || 'N/A'}</div>
-            <div class="info-section"><strong> Election Registrations:</strong> ${registrationsHtml}</div>
+            <div class="info-section"><strong>Username:</strong> ${escapeHtml(data.username)}</div>
+            <div class="info-section"><strong>Full Name:</strong> ${escapeHtml(data.fullname)}</div>
+            <div class="info-section"><strong>Email:</strong> ${escapeHtml(data.email)}</div>
+            <div class="info-section"><strong>Registered:</strong> ${escapeHtml(data.registered_date) || 'N/A'}</div>
+            <div class="info-section"><strong>Election Registrations:</strong> ${registrationsHtml}</div>
         `;
     }
-    
+
     function editUser(id, username, fullname, email) {
         document.getElementById('edit_user_id').value = id;
         document.getElementById('edit_username').value = username;
@@ -748,7 +805,7 @@ try {
         document.getElementById('edit_email').value = email;
         document.getElementById('editModal').style.display = 'block';
     }
-    
+
     function deleteUser(userId) {
         if (confirm('Are you sure you want to delete this user? This action cannot be undone and will delete all votes, applications, and registrations associated with this user.')) {
             fetch('manage_users.php', {
@@ -767,24 +824,24 @@ try {
             });
         }
     }
-    
+
     function showRegisterModal(userId, username) {
         document.getElementById('register_user_id').value = userId;
         document.getElementById('register_username').value = username;
         document.getElementById('register_election_id').value = '';
         document.getElementById('registerModal').style.display = 'block';
     }
-    
+
     document.getElementById('editForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const userId = document.getElementById('edit_user_id').value;
-        
+
         const response = await fetch('manage_users.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `action=update_user&user_id=${userId}&username=${encodeURIComponent(document.getElementById('edit_username').value)}&fullname=${encodeURIComponent(document.getElementById('edit_fullname').value)}&email=${encodeURIComponent(document.getElementById('edit_email').value)}`
         });
-        
+
         const data = await response.json();
         if (data.success) {
             showToast('User updated successfully', 'success');
@@ -794,23 +851,23 @@ try {
             showToast(data.message, 'error');
         }
     });
-    
+
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const userId = document.getElementById('register_user_id').value;
         const electionId = document.getElementById('register_election_id').value;
-        
+
         if (!electionId) {
             showToast('Please select an election', 'error');
             return;
         }
-        
+
         const response = await fetch('manage_users.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `action=register_election&user_id=${userId}&election_id=${electionId}`
         });
-        
+
         const data = await response.json();
         if (data.success) {
             showToast('User registered to election successfully', 'success');
@@ -819,26 +876,26 @@ try {
             showToast(data.message, 'error');
         }
     });
-    
+
     function closeModal() { document.getElementById('userModal').style.display = 'none'; }
     function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
     function closeRegisterModal() { document.getElementById('registerModal').style.display = 'none'; }
-    
+
     function showToast(message, type) {
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.innerHTML = message;
+        toast.textContent = message;
         document.body.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
     }
-    
+
     function escapeHtml(text) {
-        if (!text) return '';
+        if (text === null || text === undefined) return '';
         const div = document.createElement('div');
-        div.appendChild(document.createTextNode(text));
+        div.appendChild(document.createTextNode(String(text)));
         return div.innerHTML;
     }
-    
+
     window.onclick = function(event) {
         if (event.target.classList.contains('modal')) {
             event.target.style.display = 'none';
