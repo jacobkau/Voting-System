@@ -1,12 +1,12 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
-// Cloudinary helpers (uploadToCloudinary, defaultAvatarUrl)
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 // Function to create user_elections table if it doesn't exist
@@ -76,18 +76,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             try {
                 $checkUserStmt = $conn->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
                 $checkUserStmt->execute([$username, $email]);
-                
+
                 if ($checkUserStmt->rowCount() > 0) {
                     $message = "Username or Email already exists.";
                     $messageType = "error";
                 } else {
                     $insertUserStmt = $conn->prepare("INSERT INTO users (username, name, email, password, profile_photo) VALUES (?, ?, ?, ?, ?)");
-                    
+
                     if ($insertUserStmt->execute([$username, $name, $email, $passwordHash, $profilePhotoUrl])) {
                         $userId = $conn->lastInsertId();
 
                         $insertElectionStmt = $conn->prepare("INSERT IGNORE INTO user_elections (user_id, election_id) VALUES (?, ?)");
-                        
+
                         $registeredCount = 0;
                         foreach ($selectedElections as $electionId) {
                             if ($insertElectionStmt->execute([$userId, $electionId])) {
@@ -115,10 +115,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-// Fetch active elections for registration
-$electionsStmt = $conn->prepare("SELECT id, title, status FROM elections WHERE status = 'active' OR status = 'upcoming' ORDER BY status DESC, start_date ASC");
+// ────────────────────────────────────────────────────────────
+// Fetch elections open for registration (derived)
+// Active OR upcoming, per the helper — not the raw status column
+// ────────────────────────────────────────────────────────────
+$electionsStmt = $conn->prepare("
+    SELECT id, title, status, start_date, end_date, manual_status, manual_until
+    FROM elections
+    ORDER BY start_date ASC
+");
 $electionsStmt->execute();
-$activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+$allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+$activeElections = array_values(array_filter($allElections, function ($e) {
+    $s = effectiveElectionStatus($e);
+    return in_array($s, ['active', 'upcoming'], true);
+}));
+
+// Sort: active first, then upcoming, by start date
+usort($activeElections, function ($a, $b) {
+    $order = ['active' => 1, 'upcoming' => 2];
+    $oa = $order[effectiveElectionStatus($a)] ?? 3;
+    $ob = $order[effectiveElectionStatus($b)] ?? 3;
+    if ($oa !== $ob) return $oa - $ob;
+    return strtotime($a['start_date']) - strtotime($b['start_date']);
+});
 ?>
 
 <!DOCTYPE html>
@@ -347,6 +368,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            gap: 8px;
         }
 
         body.dark-theme .form-check-label { color: #e5e7eb; }
@@ -355,6 +377,7 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
             font-size: 11px;
             padding: 2px 8px;
             border-radius: 20px;
+            white-space: nowrap;
         }
 
         .status-active {
@@ -624,12 +647,13 @@ $activeElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
                             <p style="color: #9ca3af; grid-column: 1/-1; text-align: center; padding: 12px;">No active elections available for registration.</p>
                         <?php else: ?>
                             <?php foreach ($activeElections as $election): ?>
+                                <?php $ls = effectiveElectionStatus($election); ?>
                                 <div class="form-check">
                                     <input type="checkbox" name="elections[]" value="<?php echo $election['id']; ?>" id="election_<?php echo $election['id']; ?>" class="form-check-input">
                                     <label class="form-check-label" for="election_<?php echo $election['id']; ?>">
                                         <?php echo htmlspecialchars($election['title']); ?>
-                                        <span class="election-status status-<?php echo $election['status']; ?>">
-                                            <?php echo ucfirst($election['status']); ?>
+                                        <span class="election-status status-<?php echo htmlspecialchars($ls); ?>">
+                                            <?php echo ucfirst(htmlspecialchars($ls)); ?>
                                         </span>
                                     </label>
                                 </div>
