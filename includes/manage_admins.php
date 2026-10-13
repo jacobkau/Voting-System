@@ -1,947 +1,1068 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+if (!ob_get_level()) {
+    ob_start();
 }
 require_once __DIR__ . '/conn.php';
 
-// Cloudinary helpers (extractPublicIdFromUrl, defaultAvatarUrl)
-require_once __DIR__ . '/../cloudinary.php';
-
-// Admin Authentication
-if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit();
 }
 
-// Helper: resolve to a Cloudinary URL or the system default
-function resolveAdminImageUrl($value) {
-    if (!empty($value) && preg_match('#^https?://#i', $value)) {
-        return $value;
-    }
-    return defaultAvatarUrl();
-}
+require_once __DIR__ . '/../cloudinary.php';
 
-/* =====================================================================
-   AJAX: get_admin
-   ===================================================================== */
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'get_admin') {
-    header('Content-Type: application/json');
-
-    $adminId = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
-
-    if ($adminId <= 0) {
-        echo json_encode(['error' => 'Invalid admin ID']);
-        exit();
-    }
-
-    try {
-        $stmt = $conn->prepare("
-            SELECT id, username, name AS fullname, email, profile_photo, created_on
-            FROM admin
-            WHERE id = ?
-        ");
-        $stmt->execute([$adminId]);
-        $admin = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$admin) {
-            echo json_encode(['error' => 'Admin not found']);
-            exit();
-        }
-
-        echo json_encode([
-            'success'        => true,
-            'id'             => $admin['id'],
-            'username'       => $admin['username'],
-            'fullname'       => $admin['fullname'] ?? 'N/A',
-            'email'          => $admin['email'],
-            'profile_photo'  => resolveAdminImageUrl($admin['profile_photo']),
-            'created_on'     => $admin['created_on'],
-        ]);
-
-    } catch (PDOException $e) {
-        echo json_encode(['error' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit();
-}
-
-/* =====================================================================
-   AJAX: add_admin
-   ===================================================================== */
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'add_admin') {
-    header('Content-Type: application/json');
-
-    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
-    $fullname = isset($_POST['fullname']) ? trim($_POST['fullname']) : '';
-    $email    = isset($_POST['email'])    ? trim($_POST['email'])    : '';
-    $password = isset($_POST['password']) ? $_POST['password']        : '';
-
-    if (empty($username) || empty($fullname) || empty($email) || empty($password)) {
-        echo json_encode(['success' => false, 'message' => 'All fields are required']);
-        exit();
-    }
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid email address']);
-        exit();
-    }
-
-    if (strlen($password) < 8) {
-        echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters']);
-        exit();
-    }
-
-    try {
-        $check = $conn->prepare("SELECT id FROM admin WHERE username = ?");
-        $check->execute([$username]);
-        if ($check->rowCount() > 0) {
-            echo json_encode(['success' => false, 'message' => 'Username already exists']);
-            exit();
-        }
-
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-
-        $stmt = $conn->prepare("
-            INSERT INTO admin (username, password, name, email)
-            VALUES (?, ?, ?, ?)
-        ");
-        $stmt->execute([$username, $hash, $fullname, $email]);
-
-        echo json_encode(['success' => true, 'message' => 'Admin added successfully']);
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit();
-}
-
-/* =====================================================================
-   AJAX: update_admin
-   ===================================================================== */
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'update_admin') {
-    header('Content-Type: application/json');
-
-    $adminId  = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
-    $username = isset($_POST['username']) ? trim($_POST['username']) : '';
-    $fullname = isset($_POST['fullname']) ? trim($_POST['fullname']) : '';
-    $email    = isset($_POST['email'])    ? trim($_POST['email'])    : '';
-    $password = isset($_POST['password']) ? $_POST['password']        : '';
-
-    if ($adminId <= 0 || empty($username) || empty($fullname) || empty($email)) {
-        echo json_encode(['success' => false, 'message' => 'All fields are required']);
-        exit();
-    }
-
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo json_encode(['success' => false, 'message' => 'Invalid email address']);
-        exit();
-    }
-
-    try {
-        // Reject if the new username is taken by someone else
-        $check = $conn->prepare("SELECT id FROM admin WHERE username = ? AND id <> ?");
-        $check->execute([$username, $adminId]);
-        if ($check->rowCount() > 0) {
-            echo json_encode(['success' => false, 'message' => 'Username already taken by another admin']);
-            exit();
-        }
-
-        if (!empty($password)) {
-            if (strlen($password) < 8) {
-                echo json_encode(['success' => false, 'message' => 'Password must be at least 8 characters']);
-                exit();
-            }
-
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("
-                UPDATE admin
-                SET username = ?, name = ?, email = ?, password = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([$username, $fullname, $email, $hash, $adminId]);
-        } else {
-            $stmt = $conn->prepare("
-                UPDATE admin
-                SET username = ?, name = ?, email = ?
-                WHERE id = ?
-            ");
-            $stmt->execute([$username, $fullname, $email, $adminId]);
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Admin updated successfully']);
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit();
-}
-
-/* =====================================================================
-   AJAX: delete_admin
-   ===================================================================== */
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete_admin') {
-    header('Content-Type: application/json');
-
-    $adminId = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
-
-    if ($adminId <= 0) {
-        echo json_encode(['success' => false, 'message' => 'Invalid admin ID']);
-        exit();
-    }
-
-    // Prevent self-deletion
-    if (isset($_SESSION['admin_id']) && $adminId === intval($_SESSION['admin_id'])) {
-        echo json_encode(['success' => false, 'message' => 'You cannot delete your own account']);
-        exit();
-    }
-
-    try {
-        // Prevent deleting the last admin
-        $countStmt = $conn->query("SELECT COUNT(*) FROM admin");
-        $totalAdmins = (int)$countStmt->fetchColumn();
-
-        if ($totalAdmins <= 1) {
-            echo json_encode(['success' => false, 'message' => 'Cannot delete the last remaining admin']);
-            exit();
-        }
-
-        // Fetch the profile photo so we can remove it from Cloudinary after deletion
-        $photoStmt = $conn->prepare("SELECT profile_photo FROM admin WHERE id = ?");
-        $photoStmt->execute([$adminId]);
-        $photo = $photoStmt->fetchColumn();
-
-        $stmt = $conn->prepare("DELETE FROM admin WHERE id = ?");
-        $stmt->execute([$adminId]);
-
-        // Clean up Cloudinary photo (best-effort, after successful delete)
-        if (!empty($photo) && preg_match('#^https?://#i', $photo)) {
-            $publicId = function_exists('extractPublicIdFromUrl') ? extractPublicIdFromUrl($photo) : null;
-            if ($publicId) {
-                try {
-                    $upload = new \Cloudinary\Api\Upload\UploadApi();
-                    $upload->destroy($publicId);
-                } catch (Exception $ce) {
-                    error_log("Cloudinary delete error for {$publicId}: " . $ce->getMessage());
-                }
-            }
-        }
-
-        echo json_encode(['success' => true, 'message' => 'Admin deleted successfully']);
-    } catch (PDOException $e) {
-        echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
-    }
-    exit();
-}
-
-/* =====================================================================
-   Page data
-   ===================================================================== */
-$admins = [];
-$errorMessage = "";
-
+// ─────────────────────────────────────────────────────────────
+// Load admin info
+// ─────────────────────────────────────────────────────────────
+$adminName = "";
+$adminPhoto = "";
 try {
-    $stmt = $conn->prepare("
-        SELECT id, username, name AS full_name, email, profile_photo, created_on
-        FROM admin
-        ORDER BY id
-    ");
-    $stmt->execute();
-    $admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $conn->prepare("SELECT name, profile_photo FROM admin WHERE id = ?");
+    $stmt->execute([$_SESSION['admin_id']]);
+    $admin = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($admin) {
+        $adminName = $admin['name'] ?? ($_SESSION['username'] ?? 'Admin');
+        $adminPhoto = $admin['profile_photo'] ?? '';
+    } else {
+        $adminName = $_SESSION['username'] ?? 'Admin';
+    }
 } catch (PDOException $e) {
-    error_log("Error fetching admins: " . $e->getMessage());
-    $errorMessage = "Error loading admins. Please try again later.";
+    $adminName = $_SESSION['username'] ?? 'Admin';
 }
 
-$currentAdminId = isset($_SESSION['admin_id']) ? intval($_SESSION['admin_id']) : 0;
-$totalAdmins    = count($admins);
-?>
+$adminPhotoDisplay = (!empty($adminPhoto) && preg_match('#^https?://#i', $adminPhoto))
+    ? $adminPhoto
+    : defaultAvatarUrl();
 
+// ─────────────────────────────────────────────────────────────
+// Determine current page
+// ─────────────────────────────────────────────────────────────
+$page = isset($_GET['page']) ? $_GET['page'] : 'home';
+if ($page === '') {
+    $inferred = [
+        'election_id'  => 'voters',
+        'status'       => 'voters',
+        'user_id'      => 'users',
+        'q'            => 'users',
+    ];
+    foreach ($inferred as $param => $target) {
+        if (isset($_GET[$param])) {
+            $page = $target;
+            break;
+        }
+    }
+}
+$currentPage = $page;
+
+// ─────────────────────────────────────────────────────────────
+// Sub-page map
+// ─────────────────────────────────────────────────────────────
+$subpageMap = [
+    'users'         => 'manage_users.php',
+    'voters'        => 'manage_election_voters.php',
+    'candidates'    => 'manage_candidates.php',
+    'elections'     => 'manage_elections.php',
+    'posts'         => 'manage_posts.php',
+    'results'       => 'manage_results.php',
+    'admins'        => 'manage_admins.php',
+    'profile'       => 'manage_profile.php',
+    'activity_logs' => 'manage_activity_logs.php',
+    'home'          => 'manage_dashboard.php',
+];
+
+$subpageFile = $subpageMap[$currentPage] ?? $subpageMap['home'];
+
+// ─────────────────────────────────────────────────────────────
+// Render sub-page into a buffer and extract its body content
+// ─────────────────────────────────────────────────────────────
+$subpageStyles    = '';
+$subpageBodyHtml  = '';
+$subpageError     = '';
+$subpageDebug     = [];
+
+$subpageFullPath = __DIR__ . '/' . $subpageFile;
+
+if (file_exists($subpageFullPath)) {
+    $nestedLevel = ob_get_level();
+    ob_start();
+
+    try {
+        include($subpageFullPath);
+    } catch (Throwable $e) {
+        error_log("Sub-page include error ({$subpageFile}): " . $e->getMessage());
+        echo '<div style="padding:40px;text-align:center;color:#991b1b;">'
+           . 'Could not load this page. Please try again.'
+           . '</div>';
+    }
+
+    $captured = '';
+    while (ob_get_level() > $nestedLevel) {
+        $captured = ob_get_clean() . $captured;
+    }
+
+    $rawHtml = $captured;
+    $subpageDebug['bytes_captured'] = strlen($rawHtml);
+    $subpageDebug['has_doctype']    = (stripos($rawHtml, '<!DOCTYPE') !== false);
+    $subpageDebug['has_html_tag']   = (stripos($rawHtml, '<html') !== false);
+    $subpageDebug['has_head_tag']   = (stripos($rawHtml, '<head') !== false);
+    $subpageDebug['has_body_tag']   = (stripos($rawHtml, '<body') !== false);
+
+    // Hoist <style> blocks
+    if (preg_match_all('#<style\b[^>]*>.*?</style>#is', $rawHtml, $styleMatches)) {
+        foreach ($styleMatches[0] as $styleTag) {
+            $subpageStyles .= $styleTag . "\n";
+        }
+        $rawHtml = preg_replace('#<style\b[^>]*>.*?</style>#is', '', $rawHtml);
+    }
+
+    // Extract body content
+    if (preg_match('#<body\b[^>]*>(.*?)</body>#is', $rawHtml, $bodyMatch)) {
+        $subpageBodyHtml = $bodyMatch[1];
+        $subpageDebug['extraction_mode'] = 'body';
+    } else {
+        $cleaned = $rawHtml;
+        $cleaned = preg_replace('#<!DOCTYPE[^>]*>#is', '', $cleaned);
+        $cleaned = preg_replace('#</?html\b[^>]*>#is', '', $cleaned);
+        $cleaned = preg_replace('#</?head\b[^>]*>#is', '', $cleaned);
+        $cleaned = preg_replace('#</?body\b[^>]*>#is', '', $cleaned);
+        $cleaned = preg_replace('#<meta\b[^>]*>#is', '', $cleaned);
+        $cleaned = preg_replace('#<title\b[^>]*>.*?</title>#is', '', $cleaned);
+        $cleaned = preg_replace('#<link\b[^>]*rel=["\']stylesheet["\'][^>]*>#is', '', $cleaned);
+
+        $subpageBodyHtml = $cleaned;
+        $subpageDebug['extraction_mode'] = 'fallback_clean';
+    }
+} else {
+    $subpageError = "Page file not found: {$subpageFile}";
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Manage Admins | Voting System</title>
+    <title>Admin Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <meta name="description" content="An online Voting Management System.">
+    <meta name="keywords" content="portfolio, projects, web development, design">
+    <meta name="author" content="Jacob witty">
+    <link rel="icon" href="../logo.jpg" type="image/x-icon">
+
+    <?php if (!empty($subpageStyles)): ?>
+        <!-- Styles lifted from the included sub-page -->
+        <?php echo $subpageStyles; ?>
+    <?php endif; ?>
+
     <style>
-        .header {
-            text-align: center;
-            padding: 20px 10px;
-            color: black;
-            background: #f5f5f5;
-        }
-        .header h2 { font-size: 30px; font-weight: 600; }
-        .header p  { opacity: 0.9; font-size: 16px; }
-
-        .container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
+        /* ═════════════════════════════════════════════════════════
+           BASE RESET
+           ═════════════════════════════════════════════════════════ */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
         }
 
-        .content { padding: 30px; }
-
-        .top-bar {
+        /* ═════════════════════════════════════════════════════════
+           HEADER
+           ═════════════════════════════════════════════════════════ */
+        header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 70px;
+            z-index: 1000;
+            background-color: #2c7a7b;
+            color: white;
+            padding: 12px 25px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            gap: 12px;
             flex-wrap: wrap;
+            gap: 15px;
         }
 
-        .top-bar h3 {
-            margin: 0;
-            font-size: 18px;
-            color: #1f2937;
-        }
+        .header-left h1 { margin: 0; font-size: 1.5rem; }
+        .header-left p  { margin: 5px 0 0; font-size: 0.8rem; opacity: 0.9; }
 
-        .add-btn {
-            background: #2c7a7b;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
+        .header-right { display: flex; align-items: center; gap: 14px; }
+
+        .admin-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 6px 15px 6px 6px;
+            border-radius: 30px;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.25s ease;
             cursor: pointer;
+        }
+        .admin-info:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+        .admin-info i { font-size: 22px; }
+        .admin-info span { font-weight: 500; color: white; }
+
+        .admin-avatar {
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            display: inline-block;
+            vertical-align: middle;
+            background: #f4f7f9;
+            transition: border-color 0.25s ease;
+        }
+        .admin-info:hover .admin-avatar { border-color: rgba(255, 255, 255, 0.95); }
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 30px;
+            transition: all 0.3s;
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            transition: all 0.2s;
-            font-family: inherit;
         }
-        .add-btn:hover { background: #236162; transform: translateY(-1px); }
-
-        .table-responsive { overflow-x: auto; }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            border-radius: 8px;
-            overflow: hidden;
+        .logout-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
         }
 
-        th, td {
-            padding: 14px 16px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        th {
-            background: #f5f5f5;
-            color: #333;
-            font-weight: 600;
-            font-size: 14px;
-        }
-
-        tr:hover { background-color: #f5f5f5; }
-
-        .admin-photo-cell img {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid #2c7a7b;
-            background: #f4f7f9;
-            vertical-align: middle;
-        }
-
-        .you-badge {
-            display: inline-block;
-            background: #2c7a7b;
-            color: white;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin-left: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .btn {
+        .menu-toggle {
+            display: none;
+            background: none;
             border: none;
             color: white;
-            padding: 6px 12px;
-            text-align: center;
-            display: inline-block;
-            font-size: 12px;
+            font-size: 28px;
             cursor: pointer;
-            border-radius: 4px;
-            transition: all 0.2s;
-            margin: 2px;
-            font-family: inherit;
+            padding: 5px;
         }
 
-        .btn-view   { background: #2c7a7b; }
-        .btn-edit   { background: #ffc107; color: #333; }
-        .btn-delete { background: #dc3545; }
-
-        .btn:hover { transform: translateY(-1px); opacity: 0.9; }
-
-        .btn:disabled,
-        .btn.disabled {
-            background: #cbd5e1;
-            color: #64748b;
-            cursor: not-allowed;
-            transform: none;
-            opacity: 1;
-        }
-
-        .modal {
-            display: none;
+        /* ═════════════════════════════════════════════════════════
+           LAYOUT
+           ═════════════════════════════════════════════════════════ */
+        .container {
+            display: flex;
             position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
+            top: 70px; left: 0; right: 0; bottom: 0;
+        }
+
+        .sidebar {
+            background-color: #1e293b;
+            width: 250px;
+            padding: 16px 12px;
+            box-sizing: border-box;
+            color: #fff;
+            flex-shrink: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
             height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.6);
-            animation: fadeIn 0.3s;
+            transition: width 0.25s ease, padding 0.25s ease;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to   { opacity: 1; }
+        .sidebar.collapsed {
+            width: 72px;
+            padding: 16px 8px;
         }
 
-        .modal-content {
-            background-color: white;
-            margin: 3% auto;
-            padding: 0;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideDown 0.3s;
+        .sidebar-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px 12px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #f1f5f9;
+            text-decoration: none;
+            white-space: nowrap;
+            overflow: hidden;
+            transition: opacity 0.2s ease;
+        }
+        .sidebar-brand i { color: #2c7a7b; font-size: 18px; flex-shrink: 0; }
+        .sidebar-brand span { transition: opacity 0.2s ease, width 0.2s ease; }
+
+        .sidebar.collapsed .sidebar-brand span {
+            opacity: 0;
+            width: 0;
             overflow: hidden;
         }
 
-        @keyframes slideDown {
-            from { transform: translateY(-50px); opacity: 0; }
-            to   { transform: translateY(0);     opacity: 1; }
+        .sidebar-collapse-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: none;
+            color: #94a3b8;
+            width: 28px; height: 28px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+        .sidebar-collapse-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+        }
+        .sidebar-collapse-btn i { transition: transform 0.25s ease; }
+        .sidebar.collapsed .sidebar-collapse-btn i { transform: rotate(180deg); }
+
+        .sidebar ul { list-style: none; padding: 0; margin: 0; }
+        .sidebar li { margin-bottom: 4px; }
+
+        .sidebar a {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            text-decoration: none;
+            color: #cbd5e1;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            font-size: 13.5px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        .sidebar a i {
+            width: 20px;
+            font-size: 15px;
+            flex-shrink: 0;
+            text-align: center;
+        }
+        .sidebar a span { transition: opacity 0.2s ease; }
+
+        .sidebar.collapsed a {
+            justify-content: center;
+            padding: 10px 0;
+        }
+        .sidebar.collapsed a span {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
         }
 
-        .modal-header {
+        .sidebar a:hover { background-color: #334155; color: white; }
+        .sidebar a.active {
+            background-color: #2c7a7b;
+            color: white;
+            border-left: 3px solid #fff;
+        }
+        .sidebar.collapsed a.active { border-left: none; }
+
+        main {
+            flex-grow: 1;
+            padding: 25px;
+            box-sizing: border-box;
+            background-color: #f4f7f9;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .main-content {
+            background-color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            min-height: 100%;
+        }
+
+        /* ═════════════════════════════════════════════════════════
+           NOTIFICATION BELL
+           ═════════════════════════════════════════════════════════ */
+        .notif-wrap { position: relative; display: inline-flex; }
+
+        .notif-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            width: 42px; height: 42px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.25s ease;
+            position: relative;
+            font-family: inherit;
+        }
+        .notif-btn:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-2px);
+        }
+        .notif-btn.has-new { animation: notifShake 0.6s ease; }
+
+        @keyframes notifShake {
+            0%, 100% { transform: rotate(0deg); }
+            20%      { transform: rotate(-12deg); }
+            40%      { transform: rotate(12deg); }
+            60%      { transform: rotate(-8deg); }
+            80%      { transform: rotate(8deg); }
+        }
+
+        .notif-badge {
+            position: absolute;
+            top: -4px; right: -4px;
+            min-width: 20px;
+            height: 20px;
+            padding: 0 5px;
+            background: #dc2626;
+            color: white;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 700;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #2c7a7b;
+            line-height: 1;
+        }
+        .notif-badge.show { display: inline-flex; }
+
+        .notif-panel {
+            position: absolute;
+            top: calc(100% + 12px);
+            right: 0;
+            width: 340px;
+            max-width: calc(100vw - 40px);
+            background: white;
+            color: #1f2937;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            z-index: 1100;
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .notif-panel.open {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        .notif-panel-header {
             background: #2c7a7b;
             color: white;
-            padding: 20px 25px;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 600;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
-        .modal-header h4 { margin: 0; font-size: 20px; }
-
-        .close {
-            color: white;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.3s;
-            line-height: 20px;
-        }
-        .close:hover { opacity: 0.8; }
-
-        .modal-body {
-            padding: 25px;
-            max-height: 65vh;
-            overflow-y: auto;
-        }
-
-        .form-group { margin-bottom: 15px; }
-
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .form-group input {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: inherit;
-        }
-
-        .form-group input:focus {
-            outline: none;
-            border-color: #2c7a7b;
-        }
-
-        .form-group small {
-            color: #6b7280;
-            font-size: 12px;
-            display: block;
-            margin-top: 4px;
-        }
-
-        .submit-btn {
-            background: #2c7a7b;
-            color: white;
-            padding: 12px 20px;
+        .notif-panel-header .mark-read {
+            background: transparent;
             border: none;
-            border-radius: 6px;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 11px;
             cursor: pointer;
-            width: 100%;
-            font-size: 16px;
             font-family: inherit;
-            transition: background 0.2s;
+            padding: 3px 8px;
+            border-radius: 4px;
+            transition: background 0.15s ease;
         }
-        .submit-btn:hover { background: #236162; }
-
-        .profile-photo {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .profile-photo img {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 4px solid #2c7a7b;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            background: #f4f7f9;
-        }
-
-        .info-section {
-            margin-bottom: 18px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        .info-section:last-child { border-bottom: none; }
-
-        .info-section strong {
-            color: #2c7a7b;
-            display: inline-block;
-            min-width: 140px;
-            font-size: 14px;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #2c7a7b;
-        }
-
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2c7a7b;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-
-        @keyframes spin {
-            0%   { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px;
-            color: #999;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #333;
+        .notif-panel-header .mark-read:hover {
+            background: rgba(255, 255, 255, 0.15);
             color: white;
-            padding: 12px 20px;
+        }
+
+        .notif-panel-body { max-height: 380px; overflow-y: auto; }
+
+        .notif-item {
+            display: flex;
+            gap: 12px;
+            padding: 14px 16px;
+            border-bottom: 1px solid #f3f4f6;
+            text-decoration: none;
+            color: inherit;
+            transition: background 0.15s ease;
+        }
+        .notif-item:last-child { border-bottom: none; }
+        .notif-item:hover { background: #f9fafb; }
+
+        .notif-item-icon {
+            width: 36px; height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            flex-shrink: 0;
+        }
+        .notif-item-icon.registration { background: #fef3c7; color: #92400e; }
+        .notif-item-icon.candidacy    { background: #e6f4f4; color: #2c7a7b; }
+
+        .notif-item-body { flex: 1; min-width: 0; }
+
+        .notif-item-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2px;
+        }
+        .notif-item-desc {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+        }
+
+        .notif-empty {
+            padding: 40px 20px;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 13px;
+        }
+        .notif-empty i {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+            color: #d1d5db;
+        }
+
+        /* ═════════════════════════════════════════════════════════
+           DEBUG PANEL (only shown with ?debug=1)
+           ═════════════════════════════════════════════════════════ */
+        .debug-panel {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #78350f;
+            padding: 12px 16px;
             border-radius: 8px;
-            z-index: 1100;
-            animation: slideIn 0.3s;
+            margin-bottom: 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 12px;
+            line-height: 1.6;
         }
-        .toast.success { background: #28a745; }
-        .toast.error   { background: #dc3545; }
+        .debug-panel strong { color: #92400e; }
 
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to   { transform: translateX(0);    opacity: 1; }
+        /* ═════════════════════════════════════════════════════════
+           MOBILE
+           ═════════════════════════════════════════════════════════ */
+        @media (max-width: 768px) {
+            header { padding: 12px 20px; height: auto; }
+            .header-left h1 { font-size: 1.2rem; }
+            .menu-toggle { display: block; }
+            .header-right { display: none; }
+            .header-right.show {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                margin-top: 15px;
+                border-top: 1px solid rgba(255, 255, 255, 0.2);
+                padding-top: 15px;
+                align-items: stretch;
+            }
+            .admin-info, .logout-btn { width: 100%; justify-content: center; }
+            .notif-wrap { width: 100%; justify-content: center; position: relative; }
+            .notif-btn {
+                width: 100%;
+                height: auto;
+                border-radius: 30px;
+                padding: 10px;
+                justify-content: center;
+                gap: 10px;
+            }
+            .notif-btn::after {
+                content: 'Notifications';
+                font-size: 14px;
+                font-weight: 500;
+            }
+            .notif-panel {
+                position: static;
+                transform: none;
+                opacity: 1;
+                pointer-events: auto;
+                box-shadow: none;
+                margin-top: 10px;
+                width: 100%;
+                max-width: 100%;
+                display: none;
+            }
+            .notif-panel.open { display: block; }
+            .container {
+                top: 0;
+                position: relative;
+                display: flex;
+                flex-direction: column;
+                height: auto;
+                overflow: visible;
+            }
+            .sidebar,
+            .sidebar.collapsed {
+                position: fixed;
+                top: 0;
+                left: -280px;
+                width: 280px !important;
+                height: 100%;
+                z-index: 1200;
+                padding: 20px 12px !important;
+                overflow-y: auto;
+                transition: left 0.3s ease-out;
+            }
+            .sidebar.open { left: 0; }
+            .sidebar.open::after {
+                content: '';
+                position: fixed;
+                top: 0; left: 280px; right: 0; bottom: 0;
+                background: rgba(0, 0, 0, 0.4);
+                z-index: -1;
+            }
+            .sidebar.collapsed .sidebar-brand span,
+            .sidebar.collapsed a span {
+                opacity: 1;
+                width: auto;
+                overflow: visible;
+            }
+            .sidebar.collapsed a {
+                justify-content: flex-start;
+                padding: 10px 12px;
+            }
+            .sidebar-collapse-btn { display: none; }
+            main { padding: 15px; height: auto; overflow: visible; }
+            .main-content { padding: 15px; min-height: auto; }
         }
 
-        @media screen and (max-width: 768px) {
-            .content { padding: 15px; }
-            th, td { padding: 10px 12px; }
-            .btn { padding: 4px 8px; font-size: 10px; }
+        @media (max-width: 480px) {
+            .sidebar a { padding: 10px 12px; font-size: 13px; }
+        }
+
+        /* ═════════════════════════════════════════════════════════
+           DEFENSIVE LAYOUT LOCKS
+           Placed LAST so they win any cascade tie. These use
+           `body >` descendant chains that can only match the
+           admin shell, never a sub-page's own elements.
+           ═════════════════════════════════════════════════════════ */
+
+        /* Outer container — the fixed-position flex wrapper */
+        body > .container {
+            display: flex !important;
+            position: fixed !important;
+            top: 70px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+        }
+
+        /* Sidebar */
+        body > .container > .sidebar {
+            display: flex !important;
+            flex-direction: column !important;
+            width: 250px !important;
+            flex-shrink: 0 !important;
+            background-color: #1e293b !important;
+            padding: 16px 12px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            position: relative !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: 1 !important;
+            margin: 0 !important;
+            height: 100% !important;
+        }
+
+        body > .container > .sidebar.collapsed {
+            width: 72px !important;
+            padding: 16px 8px !important;
+        }
+
+        /* <main> column */
+        body > .container > main {
+            flex-grow: 1 !important;
+            padding: 25px !important;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            height: 100% !important;
+            box-sizing: border-box !important;
+            background-color: #f4f7f9 !important;
+            margin: 0 !important;
+        }
+
+        body > .container > main > .main-content {
+            background-color: #ffffff !important;
+            padding: 25px !important;
+            border-radius: 12px !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
+            min-height: 100% !important;
+            overflow: visible !important;
+        }
+
+        /* ─────────────────────────────────────────────────────
+           Sub-page's own .container wrapper — flatten it.
+           Sub-pages like manage_admins.php define their own
+           `.container { background:white; border-radius:16px;
+           overflow:hidden; box-shadow:… }` designed for
+           standalone pages. Inside <main>, flatten it so it
+           doesn't clip its own children (tables, forms, etc.)
+           ───────────────────────────────────────────────────── */
+        body > .container > main > .main-content > .container {
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+        }
+
+        body > .container > main > .main-content > .container > .content {
+            padding: 0 !important;
+            overflow: visible !important;
+        }
+
+        /* The sub-page's title header ("Manage Admins", etc.) — keep
+           it but strip the padding / rounding that assumed a
+           standalone page */
+        body > .container > main > .main-content > .container > .header,
+        body > .container > main > .main-content > .header {
+            border-radius: 0 !important;
+            background: transparent !important;
+            padding: 10px 0 20px 0 !important;
+            text-align: left !important;
+            margin-bottom: 10px !important;
+        }
+
+        /* Guard against horizontal clipping inside tables */
+        body > .container > main > .main-content > .container table,
+        body > .container > main > .main-content > .container .table-responsive {
+            max-width: 100% !important;
+            margin-left: 0 !important;
+        }
+
+        /* Modals must escape any overflow:hidden */
+        body > .container > main > .main-content > .container .modal {
+            overflow: auto !important;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>Manage Admins</h2>
-        <p>View, add, edit, and delete administrator accounts</p>
-    </div>
+    <header>
+        <div class="header-left">
+            <h1><i class="fas fa-vote-yea"></i>&nbsp; Witty Voting System Admin Panel</h1>
+            <p>Manage your elections and voters</p>
+        </div>
+
+        <button class="menu-toggle" id="menuToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+
+        <div class="header-right" id="headerRight">
+            <div class="notif-wrap" id="notifWrap">
+                <button type="button" class="notif-btn" id="notifBtn" title="Notifications" aria-label="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="notif-badge" id="notifBadge">0</span>
+                </button>
+
+                <div class="notif-panel" id="notifPanel">
+                    <div class="notif-panel-header">
+                        <span>Notifications</span>
+                        <button type="button" class="mark-read" id="notifMarkRead">Mark all read</button>
+                    </div>
+                    <div class="notif-panel-body" id="notifBody">
+                        <div class="notif-empty">
+                            <i class="fas fa-bell-slash"></i>
+                            Loading...
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <a href="main.php?page=profile" class="admin-info" title="Profile Settings">
+                <img src="<?php echo htmlspecialchars($adminPhotoDisplay); ?>"
+                     alt="Admin"
+                     class="admin-avatar">
+                <span>Welcome, <?php echo htmlspecialchars($adminName); ?></span>
+            </a>
+            <a href="logout.php" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </header>
 
     <div class="container">
-        <div class="content">
-            <?php if ($errorMessage): ?>
-                <div class="error-message"><?php echo htmlspecialchars($errorMessage); ?></div>
-            <?php else: ?>
-                <div class="top-bar">
-                    <h3><?php echo $totalAdmins; ?> admin<?php echo $totalAdmins === 1 ? '' : 's'; ?></h3>
-                    <button class="add-btn" onclick="showAddModal()">
-                        <i class="fas fa-plus"></i> Add New Admin
-                    </button>
-                </div>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <a href="main.php?page=home" class="sidebar-brand">
+                    <i class="fas fa-vote-yea"></i>
+                    <span>Admin Panel</span>
+                </a>
+                <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+            </div>
 
-                <?php if (empty($admins)): ?>
-                    <div class="empty-state">
-                        <div style="font-size: 48px;">🛡️</div>
-                        <p>No admins found.</p>
-                    </div>
-                <?php else: ?>
-                    <div class="table-responsive">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Photo</th>
-                                    <th>ID</th>
-                                    <th>Username</th>
-                                    <th>Full Name</th>
-                                    <th>Email</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($admins as $a): ?>
-                                    <?php $isSelf = ($a['id'] == $currentAdminId); ?>
-                                    <tr>
-                                        <td class="admin-photo-cell">
-                                            <img src="<?php echo htmlspecialchars(resolveAdminImageUrl($a['profile_photo'])); ?>"
-                                                 alt="<?php echo htmlspecialchars($a['username']); ?>">
-                                        </td>
-                                        <td><?php echo htmlspecialchars($a['id']); ?></td>
-                                        <td>
-                                            <?php echo htmlspecialchars($a['username']); ?>
-                                            <?php if ($isSelf): ?><span class="you-badge">You</span><?php endif; ?>
-                                        </td>
-                                        <td><?php echo htmlspecialchars($a['full_name'] ?? 'N/A'); ?></td>
-                                        <td><?php echo htmlspecialchars($a['email'] ?? 'N/A'); ?></td>
-                                        <td><?php echo $a['created_on'] ? date('M d, Y', strtotime($a['created_on'])) : 'N/A'; ?></td>
-                                        <td>
-                                            <button class="btn btn-view" onclick="showAdminInfo(<?php echo $a['id']; ?>)">
-                                                <i class="fas fa-eye"></i> View
-                                            </button>
-                                            <button class="btn btn-edit"
-                                                    onclick="editAdmin(
-                                                        <?php echo $a['id']; ?>,
-                                                        <?php echo htmlspecialchars(json_encode($a['username'])); ?>,
-                                                        <?php echo htmlspecialchars(json_encode($a['full_name'] ?? '')); ?>,
-                                                        <?php echo htmlspecialchars(json_encode($a['email'] ?? '')); ?>
-                                                    )">
-                                                <i class="fas fa-edit"></i> Edit
-                                            </button>
-                                            <?php if ($isSelf): ?>
-                                                <button class="btn disabled" disabled title="You cannot delete your own account">
-                                                    <i class="fas fa-lock"></i> Delete
-                                                </button>
-                                            <?php else: ?>
-                                                <button class="btn btn-delete" onclick="deleteAdmin(<?php echo $a['id']; ?>, <?php echo htmlspecialchars(json_encode($a['username'])); ?>)">
-                                                    <i class="fas fa-trash"></i> Delete
-                                                </button>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+            <ul>
+                <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
+                <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> <span>Manage Elections</span></a></li>
+                <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> <span>Manage Posts</span></a></li>
+                <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> <span>Manage Candidates</span></a></li>
+                <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> <span>Manage Voters</span></a></li>
+                <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> <span>Manage All Users</span></a></li>
+                <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> <span>View Results</span></a></li>
+                <li><a href="main.php?page=admins" class="<?php echo $currentPage === 'admins' ? 'active' : ''; ?>"><i class="fas fa-user-shield"></i> <span>Manage Admins</span></a></li>
+                <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> <span>Profile Settings</span></a></li>
+                <li><a href="main.php?page=activity_logs" class="<?php echo $currentPage === 'activity_logs' ? 'active' : ''; ?>"><i class="fas fa-history"></i> <span>Activity Logs</span></a></li>
+            </ul>
+        </aside>
+
+        <main>
+            <div class="main-content">
+                <?php if (isset($_GET['debug']) && $_GET['debug'] == '1'): ?>
+                    <div class="debug-panel">
+                        <strong>DEBUG — main.php sub-page loader</strong><br>
+                        Sub-page: <?php echo htmlspecialchars($subpageFile); ?><br>
+                        Bytes captured: <?php echo (int)$subpageDebug['bytes_captured']; ?><br>
+                        Has &lt;!DOCTYPE&gt;: <?php echo !empty($subpageDebug['has_doctype']) ? 'YES' : 'no'; ?><br>
+                        Has &lt;html&gt;: <?php echo !empty($subpageDebug['has_html_tag']) ? 'YES' : 'no'; ?><br>
+                        Has &lt;head&gt;: <?php echo !empty($subpageDebug['has_head_tag']) ? 'YES' : 'no'; ?><br>
+                        Has &lt;body&gt;: <?php echo !empty($subpageDebug['has_body_tag']) ? 'YES' : 'no'; ?><br>
+                        Extraction mode: <?php echo htmlspecialchars($subpageDebug['extraction_mode'] ?? 'none'); ?><br>
+                        Body content length: <?php echo strlen($subpageBodyHtml); ?> bytes
                     </div>
                 <?php endif; ?>
-            <?php endif; ?>
-        </div>
-    </div>
 
-    <!-- Admin Info Modal -->
-    <div id="adminModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 id="adminModalTitle">Admin Information</h4>
-                <span class="close" onclick="closeAdminModal()">&times;</span>
+                <?php
+                if (!empty($subpageError)) {
+                    echo '<div style="padding:40px;text-align:center;color:#991b1b;">'
+                       . htmlspecialchars($subpageError)
+                       . '</div>';
+                } else {
+                    echo $subpageBodyHtml;
+                }
+                ?>
             </div>
-            <div class="modal-body" id="adminModalBody">
-                <div class="loading">
-                    <div class="spinner"></div>
-                    Loading admin information...
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Admin Modal -->
-    <div id="addModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4>Add New Admin</h4>
-                <span class="close" onclick="closeAddModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="addForm">
-                    <div class="form-group">
-                        <label>Username:</label>
-                        <input type="text" id="add_username" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Full Name:</label>
-                        <input type="text" id="add_fullname" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Email:</label>
-                        <input type="email" id="add_email" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Password:</label>
-                        <input type="password" id="add_password" required minlength="8">
-                        <small>Minimum 8 characters</small>
-                    </div>
-                    <button type="submit" class="submit-btn">Add Admin</button>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Edit Admin Modal -->
-    <div id="editModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4>Edit Admin</h4>
-                <span class="close" onclick="closeEditModal()">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="editForm">
-                    <input type="hidden" id="edit_admin_id">
-                    <div class="form-group">
-                        <label>Username:</label>
-                        <input type="text" id="edit_username" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Full Name:</label>
-                        <input type="text" id="edit_fullname" required>
-                    </div>
-                    <div class="form-group">
-                        <label>Email:</label>
-                        <input type="email" id="edit_email" required>
-                    </div>
-                    <div class="form-group">
-                        <label>New Password (optional):</label>
-                        <input type="password" id="edit_password" minlength="8" placeholder="Leave blank to keep current password">
-                        <small>Only fill this if you want to change the password</small>
-                    </div>
-                    <button type="submit" class="submit-btn">Update Admin</button>
-                </form>
-            </div>
-        </div>
+        </main>
     </div>
 
     <script>
-    /* ───────────────────────────────────────────────────────────
-       View admin
-       ─────────────────────────────────────────────────────────── */
-    async function showAdminInfo(adminId) {
-        const modal      = document.getElementById('adminModal');
-        const modalBody  = document.getElementById('adminModalBody');
-        const modalTitle = document.getElementById('adminModalTitle');
+        // ────────────────────────────────────────────────────────────
+        // Hamburger menu toggle (mobile)
+        // ────────────────────────────────────────────────────────────
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        const headerRight = document.getElementById('headerRight');
 
-        modal.style.display = 'block';
-        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div>Loading admin information...</div>`;
-        modalTitle.textContent = `Admin Information - ID: ${adminId}`;
-
-        try {
-            const response = await fetch('manage_admins.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=get_admin&admin_id=' + adminId
+        if (menuToggle) {
+            menuToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('open');
+                headerRight.classList.toggle('show');
             });
-
-            const data = await response.json();
-
-            if (data.error) {
-                modalBody.innerHTML = `<div class="error-message">${escapeHtml(data.error)}</div>`;
-            } else if (data.success) {
-                modalBody.innerHTML = `
-                    <div class="profile-photo">
-                        <img src="${escapeHtml(data.profile_photo)}" alt="Profile Photo">
-                    </div>
-                    <div class="info-section"><strong><i class="fas fa-user"></i> Username:</strong> ${escapeHtml(data.username)}</div>
-                    <div class="info-section"><strong><i class="fas fa-id-card"></i> Full Name:</strong> ${escapeHtml(data.fullname)}</div>
-                    <div class="info-section"><strong><i class="fas fa-envelope"></i> Email:</strong> ${escapeHtml(data.email || 'N/A')}</div>
-                    <div class="info-section"><strong><i class="fas fa-calendar-plus"></i> Created:</strong> ${escapeHtml(data.created_on || 'N/A')}</div>
-                `;
-            }
-        } catch (error) {
-            modalBody.innerHTML = `<div class="error-message">Failed to load admin information.</div>`;
         }
-    }
 
-    /* ───────────────────────────────────────────────────────────
-       Add admin
-       ─────────────────────────────────────────────────────────── */
-    function showAddModal() {
-        document.getElementById('addForm').reset();
-        document.getElementById('addModal').style.display = 'block';
-    }
-    function closeAddModal() {
-        document.getElementById('addModal').style.display = 'none';
-    }
-
-    document.getElementById('addForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const body = new URLSearchParams({
-            action:   'add_admin',
-            username: document.getElementById('add_username').value,
-            fullname: document.getElementById('add_fullname').value,
-            email:    document.getElementById('add_email').value,
-            password: document.getElementById('add_password').value
+        document.addEventListener('click', function(event) {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && sidebar && menuToggle) {
+                if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+                    sidebar.classList.remove('open');
+                    headerRight.classList.remove('show');
+                }
+            }
         });
 
-        try {
-            const res  = await fetch('manage_admins.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body.toString()
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                showToast('Admin added successfully', 'success');
-                closeAddModal();
-                setTimeout(() => location.reload(), 1200);
-            } else {
-                showToast(data.message || 'Error adding admin', 'error');
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                sidebar.classList.remove('open');
+                headerRight.classList.remove('show');
             }
-        } catch (err) {
-            showToast('Network error', 'error');
-        }
-    });
-
-    /* ───────────────────────────────────────────────────────────
-       Edit admin
-       ─────────────────────────────────────────────────────────── */
-    function editAdmin(id, username, fullname, email) {
-        document.getElementById('edit_admin_id').value = id;
-        document.getElementById('edit_username').value = username;
-        document.getElementById('edit_fullname').value = fullname;
-        document.getElementById('edit_email').value    = email;
-        document.getElementById('edit_password').value = '';
-        document.getElementById('editModal').style.display = 'block';
-    }
-    function closeEditModal() {
-        document.getElementById('editModal').style.display = 'none';
-    }
-
-    document.getElementById('editForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const body = new URLSearchParams({
-            action:   'update_admin',
-            admin_id: document.getElementById('edit_admin_id').value,
-            username: document.getElementById('edit_username').value,
-            fullname: document.getElementById('edit_fullname').value,
-            email:    document.getElementById('edit_email').value,
-            password: document.getElementById('edit_password').value
         });
 
-        try {
-            const res  = await fetch('manage_admins.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body.toString()
+        // ────────────────────────────────────────────────────────────
+        // Sidebar collapse toggle (desktop)
+        // ────────────────────────────────────────────────────────────
+        (function() {
+            const collapseBtn = document.getElementById('sidebarCollapseBtn');
+            if (!collapseBtn || !sidebar) return;
+
+            const STORAGE_KEY = 'admin_sidebar_collapsed';
+
+            try {
+                if (localStorage.getItem(STORAGE_KEY) === '1') {
+                    sidebar.classList.add('collapsed');
+                }
+            } catch (e) { /* localStorage unavailable */ }
+
+            collapseBtn.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                const isCollapsed = sidebar.classList.contains('collapsed');
+                try {
+                    localStorage.setItem(STORAGE_KEY, isCollapsed ? '1' : '0');
+                } catch (e) { /* ignore */ }
             });
-            const data = await res.json();
+        })();
 
-            if (data.success) {
-                showToast('Admin updated successfully', 'success');
-                closeEditModal();
-                setTimeout(() => location.reload(), 1200);
-            } else {
-                showToast(data.message || 'Error updating admin', 'error');
+        // ────────────────────────────────────────────────────────────
+        // Live notification bell
+        // ────────────────────────────────────────────────────────────
+        (function() {
+            const POLL_INTERVAL_MS = 15000;
+            const API_URL = 'api/api_admin_notifications.php';
+
+            const btn = document.getElementById('notifBtn');
+            const badge = document.getElementById('notifBadge');
+            const panel = document.getElementById('notifPanel');
+            const body = document.getElementById('notifBody');
+
+            if (!btn || !badge || !panel || !body) return;
+
+            let lastTotal = -1;
+            let lastSeenTotal = 0;
+
+            try {
+                lastSeenTotal = parseInt(localStorage.getItem('notif_seen_total') || '0', 10) || 0;
+            } catch (e) {
+                lastSeenTotal = 0;
             }
-        } catch (err) {
-            showToast('Network error', 'error');
-        }
-    });
 
-    /* ───────────────────────────────────────────────────────────
-       Delete admin
-       ─────────────────────────────────────────────────────────── */
-    function deleteAdmin(adminId, username) {
-        if (!confirm(`Are you sure you want to delete the admin "${username}"?\n\nThis action cannot be undone.`)) return;
-
-        const body = new URLSearchParams({
-            action:   'delete_admin',
-            admin_id: adminId
-        });
-
-        fetch('manage_admins.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                showToast('Admin deleted successfully', 'success');
-                setTimeout(() => location.reload(), 1200);
-            } else {
-                showToast(data.message || 'Error deleting admin', 'error');
+            function renderBadge(total) {
+                const unread = Math.max(0, total - lastSeenTotal);
+                if (unread > 0) {
+                    badge.textContent = unread > 99 ? '99+' : String(unread);
+                    badge.classList.add('show');
+                } else {
+                    badge.textContent = '0';
+                    badge.classList.remove('show');
+                }
             }
-        })
-        .catch(() => showToast('Network error', 'error'));
-    }
 
-    /* ───────────────────────────────────────────────────────────
-       Helpers
-       ─────────────────────────────────────────────────────────── */
-    function closeAdminModal() {
-        document.getElementById('adminModal').style.display = 'none';
-    }
+            function renderPanel(data) {
+                const items = [];
 
-    function showToast(message, type) {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type || ''}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
-    }
+                if (data.pending_voter_registrations > 0) {
+                    const n = data.pending_voter_registrations;
+                    items.push(`
+                        <a href="main.php?page=voters&status=pending" class="notif-item">
+                            <div class="notif-item-icon registration">
+                                <i class="fas fa-user-check"></i>
+                            </div>
+                            <div class="notif-item-body">
+                                <div class="notif-item-title">Voter Registration Requests</div>
+                                <div class="notif-item-desc">
+                                    ${n} request${n === 1 ? '' : 's'} awaiting your review.
+                                </div>
+                            </div>
+                        </a>
+                    `);
+                }
 
-    function escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        const div = document.createElement('div');
-        div.appendChild(document.createTextNode(String(text)));
-        return div.innerHTML;
-    }
+                if (data.pending_candidates > 0) {
+                    const n = data.pending_candidates;
+                    items.push(`
+                        <a href="main.php?page=candidates" class="notif-item">
+                            <div class="notif-item-icon candidacy">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div class="notif-item-body">
+                                <div class="notif-item-title">Candidate Applications</div>
+                                <div class="notif-item-desc">
+                                    ${n} new candidate application${n === 1 ? '' : 's'} to review.
+                                </div>
+                            </div>
+                        </a>
+                    `);
+                }
 
-    // Close modal when clicking the dark overlay
-    window.addEventListener('click', function(event) {
-        if (event.target.classList && event.target.classList.contains('modal')) {
-            event.target.style.display = 'none';
-        }
-    });
+                if (items.length === 0) {
+                    body.innerHTML = `
+                        <div class="notif-empty">
+                            <i class="fas fa-check-circle"></i>
+                            You're all caught up.
+                        </div>
+                    `;
+                } else {
+                    body.innerHTML = items.join('');
+                }
+            }
 
-    // Close modals on Escape
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
-        }
-    });
+            async function pollOnce() {
+                try {
+                    const res = await fetch(API_URL, {
+                        credentials: 'same-origin',
+                        cache: 'no-store'
+                    });
+                    if (!res.ok) return;
+
+                    const data = await res.json();
+                    if (!data.ok) return;
+
+                    renderBadge(data.total);
+                    renderPanel(data);
+
+                    if (lastTotal >= 0 && data.total > lastTotal) {
+                        btn.classList.add('has-new');
+                        setTimeout(() => btn.classList.remove('has-new'), 700);
+                    }
+                    lastTotal = data.total;
+
+                } catch (err) { /* silent */ }
+            }
+
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const willOpen = !panel.classList.contains('open');
+                panel.classList.toggle('open', willOpen);
+
+                if (willOpen) {
+                    pollOnce();
+                }
+            });
+
+            document.getElementById('notifMarkRead')?.addEventListener('click', function(e) {
+                e.stopPropagation();
+                lastSeenTotal = lastTotal >= 0 ? lastTotal : 0;
+                try { localStorage.setItem('notif_seen_total', String(lastSeenTotal)); } catch (err) {}
+                renderBadge(lastSeenTotal);
+                panel.classList.remove('open');
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!panel.classList.contains('open')) return;
+                if (!panel.contains(e.target) && !btn.contains(e.target)) {
+                    panel.classList.remove('open');
+                }
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') panel.classList.remove('open');
+            });
+
+            pollOnce();
+            setInterval(pollOnce, POLL_INTERVAL_MS);
+
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'visible') pollOnce();
+            });
+        })();
     </script>
+    <?php if (ob_get_level()) { ob_end_flush(); } ?>
 </body>
 </html>
