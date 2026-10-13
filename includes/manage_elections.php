@@ -424,23 +424,27 @@ if (isset($_GET['edit_id'])) {
     </div>
 
     <script>
-
-    // Helper: POST with CSRF header always attached
-    async function apiFetch(url, params) {
-        return fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'X-CSRF-Token': CSRF_TOKEN
-            },
-            body: params.toString()
-        });
-    }
-
+    // ────────────────────────────────────────────────────────────
+    // Config
+    // ────────────────────────────────────────────────────────────
     let currentElectionId = null;
     const ajaxUrl = 'manage_elections.php';
     const mainPageUrl = 'main.php?page=elections';
 
+    // ────────────────────────────────────────────────────────────
+    // Simple POST helper
+    // ────────────────────────────────────────────────────────────
+    async function apiFetch(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+        });
+    }
+
+    // ────────────────────────────────────────────────────────────
+    // Posts modal
+    // ────────────────────────────────────────────────────────────
     function managePosts(electionId, electionTitle) {
         currentElectionId = electionId;
         document.getElementById('postsModalTitle').innerHTML = `Manage Posts - ${electionTitle}`;
@@ -463,7 +467,6 @@ if (isset($_GET['edit_id'])) {
             const formData = new URLSearchParams();
             formData.append('ajax_action', 'get_posts');
             formData.append('election_id', currentElectionId);
-            // csrf_token is sent via the X-CSRF-Token header by apiFetch()
 
             const response = await apiFetch(ajaxUrl, formData);
             const data = await response.json();
@@ -542,18 +545,14 @@ if (isset($_GET['edit_id'])) {
         }
     }
 
+    // ────────────────────────────────────────────────────────────
+    // Delete election
+    // ────────────────────────────────────────────────────────────
     function deleteElection(electionId) {
-        if (confirm(' Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
+        if (confirm('Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = mainPageUrl;
-
-            // Include CSRF as a hidden input for the regular (non-AJAX) form submit
-            const csrfInput = document.createElement('input');
-            csrfInput.type  = 'hidden';
-            csrfInput.name  = 'csrf_token';
-            csrfInput.value = CSRF_TOKEN;
-            form.appendChild(csrfInput);
 
             const delInput = document.createElement('input');
             delInput.type  = 'hidden';
@@ -572,6 +571,9 @@ if (isset($_GET['edit_id'])) {
         }
     }
 
+    // ────────────────────────────────────────────────────────────
+    // Helpers
+    // ────────────────────────────────────────────────────────────
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
