@@ -185,7 +185,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                                     <tr id="post-<?php echo $post['id']; ?>">
                                         <td><?php echo htmlspecialchars($post['postname']); ?></td>
                                         <td>
-                                            <span class="delete-btn" data-id="<?php echo $post['id']; ?>">🗑️ Delete</span>
+                                            <span class="delete-btn" data-id="<?php echo $post['id']; ?>">Delete</span>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -194,7 +194,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     </table>
                     <form class="add-post-form" data-election="<?php echo $election['id']; ?>">
                         <input type="text" name="postname" placeholder="Enter new post name (e.g., President, Secretary, Treasurer)" required>
-                        <button type="submit">+ Add Post</button>
+                        <button type="submit">Add Post</button>
                     </form>
                 </div>
             <?php endforeach; ?>
@@ -210,7 +210,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
             let postId = $(this).data("id");
             let $row = $("#post-" + postId);
             
-            $.post("admin_manage_posts.php", { action: "delete_post", delete_id: postId }, function(response) {
+            $.post("manage_posts.php", { action: "delete_post", delete_id: postId }, function(response) {
                 if (response.status === "success") {
                     $row.fadeOut(400, function() { 
                         $(this).remove();
@@ -229,16 +229,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                         }
                     });
                 } else {
-                    alert("❌ Error: " + (response.message || "Unknown error occurred"));
+                    alert("Error: " + (response.message || "Unknown error occurred"));
                 }
             }, "json").fail(function(xhr) {
-                alert("❌ Request failed: " + xhr.responseText);
+                alert("Request failed: " + xhr.responseText);
             });
         });
 
         // Add Post
         $(".add-post-form").on("submit", function(e) {
-            e.preventDefault(); // Prevent default form submission
+            e.preventDefault(); 
             
             let electionId = $(this).data("election");
             let postNameInput = $(this).find("input[name='postname']");
@@ -253,7 +253,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
             let submitBtn = $(this).find("button[type='submit']");
             submitBtn.prop("disabled", true).text("Adding...");
             
-            $.post("admin_manage_posts.php", { 
+            $.post("manage_posts.php", { 
                 action: "add_post", 
                 election_id: electionId, 
                 postname: postName 
@@ -261,7 +261,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                 if (response.status === "success") {
                     let newRow = `<tr id="post-${response.id}">
                                     <td>${response.postname}</td>
-                                    <td><span class="delete-btn" data-id="${response.id}">🗑️ Delete</span></td>
+                                    <td><span class="delete-btn" data-id="${response.id}"> Delete</span></td>
                                   </tr>`;
                     
                     let tbody = $("#post-list-" + electionId);
@@ -276,15 +276,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action'])) {
                     postNameInput.val("");
                     
                     // Show success message briefly
-                    let successMsg = $('<div style="color: green; font-size: 12px; margin-top: 5px;">✓ Post added successfully!</div>');
+                    let successMsg = $('<div style="color: green; font-size: 12px; margin-top: 5px;">Post added successfully!</div>');
                     $(this).append(successMsg);
                     setTimeout(function() { successMsg.fadeOut(300, function() { $(this).remove(); }); }, 2000);
                     
                 } else {
-                    alert("❌ Error: " + (response.message || "Failed to add post"));
+                    alert("Error: " + (response.message || "Failed to add post"));
                 }
             }, "json").fail(function(xhr) {
-                alert("❌ Request failed: " + xhr.responseText);
+                alert("Request failed: " + xhr.responseText);
             }).always(function() {
                 // Re-enable submit button
                 submitBtn.prop("disabled", false).text("+ Add Post");
