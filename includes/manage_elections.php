@@ -4,19 +4,20 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 require_once __DIR__ . '/conn.php';
 
-// Admin Authentication
 if (!isset($_SESSION['admin_id'])) {
     header("Location: admin_login.php");
     exit();
 }
 
-// Handle AJAX requests for posts - MUST be at the top
+// ─────────────────────────────────────────────────────────────
+// AJAX: manage posts for an election
+// ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
     header('Content-Type: application/json');
 
     if ($_POST['ajax_action'] == 'add_post') {
         $electionId = intval($_POST['election_id']);
-        $postName = trim($_POST['postname']);
+        $postName   = trim($_POST['postname']);
 
         if (empty($postName)) {
             echo json_encode(['success' => false, 'message' => 'Post name cannot be empty']);
@@ -35,7 +36,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
             $stmt->execute([$electionId, $postName]);
             $newId = $conn->lastInsertId();
 
-            echo json_encode(['success' => true, 'message' => 'Post added successfully', 'id' => $newId, 'postname' => $postName]);
+            echo json_encode([
+                'success'  => true,
+                'message'  => 'Post added successfully',
+                'id'       => $newId,
+                'postname' => $postName
+            ]);
         } catch (PDOException $e) {
             echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]);
         }
@@ -46,7 +52,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
         $postId = intval($_POST['post_id']);
 
         try {
-            $checkStmt = $conn->prepare("SELECT id FROM contesters WHERE postname = (SELECT postname FROM election_posts WHERE id = ?) AND election_id = (SELECT election_id FROM election_posts WHERE id = ?)");
+            $checkStmt = $conn->prepare("
+                SELECT id FROM contesters
+                WHERE postname = (SELECT postname FROM election_posts WHERE id = ?)
+                  AND election_id = (SELECT election_id FROM election_posts WHERE id = ?)
+            ");
             $checkStmt->execute([$postId, $postId]);
             if ($checkStmt->rowCount() > 0) {
                 echo json_encode(['success' => false, 'message' => 'Cannot delete post with existing candidates']);
@@ -79,7 +89,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Handle Edit Election
+// ─────────────────────────────────────────────────────────────
 if (isset($_POST['edit_election'])) {
     $electionId  = intval($_POST['election_id']);
     $title       = trim($_POST['title']);
@@ -103,7 +115,9 @@ if (isset($_POST['edit_election'])) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Handle Delete Election
+// ─────────────────────────────────────────────────────────────
 if (isset($_POST['delete_election'])) {
     $electionId = intval($_POST['election_id']);
 
@@ -133,7 +147,9 @@ if (isset($_POST['delete_election'])) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Handle election status updates
+// ─────────────────────────────────────────────────────────────
 if (isset($_POST['update_election_status'])) {
     $electionId = $_POST['election_id'];
     $status     = $_POST['status'];
@@ -147,7 +163,9 @@ if (isset($_POST['update_election_status'])) {
     }
 }
 
+// ─────────────────────────────────────────────────────────────
 // Add Election
+// ─────────────────────────────────────────────────────────────
 if (isset($_POST['add_election'])) {
     $title       = trim($_POST['title']);
     $description = trim($_POST['description'] ?? '');
@@ -174,7 +192,9 @@ if (isset($_POST['add_election'])) {
     }
 }
 
-// Get elections
+// ─────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────
 function getElections($conn) {
     try {
         $result = $conn->query("SELECT * FROM elections ORDER BY id DESC");
@@ -215,7 +235,6 @@ function getRegisteredVoterCountForElection($conn, $electionId) {
 
 $elections = getElections($conn);
 
-// Get selected election for editing
 $editElection = null;
 if (isset($_GET['edit_id'])) {
     $editId = intval($_GET['edit_id']);
@@ -245,6 +264,35 @@ if (isset($_GET['edit_id'])) {
         th { background-color: #f2f2f2; font-weight: bold; }
         tr:hover { background-color: #f5f5f5; }
 
+        /* ─────────────────────────────────────────────
+           Status dropdown 
+           ───────────────────────────────────────────── */
+        select.status-select {
+            padding: 6px 8px;
+            margin-right: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            color: #1f2937;            
+            background-color: #ffffff;
+            -webkit-text-fill-color: #1f2937;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        select.status-select option {
+            color: #1f2937;
+            background-color: #ffffff;
+        }
+
+        select.status-select:focus {
+            outline: none;
+            border-color: #2c7a7b;
+            box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
+        }
+
+        /* Form container */
         .election-form-container {
             width: 80%; max-width: 600px; margin: 20px auto;
             background-color: #fff; padding: 20px;
@@ -259,6 +307,8 @@ if (isset($_GET['edit_id'])) {
         .election-form-container select {
             flex: 1 1 100%; padding: 10px; border: 1px solid #ccc;
             border-radius: 4px; box-sizing: border-box; font-size: 16px;
+            color: #1f2937; background-color: #ffffff;
+            -webkit-text-fill-color: #1f2937;
         }
         .election-form-container textarea { resize: vertical; font-family: inherit; }
 
@@ -266,17 +316,28 @@ if (isset($_GET['edit_id'])) {
             flex: 1 1 100%; background-color: #3498db; color: white;
             padding: 12px 20px; border: none; border-radius: 4px;
             cursor: pointer; font-size: 16px; transition: background-color 0.3s ease;
+            font-family: inherit;
         }
         .election-form-container button[type="submit"]:hover { background-color: #2980b9; }
 
+        /* Buttons */
         .btn { display: inline-block; padding: 5px 10px; margin: 2px;
                border: none; border-radius: 4px; cursor: pointer;
-               font-size: 12px; text-decoration: none; }
+               font-size: 12px; text-decoration: none; font-family: inherit; }
         .btn-edit    { background-color: #ffc107; color: #333; }
         .btn-delete  { background-color: #dc3545; color: white; }
         .btn-posts   { background-color: #17a2b8; color: white; }
-        .btn-sm      { padding: 3px 8px; font-size: 11px; }
+        .btn-sm      { padding: 4px 8px; font-size: 11px; }
 
+        td form button {
+            background-color: #4CAF50; color: white; border: none;
+            border-radius: 4px; cursor: pointer; padding: 6px 12px;
+            font-size: 12px; font-family: inherit;
+            vertical-align: middle;
+        }
+        td form button:hover { background-color: #45a049; }
+
+        /* Modal */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0;
                  width: 100%; height: 100%; overflow: auto;
                  background-color: rgba(0, 0, 0, 0.6); }
@@ -296,18 +357,19 @@ if (isset($_GET['edit_id'])) {
         .post-item:hover { background-color: #f5f5f5; }
         .delete-post { color: #dc3545; cursor: pointer; }
         .add-post-form { display: flex; gap: 10px; margin-top: 15px; }
-        .add-post-form input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        .add-post-form input { flex: 1; padding: 8px; border: 1px solid #ddd;
+                               border-radius: 4px; color: #1f2937;
+                               background-color: #ffffff;
+                               -webkit-text-fill-color: #1f2937; }
         .add-post-form button { padding: 8px 15px; background-color: #28a745; color: white;
-                                border: none; border-radius: 4px; cursor: pointer; }
-
-        td form button { background-color: #4CAF50; color: white; border: none;
-                         border-radius: 4px; cursor: pointer; }
-        td form button:hover { background-color: #45a049; }
+                                border: none; border-radius: 4px; cursor: pointer;
+                                font-family: inherit; }
 
         @media (max-width: 768px) {
             .election-form-container { width: 95%; }
             table { font-size: 12px; }
             th, td { padding: 5px; }
+            select.status-select { font-size: 11px; padding: 4px 6px; }
         }
     </style>
 </head>
@@ -327,18 +389,27 @@ if (isset($_GET['edit_id'])) {
                 <input type="hidden" name="election_id" value="<?php echo $editElection['id']; ?>">
             <?php endif; ?>
 
-            <input type="text" name="title" placeholder="Election Title" required value="<?php echo $editElection ? htmlspecialchars($editElection['title']) : ''; ?>">
+            <input type="text" name="title" placeholder="Election Title" required
+                   value="<?php echo $editElection ? htmlspecialchars($editElection['title']) : ''; ?>">
+
             <textarea name="description" placeholder="Election Description" rows="3"><?php echo $editElection ? htmlspecialchars($editElection['description'] ?? '') : ''; ?></textarea>
-            <input type="datetime-local" name="start_date" required value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['start_date'])) : ''; ?>">
-            <input type="datetime-local" name="end_date" required value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['end_date'])) : ''; ?>">
+
+            <input type="datetime-local" name="start_date" required
+                   value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['start_date'])) : ''; ?>">
+
+            <input type="datetime-local" name="end_date" required
+                   value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['end_date'])) : ''; ?>">
+
             <select name="status" required>
                 <option value="upcoming"  <?php echo $editElection && $editElection['status'] == 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
                 <option value="active"    <?php echo $editElection && $editElection['status'] == 'active'    ? 'selected' : ''; ?>>Active</option>
                 <option value="completed" <?php echo $editElection && $editElection['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
             </select>
+
             <button type="submit" name="<?php echo $editElection ? 'edit_election' : 'add_election'; ?>">
                 <?php echo $editElection ? 'Update Election' : 'Add Election'; ?>
             </button>
+
             <?php if ($editElection): ?>
                 <a href="main.php?page=elections" style="text-align: center; display: block; margin-top: 10px; color: #666;">Cancel Edit</a>
             <?php endif; ?>
@@ -384,7 +455,7 @@ if (isset($_GET['edit_id'])) {
                             <td>
                                 <form method="post" action="main.php?page=elections" style="display: inline-block; margin: 0;">
                                     <input type="hidden" name="election_id" value="<?php echo $election['id']; ?>">
-                                    <select name="status" style="padding: 5px; margin-right: 5px;">
+                                    <select name="status" class="status-select">
                                         <option value="upcoming"  <?php echo $election['status'] == 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
                                         <option value="active"    <?php echo $election['status'] == 'active'    ? 'selected' : ''; ?>>Active</option>
                                         <option value="completed" <?php echo $election['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
@@ -424,16 +495,13 @@ if (isset($_GET['edit_id'])) {
     </div>
 
     <script>
-    // ────────────────────────────────────────────────────────────
-    // Config
-    // ────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // No CSRF — matches the rest of the project
+    // ─────────────────────────────────────────────────────────────
     let currentElectionId = null;
-    const ajaxUrl = 'manage_elections.php';
+    const ajaxUrl     = 'manage_elections.php';
     const mainPageUrl = 'main.php?page=elections';
 
-    // ────────────────────────────────────────────────────────────
-    // Simple POST helper
-    // ────────────────────────────────────────────────────────────
     async function apiFetch(url, params) {
         return fetch(url, {
             method: 'POST',
@@ -442,12 +510,9 @@ if (isset($_GET['edit_id'])) {
         });
     }
 
-    // ────────────────────────────────────────────────────────────
-    // Posts modal
-    // ────────────────────────────────────────────────────────────
     function managePosts(electionId, electionTitle) {
         currentElectionId = electionId;
-        document.getElementById('postsModalTitle').innerHTML = `Manage Posts - ${electionTitle}`;
+        document.getElementById('postsModalTitle').innerHTML = 'Manage Posts - ' + electionTitle;
         document.getElementById('postsModal').style.display = 'block';
         loadPosts();
     }
@@ -476,7 +541,7 @@ if (isset($_GET['edit_id'])) {
                 data.posts.forEach(post => {
                     html += `
                         <div class="post-item">
-                            <span> ${escapeHtml(post.postname)}</span>
+                            <span>${escapeHtml(post.postname)}</span>
                             <span class="delete-post" onclick="deletePost(${post.id})">🗑️ Delete</span>
                         </div>
                     `;
@@ -545,9 +610,6 @@ if (isset($_GET['edit_id'])) {
         }
     }
 
-    // ────────────────────────────────────────────────────────────
-    // Delete election
-    // ────────────────────────────────────────────────────────────
     function deleteElection(electionId) {
         if (confirm('Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
             const form = document.createElement('form');
@@ -571,9 +633,6 @@ if (isset($_GET['edit_id'])) {
         }
     }
 
-    // ────────────────────────────────────────────────────────────
-    // Helpers
-    // ────────────────────────────────────────────────────────────
     function escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
