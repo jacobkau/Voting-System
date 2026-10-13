@@ -31,13 +31,11 @@ try {
     $electionsStmt->execute();
     $allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-    // Attach derived status
     foreach ($allElections as &$e) {
         $e['live_status'] = effectiveElectionStatus($e);
     }
     unset($e);
 
-    // Sort: active first, then upcoming, then completed
     usort($allElections, function ($a, $b) {
         $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
         $oa = $order[$a['live_status']] ?? 4;
@@ -53,9 +51,6 @@ try {
     $elections = [];
 }
 
-/**
- * Live avatar lookup — same pattern used across the app.
- */
 function getContesterImage($contester, $conn) {
     if (!empty($contester['user_id'])) {
         try {
@@ -341,7 +336,6 @@ function getContesterImage($contester, $conn) {
 
     body.dark-theme .no-data i { color: #4b5563; }
 
-    /* Modal */
     .contest-modal {
         display: none;
         position: fixed;
@@ -359,10 +353,7 @@ function getContesterImage($contester, $conn) {
         justify-content: center;
     }
 
-    @keyframes fadeIn {
-        from { opacity: 0; }
-        to   { opacity: 1; }
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
     .contest-modal-content {
         background: #ffffff;
