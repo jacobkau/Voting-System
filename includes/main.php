@@ -653,7 +653,6 @@ $currentPage = $page;
                 <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> Manage Candidates</a></li>
                 <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> Manage Elections</a></li>
                 <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> Manage Posts</a></li>
-                <li><a href="main.php?page=settings" class="<?php echo $currentPage === 'settings' ? 'active' : ''; ?>"><i class="fas fa-cogs"></i> Voting Settings</a></li>
                 <li><a href="main.php?page=results" class="<?php echo $currentPage === 'results' ? 'active' : ''; ?>"><i class="fas fa-chart-bar"></i> View Results</a></li>
                 <li><a href="main.php?page=profile" class="<?php echo $currentPage === 'profile' ? 'active' : ''; ?>"><i class="fas fa-user-cog"></i> Profile Settings</a></li>
             </ul>
@@ -680,9 +679,6 @@ $currentPage = $page;
                         break;
                     case 'posts':
                         include("admin_manage_posts.php");
-                        break;
-                    case 'settings':
-                        include("voting_settings.php");
                         break;
                     case 'results':
                         include("view_results.php");
