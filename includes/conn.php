@@ -1,15 +1,11 @@
 <?php
-// =====================================================================
-// conn.php — database, session, HTTPS enforcement
-// =====================================================================
-
 if (defined('CONN_LOADED')) {
     return;
 }
 define('CONN_LOADED', true);
 
 // =====================================================================
-// PROXY DETECTION 
+// PROXY DETECTION
 // =====================================================================
 if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
     && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
@@ -17,13 +13,13 @@ if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
 }
 
 // =====================================================================
-// SESSION SAVE PATH 
+// SESSION SAVE PATH
 // =====================================================================
 $sessCandidates = [
     session_save_path(),
-    sys_get_temp_dir(),                
+    sys_get_temp_dir(),        
     '/tmp',
-    __DIR__ . '/../tmp_sessions',       
+    __DIR__ . '/../tmp_sessions', 
 ];
 
 $chosenSessionPath = null;
@@ -65,7 +61,7 @@ session_set_cookie_params([
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-$conn->exec("SET time_zone = '+03:00'");  
+
 // =====================================================================
 // HTTPS ENFORCEMENT
 // =====================================================================
@@ -96,7 +92,6 @@ if (php_sapi_name() !== 'cli'
 
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
 }
-
 
 // =====================================================================
 // DATABASE CONNECTION
@@ -153,12 +148,23 @@ try {
     conn_fail("DB connection failed: " . $e->getMessage());
 }
 
-/* =====================================================================
-   Election status helper — derives effective status from dates
-   ===================================================================== */
+// =====================================================================
+// TIMEZONE — Kenya / East Africa Time (UTC+3)
+// =====================================================================
+try {
+    $conn->exec("SET time_zone = '+03:00'");
+} catch (PDOException $e) {
+    error_log("Could not set MySQL session timezone: " . $e->getMessage());
+}
 
+if (!ini_get('date.timezone')) {
+    date_default_timezone_set('Africa/Nairobi');
+}
+
+// =====================================================================
+// Election status helper — derives effective status from dates
+// =====================================================================
 if (!function_exists('effectiveElectionStatus')) {
-
     function effectiveElectionStatus(array $e): string {
         // 1. Manual override in force?
         if (!empty($e['manual_status'])) {
@@ -185,8 +191,9 @@ if (!function_exists('effectiveElectionStatus')) {
             return 'active';
         }
 
-        // Fallback
+        // Fallback — bad or missing data
         return $e['status'] ?? 'upcoming';
     }
 }
-?>
+
+ ?>
