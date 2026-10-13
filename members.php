@@ -1,12 +1,12 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+
+$isLocal = in_array($_SERVER['HTTP_HOST'] ?? '', ['localhost', '127.0.0.1', '::1']);
+ini_set('display_errors', $isLocal ? '1' : '0');
+ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
-// Cloudinary helpers (defaultAvatarUrl)
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -14,16 +14,45 @@ if (empty($_SESSION["username"])) {
     exit();
 }
 
-// Fetch users — Cloudinary profile_photo only
-$sql = "SELECT id, username, name as full_name, email, profile_photo, date as created_at FROM users ORDER BY id";
+// ────────────────────────────────────────────────────────────
+// Fetch users
+// ────────────────────────────────────────────────────────────
+$sql = "SELECT id, username, name AS full_name, email, profile_photo, date AS created_at
+        FROM users
+        ORDER BY id";
 $stmt = $conn->prepare($sql);
 $stmt->execute();
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-/**
- * Resolve a displayable avatar URL for a user.
- * Prefers Cloudinary URL in users.profile_photo, otherwise system default.
- */
+// ────────────────────────────────────────────────────────────
+// Fetch ALL user-election registrations in one query (avoids N+1)
+// Include the election date/override columns so we can derive status
+// ────────────────────────────────────────────────────────────
+$userElections = [];
+try {
+    $ueStmt = $conn->prepare("
+        SELECT ue.user_id,
+               e.id    AS election_id,
+               e.title,
+               e.status,
+               e.start_date,
+               e.end_date,
+               e.manual_status,
+               e.manual_until
+        FROM user_elections ue
+        JOIN elections e ON e.id = ue.election_id
+        ORDER BY e.start_date DESC
+    ");
+    $ueStmt->execute();
+    foreach ($ueStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $row['live_status'] = effectiveElectionStatus($row);
+        $userElections[$row['user_id']][] = $row;
+    }
+} catch (PDOException $e) {
+    error_log("Error fetching user elections: " . $e->getMessage());
+    $userElections = [];
+}
+
 function getUserAvatar($user) {
     if (!empty($user['profile_photo']) && preg_match('#^https?://#i', $user['profile_photo'])) {
         return $user['profile_photo'];
@@ -123,14 +152,37 @@ function getUserAvatar($user) {
     .election-list {
         margin: 0;
         padding-left: 20px;
+        list-style: none;
     }
 
     .election-list li {
         margin: 5px 0;
         color: #374151;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
     body.dark-theme .election-list li { color: #cbd5e1; }
+
+    .mini-status {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 7px;
+        border-radius: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    .mini-status.status-active    { background: #d1fae5; color: #065f46; }
+    .mini-status.status-upcoming  { background: #fef3c7; color: #92400e; }
+    .mini-status.status-completed { background: #e5e7eb; color: #374151; }
+
+    body.dark-theme .mini-status.status-active    { background: #064e3b; color: #a7f3d0; }
+    body.dark-theme .mini-status.status-upcoming  { background: #78350f; color: #fde68a; }
+    body.dark-theme .mini-status.status-completed { background: #374151; color: #e5e7eb; }
 
     .no-data {
         text-align: center;
@@ -203,23 +255,20 @@ function getUserAvatar($user) {
                         </td>
                         <td data-label="Registered Elections">
                             <?php
-                            try {
-                                $electionsStmt = $conn->prepare("SELECT e.title FROM elections e JOIN user_elections ue ON e.id = ue.election_id WHERE ue.user_id = ?");
-                                $electionsStmt->execute([$user['id']]);
-                                $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
-
-                                if (count($elections) > 0) {
-                                    echo "<ul class='election-list'>";
-                                    foreach ($elections as $election) {
-                                        echo "<li>" . htmlspecialchars($election['title']) . "</li>";
-                                    }
-                                    echo "</ul>";
-                                } else {
-                                    echo "<span class='no-elections'>No elections registered</span>";
+                            $userElectionRows = $userElections[$user['id']] ?? [];
+                            if (count($userElectionRows) > 0) {
+                                echo "<ul class='election-list'>";
+                                foreach ($userElectionRows as $row) {
+                                    $ls = $row['live_status'];
+                                    $label = ucfirst($ls);
+                                    echo "<li>"
+                                       . "<span>" . htmlspecialchars($row['title']) . "</span>"
+                                       . "<span class='mini-status status-{$ls}'>{$label}</span>"
+                                       . "</li>";
                                 }
-                            } catch (PDOException $e) {
-                                error_log("Error fetching user elections: " . $e->getMessage());
-                                echo "<span style='color: #dc2626;'>Error loading elections</span>";
+                                echo "</ul>";
+                            } else {
+                                echo "<span class='no-elections'>No elections registered</span>";
                             }
                             ?>
                         </td>
