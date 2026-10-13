@@ -98,7 +98,6 @@ USER PAGES
 ├── register.php
 ├── logout.php
 ├── get_posts.php
-|
 ├── index.php
 ├── candidate.php
 ├── elections.php
