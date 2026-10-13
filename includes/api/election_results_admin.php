@@ -11,11 +11,17 @@ if (empty($_SESSION['admin_id'])) {
 
 try {
     $electionsStmt = $conn->query("
-        SELECT id, title, status, start_date, end_date
+        SELECT id, title, status, start_date, end_date, manual_status, manual_until
         FROM elections
         ORDER BY id DESC
     ");
     $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Overwrite `status` with the derived value so the frontend sees the effective status
+    foreach ($elections as &$e) {
+        $e['status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
 
     $out = [];
 
