@@ -12,11 +12,13 @@ if (!isset($_SESSION['admin_id']) && !isset($_SESSION['username'])) {
 }
 
 // Helper: resolve to a Cloudinary URL or the system default
-function resolveImageUrl($value) {
-    if (!empty($value) && preg_match('#^https?://#i', $value)) {
-        return $value;
+if (!function_exists('resolveUserImageUrl')) {
+    function resolveUserImageUrl($value) {
+        if (!empty($value) && preg_match('#^https?://#i', $value)) {
+            return $value;
+        }
+        return defaultAvatarUrl();
     }
-    return defaultAvatarUrl();
 }
 
 // ────────────────────────────────────────────────────────────
@@ -60,7 +62,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             $regStmt->execute([$userId]);
             $registrations = $regStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Attach derived status per registration
             foreach ($registrations as &$reg) {
                 $reg['live_status'] = effectiveElectionStatus($reg);
             }
@@ -110,7 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
             $profilePhotoBlob = base64_encode($user['profile_photo_blob']);
             $profilePhotoType = $user['profile_photo_type'];
         } else {
-            $profilePhoto = resolveImageUrl($user['profile_photo']);
+            $profilePhoto = resolveUserImageUrl($user['profile_photo']);
         }
 
         echo json_encode([
@@ -276,7 +277,6 @@ try {
     }
     unset($e);
 
-    // Sort active first, then upcoming, then completed, each alphabetically
     usort($electionsRaw, function ($a, $b) {
         $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
         $oa = $order[$a['live_status']] ?? 4;
@@ -292,373 +292,379 @@ try {
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Manage Users | Voting System</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .header {
-            text-align: center;
-            padding: 20px 10px;
-            color: black;
-            background: #f5f5f5;
-        }
+<!-- ============================ STYLES ============================ -->
+<style>
+    .mu-page .header {
+        text-align: left;
+        padding: 4px 0 18px 0;
+        color: #1f2937;
+        background: transparent;
+        border-bottom: 1px solid #e5e7eb;
+        margin-bottom: 22px;
+    }
+    .mu-page .header h2 {
+        font-size: 22px;
+        font-weight: 700;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 4px 0;
+    }
+    .mu-page .header h2 i { color: #2c7a7b; }
+    .mu-page .header p {
+        opacity: 0.85;
+        font-size: 13px;
+        color: #6b7280;
+        margin: 0;
+    }
 
-        .header h2 {
-            font-size: 30px;
-            font-weight: 600;
-        }
+    .mu-page .table-responsive {
+        overflow-x: auto;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        background: #ffffff;
+    }
 
-        .header p {
-            opacity: 0.9;
-            font-size: 16px;
-        }
+    .mu-page table {
+        width: 100%;
+        border-collapse: collapse;
+    }
 
-        .container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
-            overflow: hidden;
-        }
+    .mu-page th,
+    .mu-page td {
+        padding: 13px 16px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 13px;
+        color: #374151;
+        vertical-align: middle;
+    }
 
-        .content {
-            padding: 30px;
-        }
+    .mu-page th {
+        background: #f9fafb;
+        color: #6b7280;
+        font-weight: 700;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        white-space: nowrap;
+    }
 
-        .table-responsive {
-            overflow-x: auto;
-        }
+    .mu-page tr:last-child td { border-bottom: none; }
+    .mu-page tr:hover td { background: #f9fafb; }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            border-radius: 8px;
-            overflow: hidden;
-        }
+    .mu-page .btn {
+        border: none;
+        color: white;
+        padding: 6px 12px;
+        text-align: center;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 12px;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: all 0.2s;
+        margin: 2px;
+        font-family: inherit;
+        font-weight: 600;
+    }
 
-        th, td {
-            padding: 14px 16px;
-            text-align: left;
-            border-bottom: 1px solid #e0e0e0;
-        }
+    .mu-page .btn-view     { background: #2c7a7b; }
+    .mu-page .btn-edit     { background: #ffc107; color: #333; }
+    .mu-page .btn-delete   { background: #dc3545; }
+    .mu-page .btn-register { background: #28a745; }
 
-        th {
-            background: #f5f5f5;
-            color: #333;
-            font-weight: 600;
-            font-size: 14px;
-        }
+    .mu-page .btn:hover { transform: translateY(-1px); opacity: 0.92; }
 
-        tr:hover {
-            background-color: #f5f5f5;
-        }
+    .mu-page .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0, 0, 0, 0.6);
+        animation: muFadeIn 0.3s;
+    }
 
-        .btn {
-            border: none;
-            color: white;
-            padding: 6px 12px;
-            text-align: center;
-            display: inline-block;
-            font-size: 12px;
-            cursor: pointer;
-            border-radius: 4px;
-            transition: all 0.2s;
-            margin: 2px;
-        }
+    @keyframes muFadeIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+    }
 
-        .btn-view { background: #2c7a7b; }
-        .btn-edit { background: #ffc107; color: #333; }
-        .btn-delete { background: #dc3545; }
-        .btn-register { background: #28a745; }
+    .mu-page .modal-content {
+        background-color: white;
+        margin: 3% auto;
+        padding: 0;
+        border-radius: 16px;
+        width: 90%;
+        max-width: 600px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: muSlideDown 0.3s;
+        overflow: hidden;
+    }
 
-        .btn:hover {
-            transform: translateY(-1px);
-            opacity: 0.9;
-        }
+    @keyframes muSlideDown {
+        from { transform: translateY(-50px); opacity: 0; }
+        to   { transform: translateY(0);     opacity: 1; }
+    }
 
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.6);
-            animation: fadeIn 0.3s;
-        }
+    .mu-page .modal-header {
+        background: #2c7a7b;
+        color: white;
+        padding: 18px 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
+    .mu-page .modal-header h4 { margin: 0; font-size: 17px; font-weight: 700; }
 
-        .modal-content {
-            background-color: white;
-            margin: 3% auto;
-            padding: 0;
-            border-radius: 16px;
-            width: 90%;
-            max-width: 600px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            animation: slideDown 0.3s;
-            overflow: hidden;
-        }
+    .mu-page .close {
+        color: white;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: opacity 0.3s;
+        line-height: 20px;
+    }
+    .mu-page .close:hover { opacity: 0.8; }
 
-        @keyframes slideDown {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
+    .mu-page .modal-body {
+        padding: 22px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
 
-        .modal-header {
-            background: #2c7a7b;
-            color: white;
-            padding: 20px 25px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+    .mu-page .form-group { margin-bottom: 15px; }
 
-        .modal-header h4 {
-            margin: 0;
-            font-size: 20px;
-        }
+    .mu-page .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        color: #333;
+        font-size: 13px;
+    }
 
-        .close {
-            color: white;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.3s;
-            line-height: 20px;
-        }
+    .mu-page .form-group input,
+    .mu-page .form-group select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+        box-sizing: border-box;
+    }
 
-        .close:hover { opacity: 0.8; }
+    .mu-page .form-group input:focus,
+    .mu-page .form-group select:focus {
+        outline: none;
+        border-color: #2c7a7b;
+        box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.12);
+    }
 
-        .modal-body {
-            padding: 25px;
-            max-height: 65vh;
-            overflow-y: auto;
-        }
+    .mu-page .submit-btn {
+        background: #2c7a7b;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: inherit;
+        transition: background 0.2s;
+    }
+    .mu-page .submit-btn:hover { background: #236162; }
 
-        .form-group { margin-bottom: 15px; }
+    .mu-page .profile-photo {
+        text-align: center;
+        margin-bottom: 20px;
+    }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #333;
-        }
+    .mu-page .profile-photo img {
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 4px solid #2c7a7b;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        background: #f4f7f9;
+    }
 
-        .form-group input, .form-group select {
-            width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            font-size: 14px;
-        }
+    .mu-page .info-section {
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #e0e0e0;
+        font-size: 14px;
+        color: #374151;
+    }
+    .mu-page .info-section:last-child { border-bottom: none; }
 
-        .form-group input:focus, .form-group select:focus {
-            outline: none;
-            border-color: #2c7a7b;
-        }
+    .mu-page .info-section strong {
+        color: #2c7a7b;
+        display: inline-block;
+        min-width: 130px;
+        font-size: 13px;
+    }
 
-        .submit-btn {
-            background: #2c7a7b;
-            color: white;
-            padding: 12px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            width: 100%;
-            font-size: 16px;
-        }
+    .mu-page .info-list {
+        margin: 8px 0 0 0;
+        padding: 0;
+        list-style: none;
+    }
 
-        .submit-btn:hover { background: #236162; }
+    .mu-page .info-list li {
+        margin: 8px 0;
+        color: #555;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+        font-size: 13px;
+    }
 
-        .profile-photo {
-            text-align: center;
-            margin-bottom: 20px;
-        }
+    .mu-page .election-status {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
 
-        .profile-photo img {
-            width: 120px;
-            height: 120px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 4px solid #2c7a7b;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            background: #f4f7f9;
-        }
+    .mu-page .status-active    { background: #d4edda; color: #155724; }
+    .mu-page .status-upcoming  { background: #fff3cd; color: #856404; }
+    .mu-page .status-completed { background: #f8d7da; color: #721c24; }
 
-        .info-section {
-            margin-bottom: 18px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid #e0e0e0;
-        }
+    .mu-page .loading {
+        text-align: center;
+        padding: 40px;
+        color: #2c7a7b;
+    }
 
-        .info-section:last-child { border-bottom: none; }
+    .mu-page .spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #2c7a7b;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: muSpin 1s linear infinite;
+        margin: 0 auto 15px;
+    }
 
-        .info-section strong {
-            color: #2c7a7b;
-            display: inline-block;
-            min-width: 140px;
-            font-size: 14px;
-        }
+    @keyframes muSpin {
+        0%   { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
 
-        .info-list {
-            margin: 8px 0 0 20px;
-            padding-left: 20px;
-        }
+    .mu-page .error-message {
+        background: #f8d7da;
+        color: #721c24;
+        padding: 14px;
+        border-radius: 8px;
+        text-align: center;
+        font-size: 13px;
+    }
 
-        .info-list li {
-            margin: 8px 0;
-            color: #555;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
+    .mu-page .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: #999;
+    }
 
-        .election-status {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
+    .mu-page .toast {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #333;
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        z-index: 1100;
+        animation: muSlideIn 0.3s;
+        font-size: 13px;
+        font-weight: 500;
+    }
+    .mu-page .toast.success { background: #28a745; }
+    .mu-page .toast.error   { background: #dc3545; }
 
-        .status-active    { background: #d4edda; color: #155724; }
-        .status-upcoming  { background: #fff3cd; color: #856404; }
-        .status-completed { background: #f8d7da; color: #721c24; }
+    @keyframes muSlideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to   { transform: translateX(0);    opacity: 1; }
+    }
 
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #2c7a7b;
-        }
+    @media screen and (max-width: 768px) {
+        .mu-page th, .mu-page td { padding: 10px 12px; font-size: 12px; }
+        .mu-page .btn { padding: 4px 8px; font-size: 10px; }
+    }
+</style>
 
-        .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #2c7a7b;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
+<!-- ============================ CONTENT ============================ -->
+<div class="mu-page">
 
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .error-message {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px;
-            color: #999;
-        }
-
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            background: #333;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            z-index: 1100;
-            animation: slideIn 0.3s;
-        }
-
-        .toast.success { background: #28a745; }
-        .toast.error { background: #dc3545; }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-
-        @media screen and (max-width: 768px) {
-            .content { padding: 15px; }
-            th, td { padding: 10px 12px; }
-            .btn { padding: 4px 8px; font-size: 10px; }
-        }
-    </style>
-</head>
-<body>
     <div class="header">
-        <h2>Manage Users</h2>
+        <h2><i class="fas fa-users"></i> Manage Users</h2>
         <p>View, edit, delete, and manage user election registrations</p>
     </div>
-    <div class="container">
-        <div class="content">
-            <?php if ($errorMessage): ?>
-                <div class="error-message">
-                    <?php echo htmlspecialchars($errorMessage); ?>
-                </div>
-            <?php elseif (empty($users)): ?>
-                <div class="empty-state">
-                    <div style="font-size: 48px;">👥</div>
-                    <p>No users found in the database.</p>
-                </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table id="usersTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Username</th>
-                                <th>Full Name</th>
-                                <th>Email</th>
-                                <th>Registered</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($users as $user): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($user['id']); ?></td>
-                                    <td><?php echo htmlspecialchars($user['username']); ?></td>
-                                    <td><?php echo htmlspecialchars($user['full_name'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($user['email']); ?></td>
-                                    <td><?php echo $user['registered_date'] ? date('M d, Y', strtotime($user['registered_date'])) : 'N/A'; ?></td>
-                                    <td>
-                                        <button class="btn btn-view" onclick="showUserInfo(<?php echo $user['id']; ?>)">
-                                            <i class="fas fa-eye"></i> View
-                                        </button>
-                                        <button class="btn btn-edit" onclick="editUser(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>, <?php echo htmlspecialchars(json_encode($user['full_name'])); ?>, <?php echo htmlspecialchars(json_encode($user['email'])); ?>)">
-                                            <i class="fas fa-edit"></i> Edit
-                                        </button>
-                                        <button class="btn btn-delete" onclick="deleteUser(<?php echo $user['id']; ?>)">
-                                            <i class="fas fa-trash"></i> Delete
-                                        </button>
-                                        <button class="btn btn-register" onclick="showRegisterModal(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>)">
-                                            <i class="fas fa-plus"></i> Register Election
-                                        </button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
+
+    <?php if ($errorMessage): ?>
+        <div class="error-message">
+            <?php echo htmlspecialchars($errorMessage); ?>
         </div>
-    </div>
+    <?php elseif (empty($users)): ?>
+        <div class="empty-state">
+            <div style="font-size: 48px;">👥</div>
+            <p>No users found in the database.</p>
+        </div>
+    <?php else: ?>
+        <div class="table-responsive">
+            <table id="usersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Registered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($users as $user): ?>
+                        <tr>
+                            <td><?php echo htmlspecialchars($user['id']); ?></td>
+                            <td><?php echo htmlspecialchars($user['username']); ?></td>
+                            <td><?php echo htmlspecialchars($user['full_name'] ?? 'N/A'); ?></td>
+                            <td><?php echo htmlspecialchars($user['email']); ?></td>
+                            <td><?php echo $user['registered_date'] ? date('M d, Y', strtotime($user['registered_date'])) : 'N/A'; ?></td>
+                            <td>
+                                <button class="btn btn-view" onclick="showUserInfo(<?php echo $user['id']; ?>)">
+                                    <i class="fas fa-eye"></i> View
+                                </button>
+                                <button class="btn btn-edit" onclick="editUser(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>, <?php echo htmlspecialchars(json_encode($user['full_name'])); ?>, <?php echo htmlspecialchars(json_encode($user['email'])); ?>)">
+                                    <i class="fas fa-edit"></i> Edit
+                                </button>
+                                <button class="btn btn-delete" onclick="deleteUser(<?php echo $user['id']; ?>)">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+                                <button class="btn btn-register" onclick="showRegisterModal(<?php echo $user['id']; ?>, <?php echo htmlspecialchars(json_encode($user['username'])); ?>)">
+                                    <i class="fas fa-plus"></i> Register Election
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+    <?php endif; ?>
 
     <!-- User Info Modal -->
     <div id="userModal" class="modal">
@@ -734,9 +740,15 @@ try {
             </div>
         </div>
     </div>
+</div>
 
-    <script>
-    async function showUserInfo(userId) {
+<!-- ============================ SCRIPTS ============================ -->
+<script>
+(function() {
+    /* ───────────────────────────────────────────────────────────
+       View user
+       ─────────────────────────────────────────────────────────── */
+    window.showUserInfo = async function(userId) {
         const modal = document.getElementById('userModal');
         const modalBody = document.getElementById('modalBody');
         const modalTitle = document.getElementById('modalTitle');
@@ -762,7 +774,7 @@ try {
         } catch (error) {
             modalBody.innerHTML = `<div class="error-message">Failed to load user information.</div>`;
         }
-    }
+    };
 
     function displayUserInfo(data) {
         const modalBody = document.getElementById('modalBody');
@@ -778,14 +790,13 @@ try {
         if (data.registrations && data.registrations.length > 0) {
             registrationsHtml = '<ul class="info-list">';
             data.registrations.forEach(reg => {
-                // Use derived status
                 const ls = reg.live_status || reg.status || 'upcoming';
                 const statusClass = 'status-' + ls;
                 registrationsHtml += `<li> <span>${escapeHtml(reg.title)}</span> <span class="election-status ${statusClass}">${escapeHtml(ls)}</span></li>`;
             });
             registrationsHtml += '</ul>';
         } else {
-            registrationsHtml = '<p style="color:#999;">No election registrations</p>';
+            registrationsHtml = '<p style="color:#999; font-size:13px;">No election registrations</p>';
         }
 
         modalBody.innerHTML = `
@@ -798,39 +809,20 @@ try {
         `;
     }
 
-    function editUser(id, username, fullname, email) {
+    /* ───────────────────────────────────────────────────────────
+       Edit user
+       ─────────────────────────────────────────────────────────── */
+    window.editUser = function(id, username, fullname, email) {
         document.getElementById('edit_user_id').value = id;
         document.getElementById('edit_username').value = username;
         document.getElementById('edit_fullname').value = fullname;
         document.getElementById('edit_email').value = email;
         document.getElementById('editModal').style.display = 'block';
-    }
+    };
 
-    function deleteUser(userId) {
-        if (confirm('Are you sure you want to delete this user? This action cannot be undone and will delete all votes, applications, and registrations associated with this user.')) {
-            fetch('manage_users.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=delete_user&user_id=' + userId
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    showToast('User deleted successfully', 'success');
-                    setTimeout(() => location.reload(), 1500);
-                } else {
-                    showToast(data.message, 'error');
-                }
-            });
-        }
-    }
-
-    function showRegisterModal(userId, username) {
-        document.getElementById('register_user_id').value = userId;
-        document.getElementById('register_username').value = username;
-        document.getElementById('register_election_id').value = '';
-        document.getElementById('registerModal').style.display = 'block';
-    }
+    window.closeEditModal = function() {
+        document.getElementById('editModal').style.display = 'none';
+    };
 
     document.getElementById('editForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -851,6 +843,42 @@ try {
             showToast(data.message, 'error');
         }
     });
+
+    /* ───────────────────────────────────────────────────────────
+       Delete user
+       ─────────────────────────────────────────────────────────── */
+    window.deleteUser = function(userId) {
+        if (confirm('Are you sure you want to delete this user? This action cannot be undone and will delete all votes, applications, and registrations associated with this user.')) {
+            fetch('manage_users.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'action=delete_user&user_id=' + userId
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('User deleted successfully', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showToast(data.message, 'error');
+                }
+            });
+        }
+    };
+
+    /* ───────────────────────────────────────────────────────────
+       Register to election
+       ─────────────────────────────────────────────────────────── */
+    window.showRegisterModal = function(userId, username) {
+        document.getElementById('register_user_id').value = userId;
+        document.getElementById('register_username').value = username;
+        document.getElementById('register_election_id').value = '';
+        document.getElementById('registerModal').style.display = 'block';
+    };
+
+    window.closeRegisterModal = function() {
+        document.getElementById('registerModal').style.display = 'none';
+    };
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -877,9 +905,12 @@ try {
         }
     });
 
-    function closeModal() { document.getElementById('userModal').style.display = 'none'; }
-    function closeEditModal() { document.getElementById('editModal').style.display = 'none'; }
-    function closeRegisterModal() { document.getElementById('registerModal').style.display = 'none'; }
+    /* ───────────────────────────────────────────────────────────
+       Helpers
+       ─────────────────────────────────────────────────────────── */
+    window.closeModal = function() {
+        document.getElementById('userModal').style.display = 'none';
+    };
 
     function showToast(message, type) {
         const toast = document.createElement('div');
@@ -896,11 +927,18 @@ try {
         return div.innerHTML;
     }
 
-    window.onclick = function(event) {
-        if (event.target.classList.contains('modal')) {
+    // Close modal when clicking dark overlay
+    window.addEventListener('click', function(event) {
+        if (event.target.classList && event.target.classList.contains('modal')) {
             event.target.style.display = 'none';
         }
-    }
-    </script>
-</body>
-</html>
+    });
+
+    // Close modals on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
+        }
+    });
+})();
+</script>
