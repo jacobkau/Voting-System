@@ -82,7 +82,7 @@ An online voting management system built with PHP, MySQL, and Cloudinary. It pro
 ## Project Structure
 
 ```
-witty-voting-system/
+VOTING-SYSTEM/
 ├── composer.json
 ├── Dockerfile
 ├── ca.pem
