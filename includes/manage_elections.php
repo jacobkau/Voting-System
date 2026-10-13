@@ -90,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Handle Edit Election
+// Handle Edit Election — extending the period happens here
 // ─────────────────────────────────────────────────────────────
 if (isset($_POST['edit_election'])) {
     $electionId  = intval($_POST['election_id']);
@@ -98,17 +98,30 @@ if (isset($_POST['edit_election'])) {
     $description = trim($_POST['description']);
     $start_date  = $_POST['start_date'];
     $end_date    = $_POST['end_date'];
-    $status      = $_POST['status'];
 
     if (empty($title)) {
         $errorMsg = "Please enter an election title.";
-    } elseif (strtotime($end_date) < strtotime($start_date)) {
-        $errorMsg = "End date cannot be earlier than start date.";
+    } elseif (strtotime($end_date) <= strtotime($start_date)) {
+        $errorMsg = "End date must be later than start date.";
     } else {
         try {
-            $stmt = $conn->prepare("UPDATE elections SET title = ?, description = ?, start_date = ?, end_date = ?, status = ? WHERE id = ?");
-            $stmt->execute([$title, $description, $start_date, $end_date, $status, $electionId]);
-            $successMsg = "Election updated successfully.";
+            // Note: editing does NOT touch manual_status / manual_until.
+            // The override stays in place until the admin clears it via the dropdown.
+            $stmt = $conn->prepare("
+                UPDATE elections
+                SET title = ?, description = ?, start_date = ?, end_date = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([$title, $description, $start_date, $end_date, $electionId]);
+
+            // Detected an extension? Give a nicer message.
+            $oldStart = strtotime($_POST['__old_start'] ?? $start_date);
+            $oldEnd   = strtotime($_POST['__old_end']   ?? $end_date);
+            $extended = strtotime($end_date) > $oldEnd;
+
+            $successMsg = $extended
+                ? "Election period extended. The status will update automatically on the next page load."
+                : "Election updated successfully.";
         } catch (PDOException $e) {
             $errorMsg = "Error updating election: " . $e->getMessage();
         }
@@ -148,18 +161,26 @@ if (isset($_POST['delete_election'])) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Handle election status updates
+// Handle election status updates (manual override)
 // ─────────────────────────────────────────────────────────────
 if (isset($_POST['update_election_status'])) {
-    $electionId = $_POST['election_id'];
-    $status     = $_POST['status'];
+    $electionId = intval($_POST['election_id']);
+    $override   = $_POST['status'] ?? 'auto';
 
     try {
-        $stmt = $conn->prepare("UPDATE elections SET status = ? WHERE id = ?");
-        $stmt->execute([$status, $electionId]);
-        $successMsg = "Election status updated successfully.";
+        if ($override === 'auto' || $override === '') {
+            $stmt = $conn->prepare("UPDATE elections SET manual_status = NULL, manual_until = NULL WHERE id = ?");
+            $stmt->execute([$electionId]);
+            $successMsg = "Election reverted to automatic scheduling.";
+        } elseif (in_array($override, ['upcoming', 'active', 'completed'], true)) {
+            $stmt = $conn->prepare("UPDATE elections SET manual_status = ? WHERE id = ?");
+            $stmt->execute([$override, $electionId]);
+            $successMsg = "Election status manually set to " . ucfirst($override) . ".";
+        } else {
+            $errorMsg = "Invalid status value.";
+        }
     } catch (PDOException $e) {
-        $errorMsg = "Error updating election status.";
+        $errorMsg = "Error updating election status: " . $e->getMessage();
     }
 }
 
@@ -175,11 +196,14 @@ if (isset($_POST['add_election'])) {
 
     if (empty($title)) {
         $errorMsg = "Please enter an election title.";
-    } elseif (strtotime($end_date) < strtotime($start_date)) {
-        $errorMsg = "End date cannot be earlier than start date.";
+    } elseif (strtotime($end_date) <= strtotime($start_date)) {
+        $errorMsg = "End date must be later than start date.";
     } else {
         try {
-            $stmt = $conn->prepare("INSERT INTO elections (title, description, start_date, end_date, status) VALUES (?, ?, ?, ?, ?)");
+            $stmt = $conn->prepare("
+                INSERT INTO elections (title, description, start_date, end_date, status)
+                VALUES (?, ?, ?, ?, ?)
+            ");
             if ($stmt->execute([$title, $description, $start_date, $end_date, $status])) {
                 $successMsg = "Election added successfully.";
             } else {
@@ -264,9 +288,6 @@ if (isset($_GET['edit_id'])) {
         th { background-color: #f2f2f2; font-weight: bold; }
         tr:hover { background-color: #f5f5f5; }
 
-        /* ─────────────────────────────────────────────
-           Status dropdown 
-           ───────────────────────────────────────────── */
         select.status-select {
             padding: 6px 8px;
             margin-right: 5px;
@@ -274,25 +295,22 @@ if (isset($_GET['edit_id'])) {
             border-radius: 4px;
             font-size: 13px;
             font-family: inherit;
-            color: #1f2937;            
+            color: #1f2937;
             background-color: #ffffff;
             -webkit-text-fill-color: #1f2937;
             cursor: pointer;
             vertical-align: middle;
         }
-
         select.status-select option {
             color: #1f2937;
             background-color: #ffffff;
         }
-
         select.status-select:focus {
             outline: none;
             border-color: #2c7a7b;
             box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
         }
 
-        /* Form container */
         .election-form-container {
             width: 80%; max-width: 600px; margin: 20px auto;
             background-color: #fff; padding: 20px;
@@ -320,7 +338,18 @@ if (isset($_GET['edit_id'])) {
         }
         .election-form-container button[type="submit"]:hover { background-color: #2980b9; }
 
-        /* Buttons */
+        .edit-hint {
+            width: 100%;
+            background: #e0f2fe;
+            color: #075985;
+            border: 1px solid #bae6fd;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        .edit-hint i { margin-right: 6px; }
+
         .btn { display: inline-block; padding: 5px 10px; margin: 2px;
                border: none; border-radius: 4px; cursor: pointer;
                font-size: 12px; text-decoration: none; font-family: inherit; }
@@ -337,7 +366,18 @@ if (isset($_GET['edit_id'])) {
         }
         td form button:hover { background-color: #45a049; }
 
-        /* Modal */
+        .manual-badge {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 1px 6px;
+            background: #fef3c7;
+            color: #92400e;
+            font-size: 10px;
+            border-radius: 8px;
+            font-weight: 700;
+            vertical-align: middle;
+        }
+
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0;
                  width: 100%; height: 100%; overflow: auto;
                  background-color: rgba(0, 0, 0, 0.6); }
@@ -384,9 +424,20 @@ if (isset($_GET['edit_id'])) {
     <div class="election-form-container">
         <h2><?php echo $editElection ? 'Edit Election' : 'Add New Election'; ?></h2>
 
+        <?php if ($editElection): ?>
+            <div class="edit-hint">
+                <i class="fas fa-info-circle"></i>
+                <strong>To extend the voting period</strong>, push the <em>End Date</em> forward and save.
+                The status will update automatically — no manual change needed.
+                Use the row dropdown below only if you want to <em>override</em> the automatic schedule.
+            </div>
+        <?php endif; ?>
+
         <form method="post" action="main.php?page=elections">
             <?php if ($editElection): ?>
                 <input type="hidden" name="election_id" value="<?php echo $editElection['id']; ?>">
+                <input type="hidden" name="__old_start" value="<?php echo htmlspecialchars($editElection['start_date']); ?>">
+                <input type="hidden" name="__old_end"   value="<?php echo htmlspecialchars($editElection['end_date']); ?>">
             <?php endif; ?>
 
             <input type="text" name="title" placeholder="Election Title" required
@@ -400,11 +451,13 @@ if (isset($_GET['edit_id'])) {
             <input type="datetime-local" name="end_date" required
                    value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['end_date'])) : ''; ?>">
 
-            <select name="status" required>
-                <option value="upcoming"  <?php echo $editElection && $editElection['status'] == 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
-                <option value="active"    <?php echo $editElection && $editElection['status'] == 'active'    ? 'selected' : ''; ?>>Active</option>
-                <option value="completed" <?php echo $editElection && $editElection['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
-            </select>
+            <?php if (!$editElection): ?>
+                <select name="status" required>
+                    <option value="upcoming" selected>Upcoming</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                </select>
+            <?php endif; ?>
 
             <button type="submit" name="<?php echo $editElection ? 'edit_election' : 'add_election'; ?>">
                 <?php echo $editElection ? 'Update Election' : 'Add Election'; ?>
@@ -436,19 +489,26 @@ if (isset($_GET['edit_id'])) {
                 </thead>
                 <tbody>
                     <?php foreach ($elections as $election) : ?>
+                        <?php
+                        $liveStatus  = effectiveElectionStatus($election);
+                        $statusColor = $liveStatus === 'active'
+                            ? 'green'
+                            : ($liveStatus === 'completed' ? 'red' : 'orange');
+                        $hasOverride = !empty($election['manual_status'])
+                            && (empty($election['manual_until']) || strtotime($election['manual_until']) > time());
+                        ?>
                         <tr>
                             <td><?php echo htmlspecialchars($election['title']); ?></td>
                             <td><?php echo htmlspecialchars(substr($election['description'] ?? '', 0, 50)) . (strlen($election['description'] ?? '') > 50 ? '...' : ''); ?></td>
                             <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['start_date']))); ?></td>
                             <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['end_date']))); ?></td>
                             <td>
-                                <span style="color:
-                                    <?php
-                                    echo $election['status'] == 'active' ? 'green' : ($election['status'] == 'completed' ? 'red' : 'orange');
-                                    ?>;
-                                    font-weight: bold;">
-                                    <?php echo ucfirst(htmlspecialchars($election['status'])); ?>
+                                <span style="color: <?php echo $statusColor; ?>; font-weight: bold;">
+                                    <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
                                 </span>
+                                <?php if ($hasOverride): ?>
+                                    <span class="manual-badge" title="Manually overridden by admin">MANUAL</span>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo getCandidateCountForElection($conn, $election['id']); ?></td>
                             <td><?php echo getRegisteredVoterCountForElection($conn, $election['id']); ?></td>
@@ -456,17 +516,26 @@ if (isset($_GET['edit_id'])) {
                                 <form method="post" action="main.php?page=elections" style="display: inline-block; margin: 0;">
                                     <input type="hidden" name="election_id" value="<?php echo $election['id']; ?>">
                                     <select name="status" class="status-select">
-                                        <option value="upcoming"  <?php echo $election['status'] == 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
-                                        <option value="active"    <?php echo $election['status'] == 'active'    ? 'selected' : ''; ?>>Active</option>
-                                        <option value="completed" <?php echo $election['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
+                                        <?php $overrideValue = !empty($election['manual_status']) ? $election['manual_status'] : 'auto'; ?>
+                                        <option value="auto"      <?php echo $overrideValue === 'auto'      ? 'selected' : ''; ?>>Auto (from dates)</option>
+                                        <option value="upcoming"  <?php echo $overrideValue === 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
+                                        <option value="active"    <?php echo $overrideValue === 'active'    ? 'selected' : ''; ?>>Active</option>
+                                        <option value="completed" <?php echo $overrideValue === 'completed' ? 'selected' : ''; ?>>Completed</option>
                                     </select>
                                     <button type="submit" name="update_election_status">Update</button>
                                 </form>
 
-                                <a href="main.php?page=elections&edit_id=<?php echo $election['id']; ?>" class="btn btn-edit btn-sm">Edit</a>
+                                <a href="main.php?page=elections&edit_id=<?php echo $election['id']; ?>" class="btn btn-edit btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
 
-                                <button onclick="deleteElection(<?php echo $election['id']; ?>)" class="btn btn-delete btn-sm">Delete</button>
-                                <button onclick="managePosts(<?php echo $election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')" class="btn btn-posts btn-sm">Manage Posts</button>
+                                <button onclick="deleteElection(<?php echo $election['id']; ?>)" class="btn btn-delete btn-sm">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+
+                                <button onclick="managePosts(<?php echo $election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')" class="btn btn-posts btn-sm">
+                                    <i class="fas fa-clipboard-list"></i> Manage Posts
+                                </button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -495,9 +564,6 @@ if (isset($_GET['edit_id'])) {
     </div>
 
     <script>
-    // ─────────────────────────────────────────────────────────────
-    // No CSRF — matches the rest of the project
-    // ─────────────────────────────────────────────────────────────
     let currentElectionId = null;
     const ajaxUrl     = 'manage_elections.php';
     const mainPageUrl = 'main.php?page=elections';
