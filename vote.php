@@ -6,7 +6,7 @@ ini_set('display_errors', $isLocal ? '1' : '0');
 ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
+require_once __DIR__ . '/conn.php';
 
 require_once __DIR__ . '/cloudinary.php';
 
@@ -26,53 +26,74 @@ $userStmt->execute([$username]);
 $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 $userId = $user ? (int)$user['id'] : null;
 
-// Fetch Open Elections
-$openElectionsStmt = $conn->prepare("SELECT id, title FROM elections WHERE status = 'active'");
-$openElectionsStmt->execute();
-$openElections = $openElectionsStmt->fetchAll(PDO::FETCH_ASSOC);
+// ─────────────────────────────────────────────────────────────
+// Fetch open elections — derived status, not the legacy column
+// ─────────────────────────────────────────────────────────────
+$allElectionsStmt = $conn->prepare("
+    SELECT id, title, status, start_date, end_date, manual_status, manual_until
+    FROM elections
+    ORDER BY id DESC
+");
+$allElectionsStmt->execute();
+$allElections = $allElectionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Filter using the shared helper so the rule is identical everywhere
+$openElections = array_values(array_filter($allElections, function ($e) {
+    return effectiveElectionStatus($e) === 'active';
+}));
 
 // Get Election ID from URL or session
-$electionId = isset($_GET['election_id']) ? intval($_GET['election_id']) : (isset($_SESSION['selected_election']) ? $_SESSION['selected_election'] : null);
+$electionId = isset($_GET['election_id'])
+    ? intval($_GET['election_id'])
+    : (isset($_SESSION['selected_election']) ? $_SESSION['selected_election'] : null);
 
 if (isset($_GET['election_id'])) {
     $_SESSION['selected_election'] = $electionId;
 }
 
-$showVoteForm = false;
-$errorMessage = "";
+$showVoteForm   = false;
+$errorMessage   = "";
 $successMessage = "";
-$election = null;
+$election       = null;
 
 if ($electionId !== null) {
-    $electionCheckStmt = $conn->prepare("SELECT id, title, status FROM elections WHERE id = ?");
+    $electionCheckStmt = $conn->prepare("
+        SELECT id, title, status, start_date, end_date, manual_status, manual_until
+        FROM elections
+        WHERE id = ?
+    ");
     $electionCheckStmt->execute([$electionId]);
     $election = $electionCheckStmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$election) {
         $errorMessage = "The selected election does not exist.";
-    } elseif ($election['status'] !== 'active') {
-        $errorMessage = "Voting is currently closed for this election. Status: " . $election['status'];
     } else {
-        $userRegisteredStmt = $conn->prepare("SELECT 1 FROM user_elections WHERE user_id = ? AND election_id = ?");
-        $userRegisteredStmt->execute([$userId, $electionId]);
+        $liveStatus = effectiveElectionStatus($election);
 
-        if ($userRegisteredStmt->rowCount() === 0) {
-            $errorMessage = "You are not registered for this election. Please register first.";
+        if ($liveStatus !== 'active') {
+            $errorMessage = "Voting is currently closed for this election. Status: " . $liveStatus;
         } else {
-            $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE user_id = ? AND election_id = ? LIMIT 1");
-            $alreadyVotedStmt->execute([$userId, $electionId]);
+            $userRegisteredStmt = $conn->prepare("SELECT 1 FROM user_elections WHERE user_id = ? AND election_id = ?");
+            $userRegisteredStmt->execute([$userId, $electionId]);
 
-            if ($alreadyVotedStmt->rowCount() > 0) {
-                $errorMessage = "You have already voted in this election.";
+            if ($userRegisteredStmt->rowCount() === 0) {
+                $errorMessage = "You are not registered for this election. Please register first.";
             } else {
-                $postsStmt = $conn->prepare("SELECT id, postname FROM election_posts WHERE election_id = ? ORDER BY postname");
-                $postsStmt->execute([$electionId]);
-                $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
+                $alreadyVotedStmt = $conn->prepare("SELECT 1 FROM votes WHERE user_id = ? AND election_id = ? LIMIT 1");
+                $alreadyVotedStmt->execute([$userId, $electionId]);
 
-                if (empty($posts)) {
-                    $errorMessage = "No positions have been set up for this election yet.";
+                if ($alreadyVotedStmt->rowCount() > 0) {
+                    $errorMessage = "You have already voted in this election.";
                 } else {
-                    $showVoteForm = true;
+                    $postsStmt = $conn->prepare("SELECT id, postname FROM election_posts WHERE election_id = ? ORDER BY postname");
+                    $postsStmt->execute([$electionId]);
+                    $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                    if (empty($posts)) {
+                        $errorMessage = "No positions have been set up for this election yet.";
+                    } else {
+                        $showVoteForm = true;
+                    }
                 }
             }
         }
@@ -91,7 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
     $posts = $postsStmt->fetchAll(PDO::FETCH_ASSOC);
 
     $allPostsVoted = true;
-    $missingPosts = [];
+    $missingPosts  = [];
 
     foreach ($posts as $post) {
         $postKey = strtolower(str_replace(' ', '_', $post['postname']));
@@ -127,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
                     throw new Exception("Invalid candidate selection — the candidate may not be approved.");
                 }
 
-                $candidateName = $candidate['name'];
+                $candidateName    = $candidate['name'];
                 $originalPostName = str_replace('_', ' ', $postKey);
 
                 $voteStmt = $conn->prepare("
@@ -142,7 +163,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['submit']) && $showVot
 
             $conn->commit();
             $successMessage = "Vote submitted successfully. Thank you for voting.";
-            $showVoteForm = false;
+            $showVoteForm   = false;
 
         } catch (DuplicateVoteException $e) {
             $conn->rollBack();
