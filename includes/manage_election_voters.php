@@ -2,7 +2,7 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-include __DIR__ . '/conn.php';
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/../cloudinary.php';
 
 if (!isset($_SESSION['admin_id'])) {
@@ -10,17 +10,18 @@ if (!isset($_SESSION['admin_id'])) {
     exit();
 }
 
-
 $adminId = (int)$_SESSION['admin_id'];
 $message = "";
 $messageType = "";
 
-// Read message from PRG redirect
 if (!empty($_GET['msg'])) {
     $message = $_GET['msg'];
     $messageType = $_GET['msg_type'] ?? 'success';
 }
 
+// ────────────────────────────────────────────────────────────
+// Email helper
+// ────────────────────────────────────────────────────────────
 function sendDecisionEmail(string $email, string $userName, string $electionTitle, string $decision, string $reason = ''): array {
     $serviceId  = getenv('EMAILJS_SERVICE_ID2');
     $templateId = getenv('EMAILJS_TEMPLATE_ID2');
@@ -90,10 +91,6 @@ function sendDecisionEmail(string $email, string $userName, string $electionTitl
     return ['sent' => false, 'error' => $err];
 }
 
-/**
- * Check whether a user has cast any votes in the given election.
- * Used as a safety guard before unapproving.
- */
 function userHasVotesInElection(PDO $conn, int $userId, int $electionId): int {
     try {
         $stmt = $conn->prepare("SELECT COUNT(*) FROM votes WHERE user_id = ? AND election_id = ?");
@@ -105,13 +102,14 @@ function userHasVotesInElection(PDO $conn, int $userId, int $electionId): int {
     }
 }
 
-// Handle approve/reject/unapprove action
+// ────────────────────────────────────────────────────────────
+// Handle approve/reject/unapprove
+// ────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST['decision'])) {
     $requestId = (int)$_POST['request_id'];
     $decision = $_POST['decision'];
     $reason = trim($_POST['reason'] ?? '');
 
-    // Capture context for redirect
     $returnStatus = $_POST['return_status'] ?? 'pending';
     $returnElectionId = isset($_POST['return_election_id']) ? (int)$_POST['return_election_id'] : 0;
 
@@ -122,7 +120,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
         try {
             $conn->beginTransaction();
 
-            // Fetch the request + user details in one shot
             $reqStmt = $conn->prepare("
                 SELECT r.*,
                        u.username, u.name AS full_name, u.email,
@@ -165,19 +162,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
                 $message = "Rejected registration for {$request['username']}.";
 
             } else { // unapprove
-                // Safety check — block unapproval if the user has already cast votes
                 $voteCount = userHasVotesInElection($conn, (int)$request['user_id'], (int)$request['election_id']);
                 if ($voteCount > 0) {
                     throw new Exception("Cannot unapprove — this voter has already cast {$voteCount} vote(s) in this election.");
                 }
 
-                // Remove from user_elections
                 $conn->prepare("
                     DELETE FROM user_elections
                     WHERE user_id = ? AND election_id = ?
                 ")->execute([$request['user_id'], $request['election_id']]);
 
-                // Reset the request back to pending so it can be re-reviewed
                 $conn->prepare("
                     UPDATE election_registration_requests
                     SET status = 'pending', reviewed_at = NULL, reviewed_by = NULL, rejection_reason = NULL
@@ -196,7 +190,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
             $conn->commit();
             $messageType = "success";
 
-            // Send email AFTER commit — email failure doesn't roll back the decision
             $recipientName = !empty($request['full_name']) ? $request['full_name'] : $request['username'];
 
             if ($decision === 'approve') {
@@ -239,16 +232,35 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_id'], $_POST[
     exit;
 }
 
-// Optional filter
 $filterElectionId = isset($_GET['election_id']) ? (int)$_GET['election_id'] : null;
 $filterStatus = $_GET['status'] ?? 'pending';
 if (!in_array($filterStatus, ['pending', 'approved', 'rejected', 'all'], true)) {
     $filterStatus = 'pending';
 }
 
-// Fetch all elections for the dropdown
-$elections = $conn->query("SELECT id, title, status FROM elections ORDER BY id DESC")
-    ->fetchAll(PDO::FETCH_ASSOC);
+// ────────────────────────────────────────────────────────────
+// Fetch all elections for the dropdown — with date/override columns
+// ────────────────────────────────────────────────────────────
+$allElectionsRaw = $conn->query("
+    SELECT id, title, status, start_date, end_date, manual_status, manual_until
+    FROM elections
+    ORDER BY id DESC
+")->fetchAll(PDO::FETCH_ASSOC);
+
+foreach ($allElectionsRaw as &$e) {
+    $e['live_status'] = effectiveElectionStatus($e);
+}
+unset($e);
+
+usort($allElectionsRaw, function ($a, $b) {
+    $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+    $oa = $order[$a['live_status']] ?? 4;
+    $ob = $order[$b['live_status']] ?? 4;
+    if ($oa !== $ob) return $oa - $ob;
+    return $b['id'] - $a['id'];
+});
+
+$elections = $allElectionsRaw;
 
 // Build the requests query
 $where = [];
@@ -268,7 +280,12 @@ $stmt = $conn->prepare("
     SELECT
         r.id, r.status, r.requested_at, r.reviewed_at, r.rejection_reason,
         u.id AS user_id, u.username, u.name AS full_name, u.email, u.profile_photo,
-        e.id AS election_id, e.title AS election_title, e.status AS election_status,
+        e.id AS election_id, e.title AS election_title,
+        e.status AS election_status,
+        e.start_date AS election_start_date,
+        e.end_date AS election_end_date,
+        e.manual_status,
+        e.manual_until,
         (SELECT COUNT(*) FROM votes v WHERE v.user_id = r.user_id AND v.election_id = r.election_id) AS votes_cast
     FROM election_registration_requests r
     JOIN users u ON r.user_id = u.id
@@ -278,6 +295,18 @@ $stmt = $conn->prepare("
 ");
 $stmt->execute($params);
 $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Attach derived election status per request
+foreach ($requests as &$r) {
+    $r['live_election_status'] = effectiveElectionStatus([
+        'status'        => $r['election_status'],
+        'start_date'    => $r['election_start_date'],
+        'end_date'      => $r['election_end_date'],
+        'manual_status' => $r['manual_status'],
+        'manual_until'  => $r['manual_until'],
+    ]);
+}
+unset($r);
 
 // Counts for badges
 $countsStmt = $conn->query("
@@ -290,7 +319,6 @@ while ($row = $countsStmt->fetch(PDO::FETCH_ASSOC)) {
     $counts[$row['status']] = (int)$row['c'];
 }
 
-// Helper to build a tab URL
 function tabUrl(string $status, ?int $electionId): string {
     $url = '?page=voters&status=' . urlencode($status);
     if ($electionId) {
@@ -496,29 +524,13 @@ function tabUrl(string $status, ?int $electionId): string {
         transition: all 0.2s;
     }
 
-    .btn-approve {
-        background: #10b981;
-        color: white;
-    }
+    .btn-approve { background: #10b981; color: white; }
     .btn-approve:hover { background: #059669; }
-
-    .btn-reject {
-        background: #dc2626;
-        color: white;
-    }
+    .btn-reject { background: #dc2626; color: white; }
     .btn-reject:hover { background: #b91c1c; }
-
-    .btn-unapprove {
-        background: #f59e0b;
-        color: white;
-    }
+    .btn-unapprove { background: #f59e0b; color: white; }
     .btn-unapprove:hover { background: #d97706; }
-
-    .btn-unapprove:disabled {
-        background: #cbd5e1;
-        cursor: not-allowed;
-        opacity: 0.7;
-    }
+    .btn-unapprove:disabled { background: #cbd5e1; cursor: not-allowed; opacity: 0.7; }
 
     .reject-note {
         font-size: 11px;
@@ -567,44 +579,18 @@ function tabUrl(string $status, ?int $electionId): string {
         color: #d1d5db;
     }
 
-    /* Dark theme */
     body.dark-theme .page-header h1 { color: #f3f4f6; }
-    body.dark-theme .filters {
-        background: #2d2d3d;
-        border-color: #3d3d4d;
-    }
+    body.dark-theme .filters { background: #2d2d3d; border-color: #3d3d4d; }
     body.dark-theme .filters select,
-    body.dark-theme .filters input {
-        background: #1e1e2e;
-        border-color: #3d3d4d;
-        color: #f3f4f6;
-    }
-    body.dark-theme .filter-tab {
-        background: #2d2d3d;
-        color: #cbd5e1;
-    }
+    body.dark-theme .filters input { background: #1e1e2e; border-color: #3d3d4d; color: #f3f4f6; }
+    body.dark-theme .filter-tab { background: #2d2d3d; color: #cbd5e1; }
     body.dark-theme .filter-tab:hover { background: #3d3d4d; }
-    body.dark-theme .filter-tab.active {
-        background: #2c7a7b;
-        color: white;
-    }
-    body.dark-theme .filter-tab .count {
-        background: rgba(255, 255, 255, 0.12);
-    }
-    body.dark-theme .filter-tab.active .count {
-        background: rgba(255, 255, 255, 0.25);
-    }
-    body.dark-theme .requests-table {
-        background: #1e1e2e;
-    }
-    body.dark-theme .requests-table th {
-        background: #2d2d3d;
-        color: #cbd5e1;
-    }
-    body.dark-theme .requests-table td {
-        border-bottom-color: #3d3d4d;
-        color: #e5e7eb;
-    }
+    body.dark-theme .filter-tab.active { background: #2c7a7b; color: white; }
+    body.dark-theme .filter-tab .count { background: rgba(255, 255, 255, 0.12); }
+    body.dark-theme .filter-tab.active .count { background: rgba(255, 255, 255, 0.25); }
+    body.dark-theme .requests-table { background: #1e1e2e; }
+    body.dark-theme .requests-table th { background: #2d2d3d; color: #cbd5e1; }
+    body.dark-theme .requests-table td { border-bottom-color: #3d3d4d; color: #e5e7eb; }
     body.dark-theme .requests-table tr:hover { background: #2d2d3d; }
     body.dark-theme .user-name { color: #f3f4f6; }
     body.dark-theme .user-email { color: #9ca3af; }
@@ -614,10 +600,7 @@ function tabUrl(string $status, ?int $electionId): string {
     body.dark-theme .status-active   { background: #064e3b; color: #a7f3d0; }
     body.dark-theme .status-upcoming { background: #78350f; color: #fde68a; }
     body.dark-theme .status-completed{ background: #374151; color: #e5e7eb; }
-    body.dark-theme .empty-state {
-        background: #2d2d3d;
-        border-color: #3d3d4d;
-    }
+    body.dark-theme .empty-state { background: #2d2d3d; border-color: #3d3d4d; }
 
     @media (max-width: 768px) {
         .requests-table th,
@@ -674,7 +657,7 @@ function tabUrl(string $status, ?int $electionId): string {
                 <option value="">All elections</option>
                 <?php foreach ($elections as $e): ?>
                     <option value="<?= $e['id'] ?>" <?= $filterElectionId == $e['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($e['title']) ?> (<?= $e['status'] ?>)
+                        <?= htmlspecialchars($e['title']) ?> (<?= ucfirst($e['live_status']) ?>)
                     </option>
                 <?php endforeach; ?>
             </select>
@@ -705,6 +688,7 @@ function tabUrl(string $status, ?int $electionId): string {
                             $avatar = $r['profile_photo'];
                         }
                         $hasVoted = (int)$r['votes_cast'] > 0;
+                        $liveElectionStatus = $r['live_election_status'];
                     ?>
                     <tr>
                         <td>
@@ -718,9 +702,9 @@ function tabUrl(string $status, ?int $electionId): string {
                         </td>
                         <td>
                             <strong><?= htmlspecialchars($r['election_title']) ?></strong>
-                            <span class="status-badge status-<?= htmlspecialchars($r['election_status']) ?>"
+                            <span class="status-badge status-<?= htmlspecialchars($liveElectionStatus) ?>"
                                   style="font-size:10px; padding:2px 8px; margin-left:6px;">
-                                <?= htmlspecialchars($r['election_status']) ?>
+                                <?= htmlspecialchars($liveElectionStatus) ?>
                             </span>
                         </td>
                         <td><?= date('M d, Y H:i', strtotime($r['requested_at'])) ?></td>
