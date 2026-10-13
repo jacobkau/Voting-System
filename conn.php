@@ -1,102 +1,169 @@
 <?php
+if (defined('CONN_LOADED')) {
+    return;
+}
+define('CONN_LOADED', true);
+
+// =====================================================================
+// 1. PHP TIMEZONE
+// =====================================================================
+date_default_timezone_set('Africa/Nairobi');
+
+// =====================================================================
+// 2. PROXY DETECTION
+// =====================================================================
+if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
+    && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
+    $_SERVER['HTTPS'] = 'on';
+}
+
+// =====================================================================
+// 3. SESSION SAVE PATH
+// =====================================================================
+$sessCandidates = [
+    session_save_path(),
+    sys_get_temp_dir(),           
+    '/tmp',
+    __DIR__ . '/../tmp_sessions', 
+];
+
+$chosenSessionPath = null;
+foreach ($sessCandidates as $p) {
+    if ($p && is_dir($p) && is_writable($p)) {
+        $chosenSessionPath = $p;
+        break;
+    }
+}
+
+if ($chosenSessionPath === null) {
+    $custom = __DIR__ . '/../tmp_sessions';
+    if (!is_dir($custom)) {
+        @mkdir($custom, 0700, true);
+    }
+    if (is_dir($custom) && is_writable($custom)) {
+        $chosenSessionPath = $custom;
+    }
+}
+
+if ($chosenSessionPath !== null) {
+    session_save_path($chosenSessionPath);
+} else {
+    error_log("SESSION ERROR: no writable session path found.");
+}
+
+// =====================================================================
+// 4. SESSION COOKIE PARAMS + START
+// =====================================================================
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
-// ============================================================
-//  ENFORCE HTTPS - Redirect all HTTP traffic to HTTPS
-// ============================================================
-// Skip enforcement for CLI (cron jobs, scripts) and local development
-if (php_sapi_name() !== 'cli') {
+// =====================================================================
+// 5. HTTPS ENFORCEMENT 
+// =====================================================================
+if (php_sapi_name() !== 'cli'
+    && !headers_sent()
+    && empty($GLOBALS['__https_enforced'])) {
 
-    // Detect HTTPS - works behind Render's proxy (X-Forwarded-Proto)
-    $isHttps = (
-        (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off') ||
-        (isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
-        (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
-        (!empty($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on') ||
-        (!empty($_SERVER['HTTP_CF_VISITOR']) && strpos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false)
-    );
+    $GLOBALS['__https_enforced'] = true;
+
+    $isHttps =
+        (!empty($_SERVER['HTTPS']) && strtolower($_SERVER['HTTPS']) !== 'off')
+        || (isset($_SERVER['SERVER_PORT']) && (int)$_SERVER['SERVER_PORT'] === 443)
+        || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
+            && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+        || (!empty($_SERVER['HTTP_X_FORWARDED_SSL'])
+            && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+        || (!empty($_SERVER['HTTP_CF_VISITOR'])
+            && strpos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false);
 
     if (!$isHttps) {
-        // Build the HTTPS URL preserving host, path, and query string
-        $host = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
+        $host       = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
         $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-        // Safety: only redirect if we have a valid host
         if (!empty($host)) {
-            $redirectUrl = 'https://' . $host . $requestUri;
-
-            // 301 = permanent redirect (better for SEO and caching)
-            header('Location: ' . $redirectUrl, true, 301);
+            header('Location: https://' . $host . $requestUri, true, 301);
             exit;
         }
     }
 
-    // ============================================================
-    // 0b. SECURITY HEADERS (recommended alongside HTTPS)
-    // ============================================================
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     header('X-Content-Type-Options: nosniff');
     header('X-Frame-Options: SAMEORIGIN');
     header('Referrer-Policy: strict-origin-when-cross-origin');
 }
 
-// ============================================================
-// 1. Fetch the secret link from Render's environment settings
-// ============================================================
+// =====================================================================
+// 6. DATABASE CONNECTION
+// =====================================================================
+
+if (!function_exists('conn_fail')) {
+    function conn_fail(string $logMessage): void {
+        error_log($logMessage);
+
+        if (php_sapi_name() === 'cli') {
+            fwrite(STDERR, $logMessage . "\n");
+            exit(1);
+        }
+
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: text/plain; charset=utf-8');
+        }
+        echo "Database temporarily unavailable. Please try again shortly.";
+        exit;
+    }
+}
+
 $uri = getenv('AIVEN_DATABASE_URL');
 
 if (!$uri) {
-    die("Database Connection Error: Secure configuration string is missing.");
+    conn_fail("AIVEN_DATABASE_URL is missing from the environment.");
 }
 
-// 2. Safely parse the database URL details
 $fields = parse_url($uri);
 
 if (!$fields || !isset($fields["host"])) {
-    die("Database Connection Error: Secure configuration string is corrupted.");
+    conn_fail("AIVEN_DATABASE_URL is malformed: " . substr($uri, 0, 30) . "...");
 }
 
-// 3. Cleanly build the basic MySQL DSN (No SSL text inside the string)
-$dsn = "mysql:host=" . $fields["host"];
+$dsn  = "mysql:host=" . $fields["host"];
 $dsn .= ";port=" . ($fields["port"] ?? '27643');
 $dsn .= ";dbname=defaultdb;charset=utf8mb4";
 
-// 4. Pass the SSL certificate correctly using PHP PDO Array options
 $options = [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::MYSQL_ATTR_SSL_CA => __DIR__ . '/ca.pem',
-    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true    // Forces certificate verification
+    PDO::ATTR_ERRMODE                      => PDO::ERRMODE_EXCEPTION,
+    PDO::MYSQL_ATTR_SSL_CA                 => __DIR__ . '/ca.pem',
+    PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => true,
 ];
 
 try {
     $user = $fields["user"] ?? 'avnadmin';
     $pass = $fields["pass"] ?? '';
 
-    // 5. Connect securely using the options array
-    $db = new PDO($dsn, $user, $pass, $options);
+    $db   = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
-
-    // ============================================================
-    // 6. Force the MySQL session to Kenyan local time (EAT, UTC+3)
-    // ============================================================
-    // This makes NOW(), CURRENT_TIMESTAMP, CURDATE(), TIMESTAMPDIFF,
-    // and any date comparison inside SQL use East Africa Time instead
-    // of Aiven's default UTC.
-    //
-    // Kenya does not observe DST, so '+03:00' is correct year-round.
-    $conn->exec("SET time_zone = '+03:00'");
+    try {
+        $conn->exec("SET time_zone = '+03:00'");
+    } catch (PDOException $e) {
+        error_log("Could not set MySQL session timezone: " . $e->getMessage());
+    }
 
 } catch (Exception $e) {
-    // If it still fails, let's see the error temporarily so we can fix it!
-    die("Database Connection Error: " . $e->getMessage());
+    conn_fail("DB connection failed: " . $e->getMessage());
 }
 
-/* =====================================================================
-   Election status helper — derives effective status from dates
-   ===================================================================== */
-
+// =====================================================================
+// 8. ELECTION STATUS HELPER
+// =====================================================================
 if (!function_exists('effectiveElectionStatus')) {
 
     function effectiveElectionStatus(array $e): string {
@@ -128,3 +195,4 @@ if (!function_exists('effectiveElectionStatus')) {
         return $e['status'] ?? 'upcoming';
     }
 }
+?>
