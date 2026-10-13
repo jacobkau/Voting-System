@@ -90,7 +90,6 @@ witty-voting-system/
 
 
 USER PAGES
-|
 ├── cloudinary.php
 ├── conn.php
 ├── header.php
@@ -127,8 +126,7 @@ ADMIN PAGES
 │   ├── manage_votes.php
 │   ├── refreshdb.php
 │   ├── view_results.php
-│   └── voting_settings.php
-│
+|───── voting_settings.php
 
 ```
 
