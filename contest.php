@@ -6,8 +6,7 @@ ini_set('display_errors', $isLocal ? '1' : '0');
 ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
-
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -16,20 +15,39 @@ if (empty($_SESSION["username"])) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Fetch elections with counts for the cards
+// Fetch elections — filter by derived status in PHP
 // ────────────────────────────────────────────────────────────
 try {
     $electionsStmt = $conn->prepare("
-        SELECT e.id, e.title, e.description, e.status, e.start_date, e.end_date,
-               (SELECT COUNT(DISTINCT postname) FROM contesters WHERE election_id = e.id AND status = 'approved') AS positions_count,
-               (SELECT COUNT(*) FROM contesters WHERE election_id = e.id AND status = 'approved') AS candidates_count
+        SELECT e.id, e.title, e.description, e.status,
+               e.start_date, e.end_date, e.manual_status, e.manual_until,
+               (SELECT COUNT(DISTINCT postname) FROM contesters
+                 WHERE election_id = e.id AND status = 'approved') AS positions_count,
+               (SELECT COUNT(*) FROM contesters
+                 WHERE election_id = e.id AND status = 'approved') AS candidates_count
         FROM elections e
-        ORDER BY
-            CASE e.status WHEN 'active' THEN 1 WHEN 'upcoming' THEN 2 WHEN 'completed' THEN 3 ELSE 4 END,
-            e.start_date DESC
+        ORDER BY e.start_date DESC
     ");
     $electionsStmt->execute();
-    $elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+    $allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Attach derived status
+    foreach ($allElections as &$e) {
+        $e['live_status'] = effectiveElectionStatus($e);
+    }
+    unset($e);
+
+    // Sort: active first, then upcoming, then completed
+    usort($allElections, function ($a, $b) {
+        $order = ['active' => 1, 'upcoming' => 2, 'completed' => 3];
+        $oa = $order[$a['live_status']] ?? 4;
+        $ob = $order[$b['live_status']] ?? 4;
+        if ($oa !== $ob) return $oa - $ob;
+        return strtotime($b['start_date']) - strtotime($a['start_date']);
+    });
+
+    $elections = $allElections;
+
 } catch (PDOException $e) {
     error_log("Error fetching elections: " . $e->getMessage());
     $elections = [];
@@ -64,9 +82,6 @@ function getContesterImage($contester, $conn) {
 <?php include("header.php"); ?>
 
 <style>
-    /* ───────────────────────────────────────────────
-       Hero
-       ─────────────────────────────────────────────── */
     .contest-hero {
         background-color: #2c7a7b;
         border-radius: 16px;
@@ -101,9 +116,6 @@ function getContesterImage($contester, $conn) {
     .contest-hero-text h1 { font-size: 20px; margin-bottom: 4px; font-weight: 700; }
     .contest-hero-text p { font-size: 13px; opacity: 0.9; line-height: 1.5; }
 
-    /* ───────────────────────────────────────────────
-       Election cards grid
-       ─────────────────────────────────────────────── */
     .elections-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -182,7 +194,6 @@ function getContesterImage($contester, $conn) {
 
     body.dark-theme .election-card p { color: #9ca3af; }
 
-    /* Preview of candidate names */
     .candidate-preview {
         display: flex;
         flex-wrap: wrap;
@@ -330,9 +341,7 @@ function getContesterImage($contester, $conn) {
 
     body.dark-theme .no-data i { color: #4b5563; }
 
-    /* ───────────────────────────────────────────────
-       Modal
-       ─────────────────────────────────────────────── */
+    /* Modal */
     .contest-modal {
         display: none;
         position: fixed;
@@ -366,9 +375,7 @@ function getContesterImage($contester, $conn) {
         animation: slideDown 0.25s ease;
     }
 
-    body.dark-theme .contest-modal-content {
-        background: #1e1e2e;
-    }
+    body.dark-theme .contest-modal-content { background: #1e1e2e; }
 
     @keyframes slideDown {
         from { transform: translateY(-30px); opacity: 0; }
@@ -404,11 +411,7 @@ function getContesterImage($contester, $conn) {
         white-space: nowrap;
     }
 
-    .contest-modal-header h2 i {
-        font-size: 16px;
-        opacity: 0.9;
-        flex-shrink: 0;
-    }
+    .contest-modal-header h2 i { font-size: 16px; opacity: 0.9; flex-shrink: 0; }
 
     .modal-close {
         background: rgba(255, 255, 255, 0.15);
@@ -436,7 +439,6 @@ function getContesterImage($contester, $conn) {
         min-height: 200px;
     }
 
-    /* Loading */
     .modal-loading {
         text-align: center;
         padding: 60px 20px;
@@ -458,7 +460,6 @@ function getContesterImage($contester, $conn) {
     body.dark-theme .modal-loading { color: #9ca3af; }
     body.dark-theme .modal-loading .spinner { border-color: #3d3d4d; border-top-color: #4fd1c5; }
 
-    /* Position sections inside the modal */
     .modal-position {
         margin-bottom: 24px;
         border: 1px solid #e5e7eb;
@@ -513,7 +514,6 @@ function getContesterImage($contester, $conn) {
 
     body.dark-theme .modal-position-count { color: #9ca3af; }
 
-    /* Candidate cards inside the modal */
     .modal-candidates {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -635,7 +635,6 @@ function getContesterImage($contester, $conn) {
 
     .modal-empty p { font-size: 13px; }
 
-    /* Mobile */
     @media (max-width: 768px) {
         .contest-hero { padding: 18px 20px; gap: 14px; }
         .contest-hero-icon { width: 42px; height: 42px; font-size: 22px; }
@@ -651,7 +650,6 @@ function getContesterImage($contester, $conn) {
     }
 </style>
 
-<!-- Hero -->
 <div class="contest-hero">
     <div class="contest-hero-icon">
         <i class="fas fa-users"></i>
@@ -662,7 +660,6 @@ function getContesterImage($contester, $conn) {
     </div>
 </div>
 
-<!-- Election cards -->
 <div class="elections-grid">
     <?php if (empty($elections)): ?>
         <div class="no-data">
@@ -672,7 +669,7 @@ function getContesterImage($contester, $conn) {
     <?php else: ?>
         <?php foreach ($elections as $election): ?>
             <?php
-                // Fetch a preview of the first few approved candidates (names only)
+                $liveStatus = $election['live_status'];
                 $preview = [];
                 try {
                     $pv = $conn->prepare("
@@ -691,9 +688,9 @@ function getContesterImage($contester, $conn) {
 
                 <div class="election-card-header">
                     <h3><?php echo htmlspecialchars($election['title']); ?></h3>
-                    <span class="status-pill status-<?php echo htmlspecialchars($election['status']); ?>">
-                        <i class="fas <?php echo $election['status'] === 'active' ? 'fa-play' : ($election['status'] === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
-                        <?php echo ucfirst(htmlspecialchars($election['status'])); ?>
+                    <span class="status-pill status-<?php echo htmlspecialchars($liveStatus); ?>">
+                        <i class="fas <?php echo $liveStatus === 'active' ? 'fa-play' : ($liveStatus === 'completed' ? 'fa-flag-checkered' : 'fa-clock'); ?>"></i>
+                        <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
                     </span>
                 </div>
 
@@ -742,7 +739,6 @@ function getContesterImage($contester, $conn) {
     <?php endif; ?>
 </div>
 
-<!-- Contestants modal -->
 <div class="contest-modal" id="contestModal" onclick="if(event.target === this) closeContest()">
     <div class="contest-modal-content" onclick="event.stopPropagation()">
         <div class="contest-modal-header">
@@ -766,9 +762,6 @@ function getContesterImage($contester, $conn) {
 
     let currentElectionId = null;
 
-    // ────────────────────────────────────────────────
-    // Open / close modal
-    // ────────────────────────────────────────────────
     window.openContest = async function(electionId, title) {
         currentElectionId = electionId;
         document.getElementById('contestModalTitle').textContent = title;
@@ -807,14 +800,10 @@ function getContesterImage($contester, $conn) {
         document.body.style.overflow = '';
     };
 
-    // Escape key closes
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && currentElectionId !== null) closeContest();
     });
 
-    // ────────────────────────────────────────────────
-    // Render
-    // ────────────────────────────────────────────────
     function escapeHtml(s) {
         if (s === null || s === undefined) return '';
         const d = document.createElement('div');
@@ -875,7 +864,6 @@ function getContesterImage($contester, $conn) {
         body.innerHTML = html;
     }
 
-    // Expand / collapse long bios
     window.toggleBio = function(bioId, fullText) {
         const el = document.getElementById(bioId);
         const btn = el.nextElementSibling;
@@ -887,7 +875,6 @@ function getContesterImage($contester, $conn) {
             btn.textContent = 'Read more';
         } else {
             el.classList.add('expanded');
-            // Preserve line breaks from the original bio
             el.innerHTML = escapeHtml(fullText).replace(/\n/g, '<br>');
             btn.textContent = 'Show less';
         }
