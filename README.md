@@ -68,7 +68,7 @@ An online voting management system built with PHP, MySQL, and Cloudinary. It pro
 | Layer | Technology |
 |---|---|
 | Backend | PHP 8.3+ |
-| Database | POSTGRE - AIVEN.COM|
+| Database | MySQL 8.0+ - AIVEN.COM|
 | Web server | Apache (with mod_rewrite) |
 | Container | Docker (php:8.3-apache base) |
 | Hosting | Render.com |
@@ -84,21 +84,27 @@ An online voting management system built with PHP, MySQL, and Cloudinary. It pro
 ```
 witty-voting-system/
 ├── composer.json
-├── composer.lock
 ├── Dockerfile
-├── schema.sql
+├── ca.pem
 ├── README.md
+
+
+USER PAGES
+|
 ├── cloudinary.php
 ├── conn.php
 ├── header.php
 ├── footer.php
-│
-├── index.php
 ├── login.php
 ├── register.php
 ├── logout.php
+├── get_posts.php
+|
+├── index.php
+├── candidate.php
+├── elections.php
 ├── forgot_password.php
-├── test_reset.php
+├── reset_password.php
 ├── profile.php
 ├── vote.php
 ├── apply.php
@@ -106,13 +112,12 @@ witty-voting-system/
 ├── my_applications.php
 ├── members.php
 ├── help.php
-├── get_posts.php
-│
-├── admin_login.php
-├── reg.php
-├── main.php
-│
+
+ADMIN PAGES
 ├── includes/
+|   |── admin_login.php
+|   ├── main.php
+|   |── reg.php
 │   ├── admin.php
 │   ├── admin_settings.php
 │   ├── admin_manage_posts.php
@@ -124,8 +129,7 @@ witty-voting-system/
 │   ├── view_results.php
 │   └── voting_settings.php
 │
-├── vendor/
-└── .env
+
 ```
 
 ---
@@ -135,8 +139,8 @@ witty-voting-system/
 - PHP 8.3 or higher with extensions: pdo_mysql, mysqli, gd, zip, mbstring, xml, curl
 - Composer 2.x
 - MySQL 8.0+ or MariaDB 10.4+
-- Cloudinary account (free tier works)
-- EmailJS account (free tier: 200 emails/month)
+- Cloudinary account
+- EmailJS account
 - Gmail account with 2-Step Verification enabled
 
 ---
@@ -151,13 +155,7 @@ cd Voting-System
 composer install
 ```
 
-### 2. Create the database
-
-```bash
-mysql -u root -p < schema.sql
-```
-
-### 3. Configure the connection
+### 2. Configure the connection
 
 Edit conn.php:
 
@@ -178,7 +176,7 @@ try {
 }
 ```
 
-### 4. Set environment variables
+### 3. Set environment variables
 
 ```
 CLOUDINARY_CLOUD_NAME=your_cloud_name
@@ -194,16 +192,16 @@ EMAILJS_PRIVATE_KEY=your_private_key
 ADMIN_INVITE_CODE=some_long_random_string
 ```
 
-### 5. Create your first admin
+### 4. Create your first admin
 
-Visit includes/reg.php and enter your ADMIN_INVITE_CODE, or insert directly:
+Visit includes/manage_adminreg.php and enter your ADMIN_INVITE_CODE, or insert directly:
 
 ```sql
 INSERT INTO admin (username, password, name, email)
 VALUES ('admin', '$2y$10$...', 'Administrator', 'admin@example.com');
 ```
 
-### 6. Run
+### 5. Run
 
 ```bash
 php -S localhost:8000
@@ -247,13 +245,6 @@ $dbname = getenv('DB_NAME');
 $username = getenv('DB_USER');
 $password = getenv('DB_PASS');
 ```
-
-### 5. Run the schema on production
-
-```bash
-mysql -h <host> -u <user> -p<pass> <db> < schema.sql
-```
-
 ---
 
 ## Environment Variables
@@ -354,16 +345,17 @@ Location: /admin_login.php to /main.php
 
 | Page | Purpose |
 |---|---|
-| Dashboard | Summary stats + recent activity |
-| Manage Voters | View/edit/delete users |
-| Manage Votes | See all vote records |
+| Manage Dashboard | Summary stats + recent activity |
+| Manage Adminreg | Register a new Admin |
 | Manage Candidates | Add/view/delete candidates |
 | Manage Elections | Create/update elections |
+| Manage Elections Voters | View/edit/delete voters specifically for an election |
 | Manage Posts | Define positions per election |
-| Voting Settings | Control voting/registration toggles |
-| View Results | Detailed per-position results |
-| Profile Settings | Update admin info |
-| Refresh Vote | Reset votes for an election |
+| Manage Profile | Update admin info |
+| Manage Admins | Delete/Edit/View/Update admins info |
+| Manage Users | Delete/Edit/View/approve users requests and info |
+| manage Settings | Control voting/registration toggles |
+| Manage Results | Detailed per-position results |
 
 ---
 
@@ -375,9 +367,10 @@ Location: /login.php to /profile.php
 |---|---|
 | Profile | Update personal info, password, photo |
 | Vote | Cast votes in active elections |
+| Elections | View/Register to an election |
 | Candidacy | Apply to run for a position |
 | Contesters | Browse all candidates |
-| My Apps | Manage registrations, withdraw candidacy |
+| My Applications | Manage the users applications |
 | Results | Public results view |
 | Members | Directory of registered voters |
 | Help | User guide + FAQ |
@@ -435,9 +428,7 @@ input:-webkit-autofill { /* autofill override */ }
 
 ### What to watch
 
-- Never commit .env files
 - Rotate Cloudinary / EmailJS keys if exposed
-- Delete test_reset.php from production if unused
 - Set ADMIN_INVITE_CODE to empty after creating admins
 - Use HTTPS in production
 - Enable session.cookie_secure and session.cookie_httponly
