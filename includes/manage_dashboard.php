@@ -1,5 +1,8 @@
 <?php
-include("conn.php");
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+require_once __DIR__ . '/conn.php';
 
 // Admin Authentication
 if (!isset($_SESSION['admin_id'])) {
@@ -9,26 +12,22 @@ if (!isset($_SESSION['admin_id'])) {
 
 // Fetch Summary Data
 try {
-    // Total Elections
     $electionsStmt = $conn->prepare("SELECT COUNT(*) as count FROM elections");
     $electionsStmt->execute();
     $totalElections = $electionsStmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-    // Total Users
     $usersStmt = $conn->prepare("SELECT COUNT(*) as count FROM users");
     $usersStmt->execute();
     $totalUsers = $usersStmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-    // Total Votes
     $votesStmt = $conn->prepare("SELECT COUNT(*) as count FROM votes");
     $votesStmt->execute();
     $totalVotes = $votesStmt->fetch(PDO::FETCH_ASSOC)['count'];
 
-    // Total Contesters
     $contestersStmt = $conn->prepare("SELECT COUNT(*) as count FROM contesters");
     $contestersStmt->execute();
     $totalContesters = $contestersStmt->fetch(PDO::FETCH_ASSOC)['count'];
-    
+
 } catch (PDOException $e) {
     error_log("Error fetching dashboard data: " . $e->getMessage());
     $totalElections = 0;
@@ -49,10 +48,10 @@ try {
         .admin-container { width: 90%; max-width: 1200px; margin: 20px auto; background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }
         h2 { color: #333; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; }
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px; }
-        
-        .dashboard-item { 
-            padding: 25px; 
-            border-radius: 10px; 
+
+        .dashboard-item {
+            padding: 25px;
+            border-radius: 10px;
             text-align: center;
             color: white;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
@@ -61,26 +60,25 @@ try {
         .dashboard-item:hover {
             transform: translateY(-5px);
         }
-        .dashboard-item h3 { 
-            margin: 0 0 10px 0; 
+        .dashboard-item h3 {
+            margin: 0 0 10px 0;
             font-size: 16px;
             text-transform: uppercase;
             letter-spacing: 1px;
             opacity: 0.9;
         }
-        .dashboard-item p { 
-            margin: 0; 
-            font-size: 36px; 
+        .dashboard-item p {
+            margin: 0;
+            font-size: 36px;
             font-weight: bold;
         }
-        
-        /* Solid calm colors instead of gradients */
-        .dashboard-item:nth-child(1) { background-color: #2c7a7b; } /* teal - matches header */
-        .dashboard-item:nth-child(2) { background-color: #3b82f6; } /* blue */
-        .dashboard-item:nth-child(3) { background-color: #6366f1; } /* indigo */
-        .dashboard-item:nth-child(4) { background-color: #0d9488; } /* darker teal */
-        
-        @media (max-width: 768px) { 
+
+        .dashboard-item:nth-child(1) { background-color: #2c7a7b; }
+        .dashboard-item:nth-child(2) { background-color: #3b82f6; }
+        .dashboard-item:nth-child(3) { background-color: #6366f1; }
+        .dashboard-item:nth-child(4) { background-color: #0d9488; }
+
+        @media (max-width: 768px) {
             .admin-container { width: 95%; }
             .dashboard-item p { font-size: 28px; }
         }
@@ -110,8 +108,3 @@ try {
     </div>
 </body>
 </html>
-
-<?php
-// Close PDO connection by setting to null
-$conn = null;
-?>
