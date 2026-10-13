@@ -6,7 +6,7 @@ ini_set('display_errors', $isLocal ? '1' : '0');
 ini_set('display_startup_errors', $isLocal ? '1' : '0');
 error_reporting(E_ALL);
 
-include("conn.php");
+require_once __DIR__ . '/conn.php';
 require_once __DIR__ . '/cloudinary.php';
 
 if (empty($_SESSION["username"])) {
@@ -18,29 +18,32 @@ $username = $_SESSION["username"];
 $message = "";
 $messageType = "";
 
-// Get user ID
 $userStmt = $conn->prepare("SELECT id FROM users WHERE username = ?");
 $userStmt->execute([$username]);
 $user = $userStmt->fetch(PDO::FETCH_ASSOC);
 $userId = $user ? (int)$user['id'] : 0;
 
+// ─────────────────────────────────────────────────────────────
 // Handle "Request registration" submission
+// ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_election_id'])) {
     $requestElectionId = (int)$_POST['request_election_id'];
 
-    // Validate the election exists and is open for registration
     $checkElection = $conn->prepare("
-        SELECT id, status FROM elections
-        WHERE id = ? AND status IN ('active','upcoming')
+        SELECT id, status, start_date, end_date, manual_status, manual_until
+        FROM elections
+        WHERE id = ?
     ");
     $checkElection->execute([$requestElectionId]);
     $targetElection = $checkElection->fetch(PDO::FETCH_ASSOC);
 
-    if (!$targetElection) {
+    $targetStatus = $targetElection ? effectiveElectionStatus($targetElection) : null;
+    $openForRegistration = $targetElection && in_array($targetStatus, ['active', 'upcoming'], true);
+
+    if (!$openForRegistration) {
         $message = "That election is not open for registration.";
         $messageType = "error";
     } else {
-        // Check for existing request or approved registration
         $checkExisting = $conn->prepare("
             SELECT status FROM election_registration_requests
             WHERE user_id = ? AND election_id = ?
@@ -97,10 +100,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['request_election_id']
     }
 }
 
-// Fetch all open elections with this user's request status
+
 $electionsStmt = $conn->prepare("
     SELECT
-        e.id, e.title, e.description, e.start_date, e.end_date, e.status,
+        e.id, e.title, e.description, e.start_date, e.end_date,
+        e.status, e.manual_status, e.manual_until,
         r.status AS request_status,
         r.rejection_reason,
         ue.id AS approved_registration_id
@@ -109,19 +113,18 @@ $electionsStmt = $conn->prepare("
         ON r.election_id = e.id AND r.user_id = ?
     LEFT JOIN user_elections ue
         ON ue.election_id = e.id AND ue.user_id = ?
-    WHERE e.status IN ('active','upcoming')
     ORDER BY e.start_date ASC
 ");
 $electionsStmt->execute([$userId, $userId]);
-$elections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
+$allElections = $electionsStmt->fetchAll(PDO::FETCH_ASSOC);
 
-/**
- * Fetch the positions for a given election, along with the
- * number of approved candidates per position.
- */
+$elections = array_values(array_filter($allElections, function ($e) {
+    return in_array(effectiveElectionStatus($e), ['active', 'upcoming'], true);
+}));
+
+
 function fetchElectionPosts(PDO $conn, int $electionId): array {
     try {
-        // Prefer the canonical positions from election_posts
         $stmt = $conn->prepare("
             SELECT ep.postname,
                    (SELECT COUNT(*) FROM contesters c
@@ -139,7 +142,6 @@ function fetchElectionPosts(PDO $conn, int $electionId): array {
             return $posts;
         }
 
-        // Fall back — distinct postnames from approved contesters
         $stmt2 = $conn->prepare("
             SELECT c.postname,
                    COUNT(*) AS approved_count
@@ -410,9 +412,6 @@ function resolveRegStatus(array $election): string {
     body.dark-theme .status-approved { background: #064e3b; color: #a7f3d0; }
     body.dark-theme .status-rejected { background: #7f1d1d; color: #fecaca; }
 
-    /* ────────────────────────────────────────────
-       Posts (positions) section
-       ──────────────────────────────────────────── */
     .posts-section {
         border-top: 1px dashed #e5e7eb;
         padding-top: 12px;
@@ -662,15 +661,16 @@ function resolveRegStatus(array $election): string {
         <div class="election-grid">
             <?php foreach ($elections as $election): ?>
                 <?php
-                    $regStatus = resolveRegStatus($election);
-                    $posts = fetchElectionPosts($conn, (int)$election['id']);
+                    $regStatus  = resolveRegStatus($election);
+                    $liveStatus = effectiveElectionStatus($election);
+                    $posts      = fetchElectionPosts($conn, (int)$election['id']);
                 ?>
                 <div class="election-card" data-election-id="<?php echo (int)$election['id']; ?>">
                     <div class="election-card-header">
                         <h3><?php echo htmlspecialchars($election['title']); ?></h3>
-                        <span class="status-pill status-<?php echo htmlspecialchars($election['status']); ?>">
-                            <i class="fas <?php echo $election['status'] === 'active' ? 'fa-play' : 'fa-clock'; ?>"></i>
-                            <?php echo ucfirst(htmlspecialchars($election['status'])); ?>
+                        <span class="status-pill status-<?php echo htmlspecialchars($liveStatus); ?>">
+                            <i class="fas <?php echo $liveStatus === 'active' ? 'fa-play' : 'fa-clock'; ?>"></i>
+                            <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
                         </span>
                     </div>
 
@@ -687,7 +687,6 @@ function resolveRegStatus(array $election): string {
                         <?php endif; ?>
                     </div>
 
-                    <!-- Positions (posts) section -->
                     <div class="posts-section">
                         <?php if (empty($posts)): ?>
                             <span class="posts-empty">
@@ -733,9 +732,6 @@ function resolveRegStatus(array $election): string {
 </div>
 
 <script>
-// ────────────────────────────────────────────────────────────
-// Positions (posts) expansion toggle
-// ────────────────────────────────────────────────────────────
 function togglePosts(button) {
     const list = button.nextElementSibling;
     if (!list) return;
@@ -744,9 +740,6 @@ function togglePosts(button) {
     list.classList.toggle('open');
 }
 
-// ────────────────────────────────────────────────────────────
-// Live polling — registration status updates
-// ────────────────────────────────────────────────────────────
 (function() {
     const POLL_INTERVAL_MS = 15000;
     const API_URL = 'api/election_status.php';
@@ -809,7 +802,6 @@ function togglePosts(button) {
             const data = await res.json();
             if (!data.ok || !Array.isArray(data.elections)) return;
 
-            // 1. If the set of open elections changed, do a soft page reload
             const serverIds = data.elections.map(e => String(e.election_id)).sort().join(',');
             const renderedIds = Array.from(document.querySelectorAll('.election-card'))
                                      .map(el => el.dataset.electionId).sort().join(',');
@@ -819,7 +811,6 @@ function togglePosts(button) {
                 return;
             }
 
-            // 2. Update any buttons whose status changed since last poll
             data.elections.forEach(e => {
                 const id = e.election_id;
                 const container = document.querySelector(
@@ -845,11 +836,9 @@ function togglePosts(button) {
             });
 
         } catch (err) {
-            // Silent — next tick will retry
         }
     }
 
-    // Prime the cache with the current server-rendered statuses
     document.querySelectorAll('.election-card').forEach(card => {
         const id = parseInt(card.dataset.electionId, 10);
         const actions = card.querySelector('[data-role="actions"]');
