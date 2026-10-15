@@ -13,6 +13,7 @@ if (!isset($_SESSION['admin_id'])) {
 // AJAX: manage posts for an election
 // ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
+    ob_clean();
     header('Content-Type: application/json');
 
     if ($_POST['ajax_action'] == 'add_post') {
@@ -258,34 +259,34 @@ if (isset($_GET['edit_id'])) {
 }
 ?>
 
+<!-- ============================ STYLES ============================ -->
 <style>
-    .message { padding: 10px; margin: 10px 0; border-radius: 4px; }
-    .message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .message.error   { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .me-page .message { padding: 10px; margin: 10px 0; border-radius: 6px; font-size: 13px; }
+    .me-page .message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .me-page .message.error   { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; }
-    th { background-color: #f2f2f2; font-weight: bold; white-space: nowrap; }
-    tr:hover { background-color: #f5f5f5; }
+    .me-page table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .me-page th, .me-page td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: middle; font-size: 13px; }
+    .me-page th { background-color: #f2f2f2; font-weight: bold; white-space: nowrap; }
+    .me-page tr:hover { background-color: #f5f5f5; }
 
-    /* Row counter column */
-    th.row-num-col,
-    td.row-num-col {
-        width: 45px;
+    /* Row counter */
+    .me-page th.row-num-col,
+    .me-page td.row-num-col {
+        width: 55px;
         text-align: center;
         background: #f9fafb;
         color: #6b7280;
         font-weight: 600;
         font-size: 13px;
     }
-    td.row-num-col {
+    .me-page td.row-num-col {
         background: #ffffff;
         color: #374151;
     }
-    tr:hover td.row-num-col { background: #f5f5f5; }
+    .me-page tr:hover td.row-num-col { background: #f5f5f5; }
 
-    /* Row ID chip — subtle, right of the row counter */
-    .id-chip {
+    .me-page .id-chip {
         display: inline-block;
         margin-left: 6px;
         padding: 1px 6px;
@@ -298,7 +299,8 @@ if (isset($_GET['edit_id'])) {
         vertical-align: middle;
     }
 
-    select.status-select {
+    /* Status dropdown */
+    .me-page select.status-select {
         padding: 6px 8px;
         margin-right: 5px;
         border: 1px solid #ccc;
@@ -311,44 +313,45 @@ if (isset($_GET['edit_id'])) {
         cursor: pointer;
         vertical-align: middle;
     }
-    select.status-select option {
+    .me-page select.status-select option {
         color: #1f2937;
         background-color: #ffffff;
     }
-    select.status-select:focus {
+    .me-page select.status-select:focus {
         outline: none;
         border-color: #2c7a7b;
         box-shadow: 0 0 0 3px rgba(44, 122, 123, 0.15);
     }
 
-    .election-form-container {
+    /* Election form */
+    .me-page .election-form-container {
         width: 80%; max-width: 600px; margin: 20px auto;
         background-color: #fff; padding: 20px;
         border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    .election-form-container h2 { text-align: center; margin-bottom: 20px; color: #333; }
-    .election-form-container form { display: flex; flex-wrap: wrap; gap: 10px; }
+    .me-page .election-form-container h2 { text-align: center; margin-bottom: 20px; color: #333; font-size: 18px; }
+    .me-page .election-form-container form { display: flex; flex-wrap: wrap; gap: 10px; }
 
-    .election-form-container input[type="text"],
-    .election-form-container input[type="datetime-local"],
-    .election-form-container textarea,
-    .election-form-container select {
+    .me-page .election-form-container input[type="text"],
+    .me-page .election-form-container input[type="datetime-local"],
+    .me-page .election-form-container textarea,
+    .me-page .election-form-container select {
         flex: 1 1 100%; padding: 10px; border: 1px solid #ccc;
-        border-radius: 4px; box-sizing: border-box; font-size: 16px;
+        border-radius: 4px; box-sizing: border-box; font-size: 14px;
         color: #1f2937; background-color: #ffffff;
         -webkit-text-fill-color: #1f2937;
     }
-    .election-form-container textarea { resize: vertical; font-family: inherit; }
+    .me-page .election-form-container textarea { resize: vertical; font-family: inherit; }
 
-    .election-form-container button[type="submit"] {
+    .me-page .election-form-container button[type="submit"] {
         flex: 1 1 100%; background-color: #3498db; color: white;
         padding: 12px 20px; border: none; border-radius: 4px;
-        cursor: pointer; font-size: 16px; transition: background-color 0.3s ease;
+        cursor: pointer; font-size: 15px; transition: background-color 0.3s ease;
         font-family: inherit;
     }
-    .election-form-container button[type="submit"]:hover { background-color: #2980b9; }
+    .me-page .election-form-container button[type="submit"]:hover { background-color: #2980b9; }
 
-    .edit-hint {
+    .me-page .edit-hint {
         width: 100%;
         background: #e0f2fe;
         color: #075985;
@@ -358,25 +361,32 @@ if (isset($_GET['edit_id'])) {
         font-size: 13px;
         margin-bottom: 10px;
     }
-    .edit-hint i { margin-right: 6px; }
+    .me-page .edit-hint i { margin-right: 6px; }
 
-    .btn { display: inline-block; padding: 5px 10px; margin: 2px;
+    /* Buttons */
+    .me-page .btn { display: inline-flex; align-items: center; gap: 5px;
+           padding: 5px 10px; margin: 2px;
            border: none; border-radius: 4px; cursor: pointer;
-           font-size: 12px; text-decoration: none; font-family: inherit; }
-    .btn-edit    { background-color: #ffc107; color: #333; }
-    .btn-delete  { background-color: #dc3545; color: white; }
-    .btn-posts   { background-color: #17a2b8; color: white; }
-    .btn-sm      { padding: 4px 8px; font-size: 11px; }
+           font-size: 12px; text-decoration: none; font-family: inherit;
+           font-weight: 600;
+           transition: all 0.2s; }
+    .me-page .btn-edit    { background-color: #ffc107; color: #333; }
+    .me-page .btn-delete  { background-color: #dc3545; color: white; }
+    .me-page .btn-posts   { background-color: #17a2b8; color: white; }
+    .me-page .btn-sm      { padding: 4px 8px; font-size: 11px; }
+    .me-page .btn:hover   { transform: translateY(-1px); opacity: 0.92; }
 
-    td form button {
+    /* Row action form button (Update status) */
+    .me-page td form button {
         background-color: #4CAF50; color: white; border: none;
         border-radius: 4px; cursor: pointer; padding: 6px 12px;
         font-size: 12px; font-family: inherit;
         vertical-align: middle;
+        font-weight: 600;
     }
-    td form button:hover { background-color: #45a049; }
+    .me-page td form button:hover { background-color: #45a049; }
 
-    .manual-badge {
+    .me-page .manual-badge {
         display: inline-block;
         margin-left: 6px;
         padding: 1px 6px;
@@ -388,344 +398,501 @@ if (isset($_GET['edit_id'])) {
         vertical-align: middle;
     }
 
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0;
+    /* ─────────────────────────────────────────────────────────────
+       Modal
+       ───────────────────────────────────────────────────────────── */
+    .me-page .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0;
              width: 100%; height: 100%; overflow: auto;
              background-color: rgba(0, 0, 0, 0.6); }
-    .modal-content { background-color: white; margin: 5% auto; padding: 0;
+    .me-page .modal-content { background-color: white; margin: 5% auto; padding: 0;
                      border-radius: 8px; width: 90%; max-width: 500px;
                      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); }
-    .modal-header { padding: 15px 20px;
+    .me-page .modal-header { padding: 15px 20px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white; border-radius: 8px 8px 0 0;
                     display: flex; justify-content: space-between; align-items: center; }
-    .modal-header h4 { margin: 0; }
-    .close { color: white; font-size: 28px; font-weight: bold; cursor: pointer; }
-    .modal-body { padding: 20px; max-height: 60vh; overflow-y: auto; }
-    .posts-list { margin-bottom: 15px; }
-    .post-item { display: flex; justify-content: space-between; align-items: center;
-                 padding: 8px; border-bottom: 1px solid #eee; }
-    .post-item:hover { background-color: #f5f5f5; }
-    .delete-post { color: #dc3545; cursor: pointer; }
-    .add-post-form { display: flex; gap: 10px; margin-top: 15px; }
-    .add-post-form input { flex: 1; padding: 8px; border: 1px solid #ddd;
-                           border-radius: 4px; color: #1f2937;
-                           background-color: #ffffff;
-                           -webkit-text-fill-color: #1f2937; }
-    .add-post-form button { padding: 8px 15px; background-color: #28a745; color: white;
-                            border: none; border-radius: 4px; cursor: pointer;
-                            font-family: inherit; }
+    .me-page .modal-header h4 { margin: 0; font-size: 16px; }
+    .me-page .close { color: white; font-size: 28px; font-weight: bold; cursor: pointer; }
+    .me-page .modal-body { padding: 20px; max-height: 60vh; overflow-y: auto; }
+    .me-page .posts-list { margin-bottom: 15px; }
+    .me-page .post-item { display: flex; justify-content: space-between; align-items: center;
+                 padding: 8px; border-bottom: 1px solid #eee; font-size: 13px; }
+    .me-page .post-item:last-child { border-bottom: none; }
+    .me-page .post-item:hover { background-color: #f5f5f5; }
+    .me-page .delete-post { color: #dc3545; cursor: pointer; font-size: 13px;
+                            display: inline-flex; align-items: center; gap: 4px;
+                            padding: 2px 6px; border-radius: 4px;
+                            transition: background 0.15s; }
+    .me-page .delete-post:hover { background: #fee2e2; }
+    .me-page .delete-post.loading {
+        pointer-events: none;
+        opacity: 0.6;
+        cursor: wait;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       Add post form
+       ───────────────────────────────────────────────────────────── */
+    .me-page .add-post-form { display: flex; gap: 10px; margin-top: 15px; align-items: stretch; }
+    .me-page .add-post-form input {
+        flex: 1; padding: 8px 10px; border: 1px solid #ddd;
+        border-radius: 4px; color: #1f2937;
+        background-color: #ffffff;
+        -webkit-text-fill-color: #1f2937;
+        font-family: inherit;
+        font-size: 13px;
+        box-sizing: border-box;
+    }
+    .me-page .add-post-form input:focus {
+        outline: none;
+        border-color: #28a745;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.15);
+    }
+    .me-page .add-post-form button {
+        padding: 8px 15px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-width: 110px;
+        transition: background 0.2s;
+    }
+    .me-page .add-post-form button:hover:not(:disabled) {
+        background-color: #218838;
+    }
+    .me-page .add-post-form button:disabled {
+        cursor: wait;
+        opacity: 0.85;
+        background-color: #5cb85c;
+    }
+    .me-page .add-post-form button i.fa-spinner {
+        font-size: 12px;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       Dark theme support (if body.dark-theme is set)
+       ───────────────────────────────────────────────────────────── */
+    body.dark-theme .me-page .election-form-container { background: #1e1e2e; }
+    body.dark-theme .me-page .election-form-container h2 { color: #f3f4f6; }
+    body.dark-theme .me-page table th { background: #2d2d3d; color: #cbd5e1; }
+    body.dark-theme .me-page table td { border-color: #3d3d4d; color: #e5e7eb; }
+    body.dark-theme .me-page tr:hover td { background: #2d2d3d; }
+    body.dark-theme .me-page td.row-num-col { background: #1e1e2e; color: #cbd5e1; }
+    body.dark-theme .me-page .id-chip { background: #2d2d3d; color: #9ca3af; }
 
     @media (max-width: 768px) {
-        .election-form-container { width: 95%; }
-        table { font-size: 12px; }
-        th, td { padding: 5px; }
-        select.status-select { font-size: 11px; padding: 4px 6px; }
-        th.row-num-col, td.row-num-col { width: 32px; font-size: 11px; }
+        .me-page .election-form-container { width: 95%; }
+        .me-page table { font-size: 12px; }
+        .me-page th, .me-page td { padding: 5px; }
+        .me-page select.status-select { font-size: 11px; padding: 4px 6px; }
+        .me-page th.row-num-col, .me-page td.row-num-col { width: 40px; font-size: 11px; }
+        .me-page .add-post-form { flex-direction: column; }
+        .me-page .add-post-form button { width: 100%; }
     }
 </style>
 
-<?php if (isset($successMsg)): ?>
-    <div class="message success"><?php echo $successMsg; ?></div>
-<?php endif; ?>
-<?php if (isset($errorMsg)): ?>
-    <div class="message error"><?php echo $errorMsg; ?></div>
-<?php endif; ?>
+<!-- ============================ CONTENT ============================ -->
+<div class="me-page">
 
-<div class="election-form-container">
-    <h2><?php echo $editElection ? 'Edit Election' : 'Add New Election'; ?></h2>
+    <?php if (isset($successMsg)): ?>
+        <div class="message success"><?php echo $successMsg; ?></div>
+    <?php endif; ?>
+    <?php if (isset($errorMsg)): ?>
+        <div class="message error"><?php echo $errorMsg; ?></div>
+    <?php endif; ?>
 
-    <?php if ($editElection): ?>
-        <div class="edit-hint">
-            <i class="fas fa-info-circle"></i>
-            <strong>To extend the voting period</strong>, push the <em>End Date</em> forward and save.
-            The status will update automatically — no manual change needed.
-            Use the row dropdown below only if you want to <em>override</em> the automatic schedule.
+    <div class="election-form-container">
+        <h2><?php echo $editElection ? 'Edit Election' : 'Add New Election'; ?></h2>
+
+        <?php if ($editElection): ?>
+            <div class="edit-hint">
+                <i class="fas fa-info-circle"></i>
+                <strong>To extend the voting period</strong>, push the <em>End Date</em> forward and save.
+                The status will update automatically — no manual change needed.
+                Use the row dropdown below only if you want to <em>override</em> the automatic schedule.
+            </div>
+        <?php endif; ?>
+
+        <form method="post" action="main.php?page=elections">
+            <?php if ($editElection): ?>
+                <input type="hidden" name="election_id" value="<?php echo $editElection['id']; ?>">
+                <input type="hidden" name="__old_start" value="<?php echo htmlspecialchars($editElection['start_date']); ?>">
+                <input type="hidden" name="__old_end"   value="<?php echo htmlspecialchars($editElection['end_date']); ?>">
+            <?php endif; ?>
+
+            <input type="text" name="title" placeholder="Election Title" required
+                   value="<?php echo $editElection ? htmlspecialchars($editElection['title']) : ''; ?>">
+
+            <textarea name="description" placeholder="Election Description" rows="3"><?php echo $editElection ? htmlspecialchars($editElection['description'] ?? '') : ''; ?></textarea>
+
+            <input type="datetime-local" name="start_date" required
+                   value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['start_date'])) : ''; ?>">
+
+            <input type="datetime-local" name="end_date" required
+                   value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['end_date'])) : ''; ?>">
+
+            <?php if (!$editElection): ?>
+                <select name="status" required>
+                    <option value="upcoming" selected>Upcoming</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                </select>
+            <?php endif; ?>
+
+            <button type="submit" name="<?php echo $editElection ? 'edit_election' : 'add_election'; ?>">
+                <?php echo $editElection ? 'Update Election' : 'Add Election'; ?>
+            </button>
+
+            <?php if ($editElection): ?>
+                <a href="main.php?page=elections" style="text-align: center; display: block; margin-top: 10px; color: #666;">Cancel Edit</a>
+            <?php endif; ?>
+        </form>
+    </div>
+
+    <?php if (empty($elections)): ?>
+        <p style="text-align: center; color: #666;">No elections found. Create your first election above.</p>
+    <?php else: ?>
+        <h2>Existing Elections</h2>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="row-num-col">#</th>
+                        <th>Title</th>
+                        <th>Description</th>
+                        <th>Start Date</th>
+                        <th>End Date</th>
+                        <th>Status</th>
+                        <th>Candidates</th>
+                        <th>Registered Voters</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $rowNum = 1; ?>
+                    <?php foreach ($elections as $election) : ?>
+                        <?php
+                        $liveStatus  = effectiveElectionStatus($election);
+                        $statusColor = $liveStatus === 'active'
+                            ? 'green'
+                            : ($liveStatus === 'completed' ? 'red' : 'orange');
+                        $hasOverride = !empty($election['manual_status'])
+                            && (empty($election['manual_until']) || strtotime($election['manual_until']) > time());
+                        ?>
+                        <tr>
+                            <td class="row-num-col">
+                                <?php echo $rowNum++; ?>
+                                <span class="id-chip" title="Database ID">#<?php echo (int)$election['id']; ?></span>
+                            </td>
+                            <td><?php echo htmlspecialchars($election['title']); ?></td>
+                            <td><?php echo htmlspecialchars(substr($election['description'] ?? '', 0, 50)) . (strlen($election['description'] ?? '') > 50 ? '...' : ''); ?></td>
+                            <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['start_date']))); ?></td>
+                            <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['end_date']))); ?></td>
+                            <td>
+                                <span style="color: <?php echo $statusColor; ?>; font-weight: bold;">
+                                    <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
+                                </span>
+                                <?php if ($hasOverride): ?>
+                                    <span class="manual-badge" title="Manually overridden by admin">MANUAL</span>
+                                <?php endif; ?>
+                            </td>
+                            <td><?php echo getCandidateCountForElection($conn, $election['id']); ?></td>
+                            <td><?php echo getRegisteredVoterCountForElection($conn, $election['id']); ?></td>
+                            <td>
+                                <form method="post" action="main.php?page=elections" style="display: inline-block; margin: 0;">
+                                    <input type="hidden" name="election_id" value="<?php echo $election['id']; ?>">
+                                    <select name="status" class="status-select">
+                                        <?php $overrideValue = !empty($election['manual_status']) ? $election['manual_status'] : 'auto'; ?>
+                                        <option value="auto"      <?php echo $overrideValue === 'auto'      ? 'selected' : ''; ?>>Auto (from dates)</option>
+                                        <option value="upcoming"  <?php echo $overrideValue === 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
+                                        <option value="active"    <?php echo $overrideValue === 'active'    ? 'selected' : ''; ?>>Active</option>
+                                        <option value="completed" <?php echo $overrideValue === 'completed' ? 'selected' : ''; ?>>Completed</option>
+                                    </select>
+                                    <button type="submit" name="update_election_status">Update</button>
+                                </form>
+
+                                <a href="main.php?page=elections&edit_id=<?php echo $election['id']; ?>" class="btn btn-edit btn-sm">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+
+                                <button onclick="deleteElection(<?php echo $election['id']; ?>)" class="btn btn-delete btn-sm">
+                                    <i class="fas fa-trash"></i> Delete
+                                </button>
+
+                                <button onclick="managePosts(<?php echo $election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')" class="btn btn-posts btn-sm">
+                                    <i class="fas fa-clipboard-list"></i> Manage Posts
+                                </button>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     <?php endif; ?>
 
-    <form method="post" action="main.php?page=elections">
-        <?php if ($editElection): ?>
-            <input type="hidden" name="election_id" value="<?php echo $editElection['id']; ?>">
-            <input type="hidden" name="__old_start" value="<?php echo htmlspecialchars($editElection['start_date']); ?>">
-            <input type="hidden" name="__old_end"   value="<?php echo htmlspecialchars($editElection['end_date']); ?>">
-        <?php endif; ?>
-
-        <input type="text" name="title" placeholder="Election Title" required
-               value="<?php echo $editElection ? htmlspecialchars($editElection['title']) : ''; ?>">
-
-        <textarea name="description" placeholder="Election Description" rows="3"><?php echo $editElection ? htmlspecialchars($editElection['description'] ?? '') : ''; ?></textarea>
-
-        <input type="datetime-local" name="start_date" required
-               value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['start_date'])) : ''; ?>">
-
-        <input type="datetime-local" name="end_date" required
-               value="<?php echo $editElection ? date('Y-m-d\TH:i', strtotime($editElection['end_date'])) : ''; ?>">
-
-        <?php if (!$editElection): ?>
-            <select name="status" required>
-                <option value="upcoming" selected>Upcoming</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-            </select>
-        <?php endif; ?>
-
-        <button type="submit" name="<?php echo $editElection ? 'edit_election' : 'add_election'; ?>">
-            <?php echo $editElection ? 'Update Election' : 'Add Election'; ?>
-        </button>
-
-        <?php if ($editElection): ?>
-            <a href="main.php?page=elections" style="text-align: center; display: block; margin-top: 10px; color: #666;">Cancel Edit</a>
-        <?php endif; ?>
-    </form>
-</div>
-
-<?php if (empty($elections)): ?>
-    <p style="text-align: center; color: #666;">No elections found. Create your first election above.</p>
-<?php else: ?>
-    <h2>Existing Elections</h2>
-    <div style="overflow-x: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th class="row-num-col">#</th>
-                    <th>Title</th>
-                    <th>Description</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
-                    <th>Status</th>
-                    <th>Candidates</th>
-                    <th>Registered Voters</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php $rowNum = 1; ?>
-                <?php foreach ($elections as $election) : ?>
-                    <?php
-                    $liveStatus  = effectiveElectionStatus($election);
-                    $statusColor = $liveStatus === 'active'
-                        ? 'green'
-                        : ($liveStatus === 'completed' ? 'red' : 'orange');
-                    $hasOverride = !empty($election['manual_status'])
-                        && (empty($election['manual_until']) || strtotime($election['manual_until']) > time());
-                    ?>
-                    <tr>
-                        <td class="row-num-col">
-                            <?php echo $rowNum++; ?>
-                            <span class="id-chip" title="Database ID">#<?php echo (int)$election['id']; ?></span>
-                        </td>
-                        <td><?php echo htmlspecialchars($election['title']); ?></td>
-                        <td><?php echo htmlspecialchars(substr($election['description'] ?? '', 0, 50)) . (strlen($election['description'] ?? '') > 50 ? '...' : ''); ?></td>
-                        <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['start_date']))); ?></td>
-                        <td><?php echo htmlspecialchars(date('Y-m-d H:i', strtotime($election['end_date']))); ?></td>
-                        <td>
-                            <span style="color: <?php echo $statusColor; ?>; font-weight: bold;">
-                                <?php echo ucfirst(htmlspecialchars($liveStatus)); ?>
-                            </span>
-                            <?php if ($hasOverride): ?>
-                                <span class="manual-badge" title="Manually overridden by admin">MANUAL</span>
-                            <?php endif; ?>
-                        </td>
-                        <td><?php echo getCandidateCountForElection($conn, $election['id']); ?></td>
-                        <td><?php echo getRegisteredVoterCountForElection($conn, $election['id']); ?></td>
-                        <td>
-                            <form method="post" action="main.php?page=elections" style="display: inline-block; margin: 0;">
-                                <input type="hidden" name="election_id" value="<?php echo $election['id']; ?>">
-                                <select name="status" class="status-select">
-                                    <?php $overrideValue = !empty($election['manual_status']) ? $election['manual_status'] : 'auto'; ?>
-                                    <option value="auto"      <?php echo $overrideValue === 'auto'      ? 'selected' : ''; ?>>Auto (from dates)</option>
-                                    <option value="upcoming"  <?php echo $overrideValue === 'upcoming'  ? 'selected' : ''; ?>>Upcoming</option>
-                                    <option value="active"    <?php echo $overrideValue === 'active'    ? 'selected' : ''; ?>>Active</option>
-                                    <option value="completed" <?php echo $overrideValue === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                                </select>
-                                <button type="submit" name="update_election_status">Update</button>
-                            </form>
-
-                            <a href="main.php?page=elections&edit_id=<?php echo $election['id']; ?>" class="btn btn-edit btn-sm">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-
-                            <button onclick="deleteElection(<?php echo $election['id']; ?>)" class="btn btn-delete btn-sm">
-                                <i class="fas fa-trash"></i> Delete
-                            </button>
-
-                            <button onclick="managePosts(<?php echo $election['id']; ?>, '<?php echo htmlspecialchars(addslashes($election['title'])); ?>')" class="btn btn-posts btn-sm">
-                                <i class="fas fa-clipboard-list"></i> Manage Posts
-                            </button>
-                        </td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-<?php endif; ?>
-
-<!-- Manage Posts Modal -->
-<div id="postsModal" class="modal">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h4 id="postsModalTitle">Manage Posts</h4>
-            <span class="close" onclick="closePostsModal()">&times;</span>
-        </div>
-        <div class="modal-body">
-            <div id="postsList" class="posts-list">
-                <div style="text-align: center; padding: 20px;">Loading posts...</div>
+    <!-- Manage Posts Modal -->
+    <div id="postsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 id="postsModalTitle">Manage Posts</h4>
+                <span class="close" onclick="closePostsModal()">&times;</span>
             </div>
-            <div class="add-post-form">
-                <input type="text" id="newPostName" placeholder="Enter post name (e.g., President, Secretary)">
-                <button onclick="addPost()">Add Post</button>
+            <div class="modal-body">
+                <div id="postsList" class="posts-list">
+                    <div style="text-align: center; padding: 20px;">Loading posts...</div>
+                </div>
+                <div class="add-post-form">
+                    <input type="text" id="newPostName" placeholder="Enter post name (e.g., President, Secretary)">
+                    <button type="button" id="addPostBtn" onclick="addPost()">
+                        <i class="fas fa-plus"></i>
+                        <span id="addPostBtnText">Add Post</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- ============================ SCRIPTS ============================ -->
 <script>
-let currentElectionId = null;
-const ajaxUrl     = 'manage_elections.php';
-const mainPageUrl = 'main.php?page=elections';
+(function() {
+    let currentElectionId = null;
+    const ajaxUrl     = 'manage_elections.php';
+    const mainPageUrl = 'main.php?page=elections';
 
-async function apiFetch(url, params) {
-    return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: params.toString()
+    async function apiFetch(url, params) {
+        return fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString(),
+            cache: 'no-store'
+        });
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Modal open/close
+    // ─────────────────────────────────────────────────────────
+    window.managePosts = function(electionId, electionTitle) {
+        currentElectionId = electionId;
+        document.getElementById('postsModalTitle').textContent = 'Manage Posts - ' + electionTitle;
+        document.getElementById('postsModal').style.display = 'block';
+        loadPosts();
+    };
+
+    window.closePostsModal = function() {
+        document.getElementById('postsModal').style.display = 'none';
+        currentElectionId = null;
+    };
+
+    // ─────────────────────────────────────────────────────────
+    // Load posts
+    // ─────────────────────────────────────────────────────────
+    async function loadPosts() {
+        if (!currentElectionId) return;
+
+        const postsList = document.getElementById('postsList');
+        postsList.innerHTML = '<div style="text-align: center; padding: 20px; color:#6b7280;"><i class="fas fa-spinner fa-pulse"></i> Loading posts...</div>';
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('ajax_action', 'get_posts');
+            formData.append('election_id', currentElectionId);
+
+            const response = await apiFetch(ajaxUrl, formData);
+            const data = await response.json();
+
+            if (data.success && data.posts.length > 0) {
+                let html = '';
+                data.posts.forEach(post => {
+                    html += `
+                        <div class="post-item">
+                            <span>${escapeHtml(post.postname)}</span>
+                            <span class="delete-post" data-post-id="${post.id}" onclick="deletePost(${post.id}, this)">
+                                <i class="fas fa-trash"></i> Delete
+                            </span>
+                        </div>
+                    `;
+                });
+                postsList.innerHTML = html;
+            } else if (data.success && data.posts.length === 0) {
+                postsList.innerHTML = '<p style="text-align: center; color: #999; font-size: 13px;">No posts created yet. Add your first post below.</p>';
+            } else {
+                postsList.innerHTML = '<p style="text-align: center; color: red; font-size: 13px;">Error loading posts: ' + (data.message || 'Unknown error') + '</p>';
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            postsList.innerHTML = '<p style="text-align: center; color: red; font-size: 13px;">Error loading posts.</p>';
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // Add post — with loading state that RESETS after success
+    // ─────────────────────────────────────────────────────────
+    window.addPost = async function() {
+        const input  = document.getElementById('newPostName');
+        const btn    = document.getElementById('addPostBtn');
+        const btnTxt = document.getElementById('addPostBtnText');
+
+        const postName = input.value.trim();
+
+        if (!postName) {
+            alert('Please enter a post name');
+            input.focus();
+            return;
+        }
+        if (!currentElectionId) return;
+
+        // ---- Enter loading state ----
+        if (btn) {
+            btn.disabled = true;
+            if (btnTxt) {
+                btnTxt.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Adding…';
+            }
+        }
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('ajax_action', 'add_post');
+            formData.append('election_id', currentElectionId);
+            formData.append('postname', postName);
+
+            const response = await apiFetch(ajaxUrl, formData);
+            const data = await response.json();
+
+            if (data.success) {
+                // Clear input, keep focus, refresh list
+                input.value = '';
+                input.focus();
+
+                await loadPosts();
+
+                // Brief success indicator on the input
+                input.placeholder = '✓ Added! Add another…';
+                setTimeout(() => {
+                    input.placeholder = 'Enter post name (e.g., President, Secretary)';
+                }, 1500);
+            } else {
+                alert(data.message || 'Error adding post');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error adding post');
+        } finally {
+            // ---- ALWAYS reset the button so it can be used again ----
+            if (btn) {
+                btn.disabled = false;
+                if (btnTxt) {
+                    btnTxt.innerHTML = '<i class="fas fa-plus"></i> Add Post';
+                }
+            }
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────
+    // Delete post — with loading state on the delete span
+    // ─────────────────────────────────────────────────────────
+    window.deletePost = async function(postId, el) {
+        if (!confirm('Are you sure you want to delete this post?')) return;
+
+        // Save original content for restore-on-failure
+        const originalHTML = el ? el.innerHTML : '';
+
+        if (el) {
+            el.classList.add('loading');
+            el.innerHTML = '<i class="fas fa-spinner fa-pulse"></i> Deleting…';
+        }
+
+        try {
+            const formData = new URLSearchParams();
+            formData.append('ajax_action', 'delete_post');
+            formData.append('post_id', postId);
+
+            const response = await apiFetch(ajaxUrl, formData);
+            const data = await response.json();
+
+            if (data.success) {
+                // loadPosts() rebuilds the list from scratch — the deleted row
+                // disappears and the whole list gets fresh DOM nodes.
+                await loadPosts();
+                return;
+            } else {
+                alert(data.message || 'Error deleting post');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error deleting post');
+        }
+
+        // Restore the delete span if we didn't successfully reload
+        if (el) {
+            el.classList.remove('loading');
+            el.innerHTML = originalHTML;
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────
+    // Delete election (unchanged)
+    // ─────────────────────────────────────────────────────────
+    window.deleteElection = function(electionId) {
+        if (confirm('Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = mainPageUrl;
+
+            const delInput = document.createElement('input');
+            delInput.type  = 'hidden';
+            delInput.name  = 'delete_election';
+            delInput.value = '1';
+            form.appendChild(delInput);
+
+            const idInput = document.createElement('input');
+            idInput.type  = 'hidden';
+            idInput.name  = 'election_id';
+            idInput.value = electionId;
+            form.appendChild(idInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────
+    function escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(text)));
+        return div.innerHTML;
+    }
+
+    // Close modal on backdrop click
+    window.addEventListener('click', function(event) {
+        const modal = document.getElementById('postsModal');
+        if (event.target === modal) {
+            closePostsModal();
+        }
     });
-}
 
-function managePosts(electionId, electionTitle) {
-    currentElectionId = electionId;
-    document.getElementById('postsModalTitle').innerHTML = 'Manage Posts - ' + electionTitle;
-    document.getElementById('postsModal').style.display = 'block';
-    loadPosts();
-}
-
-function closePostsModal() {
-    document.getElementById('postsModal').style.display = 'none';
-    currentElectionId = null;
-}
-
-async function loadPosts() {
-    if (!currentElectionId) return;
-
-    const postsList = document.getElementById('postsList');
-    postsList.innerHTML = '<div style="text-align: center; padding: 20px;">Loading posts...</div>';
-
-    try {
-        const formData = new URLSearchParams();
-        formData.append('ajax_action', 'get_posts');
-        formData.append('election_id', currentElectionId);
-
-        const response = await apiFetch(ajaxUrl, formData);
-        const data = await response.json();
-
-        if (data.success && data.posts.length > 0) {
-            let html = '';
-            data.posts.forEach(post => {
-                html += `
-                    <div class="post-item">
-                        <span>${escapeHtml(post.postname)}</span>
-                        <span class="delete-post" onclick="deletePost(${post.id})">🗑️ Delete</span>
-                    </div>
-                `;
+    // Enter key submits the add-post form
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('newPostName');
+        if (input) {
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    addPost();
+                }
             });
-            postsList.innerHTML = html;
-        } else if (data.success && data.posts.length === 0) {
-            postsList.innerHTML = '<p style="text-align: center; color: #999;">No posts created yet. Add your first post above.</p>';
-        } else {
-            postsList.innerHTML = '<p style="text-align: center; color: red;">Error loading posts: ' + (data.message || 'Unknown error') + '</p>';
         }
-    } catch (error) {
-        console.error('Error:', error);
-        postsList.innerHTML = '<p style="text-align: center; color: red;">Error loading posts.</p>';
-    }
-}
-
-async function addPost() {
-    const postName = document.getElementById('newPostName').value.trim();
-
-    if (!postName) {
-        alert('Please enter a post name');
-        return;
-    }
-    if (!currentElectionId) return;
-
-    try {
-        const formData = new URLSearchParams();
-        formData.append('ajax_action', 'add_post');
-        formData.append('election_id', currentElectionId);
-        formData.append('postname', postName);
-
-        const response = await apiFetch(ajaxUrl, formData);
-        const data = await response.json();
-
-        if (data.success) {
-            document.getElementById('newPostName').value = '';
-            loadPosts();
-        } else {
-            alert(data.message || 'Error adding post');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error adding post');
-    }
-}
-
-async function deletePost(postId) {
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
-    try {
-        const formData = new URLSearchParams();
-        formData.append('ajax_action', 'delete_post');
-        formData.append('post_id', postId);
-
-        const response = await apiFetch(ajaxUrl, formData);
-        const data = await response.json();
-
-        if (data.success) {
-            loadPosts();
-        } else {
-            alert(data.message || 'Error deleting post');
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error deleting post');
-    }
-}
-
-function deleteElection(electionId) {
-    if (confirm('Are you sure you want to delete this election? This will also delete all associated posts, candidates, votes, and user registrations. This action cannot be undone!')) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = mainPageUrl;
-
-        const delInput = document.createElement('input');
-        delInput.type  = 'hidden';
-        delInput.name  = 'delete_election';
-        delInput.value = '1';
-        form.appendChild(delInput);
-
-        const idInput = document.createElement('input');
-        idInput.type  = 'hidden';
-        idInput.name  = 'election_id';
-        idInput.value = electionId;
-        form.appendChild(idInput);
-
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.appendChild(document.createTextNode(text));
-    return div.innerHTML;
-}
-
-window.onclick = function(event) {
-    const modal = document.getElementById('postsModal');
-    if (event.target === modal) {
-        closePostsModal();
-    }
-}
+    });
+})();
 </script>
