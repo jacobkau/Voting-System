@@ -855,9 +855,19 @@ $totalAdmins    = count($admins);
     </div>
 </div>
 
-<!-- ============================ SCRIPTS ============================ -->
 <script>
 (function() {
+    /* ───────────────────────────────────────────────────────────
+       Force-refresh helper — bypasses browser cache entirely
+       ─────────────────────────────────────────────────────────── */
+    function forceReload(delayMs) {
+        setTimeout(() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('_t', Date.now());
+            window.location.replace(url.toString());
+        }, delayMs || 900);
+    }
+
     /* ───────────────────────────────────────────────────────────
        View admin
        ─────────────────────────────────────────────────────────── */
@@ -866,7 +876,6 @@ $totalAdmins    = count($admins);
         const modalBody  = document.getElementById('adminModalBody');
         const modalTitle = document.getElementById('adminModalTitle');
 
-        // Set loading state on the button
         if (btnEl) setBtnLoading(btnEl, true);
 
         modal.style.display = 'block';
@@ -931,16 +940,16 @@ $totalAdmins    = count($admins);
             const res  = await fetch('manage_admins.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body.toString()
+                body: body.toString(),
+                cache: 'no-store'
             });
             const data = await res.json();
 
             if (data.success) {
                 showToast('Admin added successfully', 'success');
                 closeAddModal();
-                setTimeout(() => location.reload(), 1200);
-                // Don't re-enable — page is about to reload
-                return;
+                forceReload(900);
+                return; // keep button in loading state through the reload
             } else {
                 showToast(data.message || 'Error adding admin', 'error');
             }
@@ -985,14 +994,15 @@ $totalAdmins    = count($admins);
             const res  = await fetch('manage_admins.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body.toString()
+                body: body.toString(),
+                cache: 'no-store'
             });
             const data = await res.json();
 
             if (data.success) {
                 showToast('Admin updated successfully', 'success');
                 closeEditModal();
-                setTimeout(() => location.reload(), 1200);
+                forceReload(900);
                 return;
             } else {
                 showToast(data.message || 'Error updating admin', 'error');
@@ -1020,13 +1030,14 @@ $totalAdmins    = count($admins);
         fetch('manage_admins.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
+            body: body.toString(),
+            cache: 'no-store'
         })
         .then(res => res.json())
         .then(data => {
             if (data.success) {
                 showToast('Admin deleted successfully', 'success');
-                setTimeout(() => location.reload(), 1200);
+                forceReload(900);
                 return;
             } else {
                 showToast(data.message || 'Error deleting admin', 'error');
