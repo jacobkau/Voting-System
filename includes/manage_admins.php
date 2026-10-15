@@ -309,9 +309,11 @@ $totalAdmins    = count($admins);
         cursor: pointer;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 8px;
         transition: all 0.2s;
         font-family: inherit;
+        min-width: 150px;
     }
     .adm-page .add-btn:hover { background: #236162; transform: translateY(-1px); }
 
@@ -373,6 +375,9 @@ $totalAdmins    = count($admins);
         vertical-align: middle;
     }
 
+    /* ─────────────────────────────────────────────────────────────
+       Buttons (base) + Loading state
+       ───────────────────────────────────────────────────────────── */
     .adm-page .btn {
         border: none;
         color: white;
@@ -380,6 +385,7 @@ $totalAdmins    = count($admins);
         text-align: center;
         display: inline-flex;
         align-items: center;
+        justify-content: center;
         gap: 5px;
         font-size: 12px;
         cursor: pointer;
@@ -388,13 +394,19 @@ $totalAdmins    = count($admins);
         margin: 2px;
         font-family: inherit;
         font-weight: 600;
+        position: relative;
+        min-width: 72px;
+        min-height: 30px;
     }
 
     .adm-page .btn-view   { background: #2c7a7b; }
     .adm-page .btn-edit   { background: #ffc107; color: #333; }
     .adm-page .btn-delete { background: #dc3545; }
 
-    .adm-page .btn:hover { transform: translateY(-1px); opacity: 0.92; }
+    .adm-page .btn:hover:not(:disabled):not(.loading) {
+        transform: translateY(-1px);
+        opacity: 0.92;
+    }
 
     .adm-page .btn:disabled,
     .adm-page .btn.disabled {
@@ -405,6 +417,84 @@ $totalAdmins    = count($admins);
         opacity: 1;
     }
 
+    /* Loading state — spinner replaces content */
+    .adm-page .btn.loading {
+        cursor: wait;
+        opacity: 0.85;
+        transform: none;
+        color: transparent !important;
+        pointer-events: none;
+    }
+
+    .adm-page .btn.loading::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 14px;
+        height: 14px;
+        margin: -7px 0 0 -7px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: admBtnSpin 0.7s linear infinite;
+    }
+
+    .adm-page .btn-edit.loading::after {
+        border-color: rgba(0, 0, 0, 0.15);
+        border-top-color: #333;
+    }
+
+    @keyframes admBtnSpin {
+        to { transform: rotate(360deg); }
+    }
+
+    /* Submit button loading state */
+    .adm-page .submit-btn {
+        background: #2c7a7b;
+        color: white;
+        padding: 12px 20px;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 15px;
+        font-weight: 600;
+        font-family: inherit;
+        transition: background 0.2s;
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 46px;
+    }
+    .adm-page .submit-btn:hover:not(:disabled):not(.loading) { background: #236162; }
+
+    .adm-page .submit-btn.loading {
+        cursor: wait;
+        background: #4a9d9e;
+        color: transparent !important;
+        pointer-events: none;
+    }
+
+    .adm-page .submit-btn.loading::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 18px;
+        height: 18px;
+        margin: -9px 0 0 -9px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: #ffffff;
+        border-radius: 50%;
+        animation: admBtnSpin 0.7s linear infinite;
+    }
+
+    /* ─────────────────────────────────────────────────────────────
+       Modals
+       ───────────────────────────────────────────────────────────── */
     .adm-page .modal {
         display: none;
         position: fixed;
@@ -500,21 +590,6 @@ $totalAdmins    = count($admins);
         margin-top: 4px;
     }
 
-    .adm-page .submit-btn {
-        background: #2c7a7b;
-        color: white;
-        padding: 12px 20px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        width: 100%;
-        font-size: 15px;
-        font-weight: 600;
-        font-family: inherit;
-        transition: background 0.2s;
-    }
-    .adm-page .submit-btn:hover { background: #236162; }
-
     .adm-page .profile-photo {
         text-align: center;
         margin-bottom: 20px;
@@ -605,7 +680,7 @@ $totalAdmins    = count($admins);
 
     @media screen and (max-width: 768px) {
         .adm-page th, .adm-page td { padding: 10px 12px; font-size: 12px; }
-        .adm-page .btn { padding: 4px 8px; font-size: 10px; }
+        .adm-page .btn { padding: 4px 8px; font-size: 10px; min-width: 60px; }
         .adm-page .admin-photo-cell img { width: 32px; height: 32px; }
     }
 </style>
@@ -664,7 +739,7 @@ $totalAdmins    = count($admins);
                                 <td><?php echo htmlspecialchars($a['email'] ?? 'N/A'); ?></td>
                                 <td><?php echo $a['created_on'] ? date('M d, Y', strtotime($a['created_on'])) : 'N/A'; ?></td>
                                 <td>
-                                    <button class="btn btn-view" onclick="showAdminInfo(<?php echo $a['id']; ?>)">
+                                    <button class="btn btn-view" onclick="showAdminInfo(<?php echo $a['id']; ?>, this)">
                                         <i class="fas fa-eye"></i> View
                                     </button>
                                     <button class="btn btn-edit"
@@ -681,7 +756,7 @@ $totalAdmins    = count($admins);
                                             <i class="fas fa-lock"></i> Delete
                                         </button>
                                     <?php else: ?>
-                                        <button class="btn btn-delete" onclick="deleteAdmin(<?php echo $a['id']; ?>, <?php echo htmlspecialchars(json_encode($a['username'])); ?>)">
+                                        <button class="btn btn-delete" onclick="deleteAdmin(<?php echo $a['id']; ?>, <?php echo htmlspecialchars(json_encode($a['username'])); ?>, this)">
                                             <i class="fas fa-trash"></i> Delete
                                         </button>
                                     <?php endif; ?>
@@ -736,7 +811,9 @@ $totalAdmins    = count($admins);
                         <input type="password" id="add_password" required minlength="8">
                         <small>Minimum 8 characters</small>
                     </div>
-                    <button type="submit" class="submit-btn">Add Admin</button>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-plus"></i> Add Admin
+                    </button>
                 </form>
             </div>
         </div>
@@ -769,7 +846,9 @@ $totalAdmins    = count($admins);
                         <input type="password" id="edit_password" minlength="8" placeholder="Leave blank to keep current password">
                         <small>Only fill this if you want to change the password</small>
                     </div>
-                    <button type="submit" class="submit-btn">Update Admin</button>
+                    <button type="submit" class="submit-btn">
+                        <i class="fas fa-save"></i> Update Admin
+                    </button>
                 </form>
             </div>
         </div>
@@ -782,10 +861,13 @@ $totalAdmins    = count($admins);
     /* ───────────────────────────────────────────────────────────
        View admin
        ─────────────────────────────────────────────────────────── */
-    window.showAdminInfo = async function(adminId) {
+    window.showAdminInfo = async function(adminId, btnEl) {
         const modal      = document.getElementById('adminModal');
         const modalBody  = document.getElementById('adminModalBody');
         const modalTitle = document.getElementById('adminModalTitle');
+
+        // Set loading state on the button
+        if (btnEl) setBtnLoading(btnEl, true);
 
         modal.style.display = 'block';
         modalBody.innerHTML = `<div class="loading"><div class="spinner"></div>Loading admin information...</div>`;
@@ -815,6 +897,8 @@ $totalAdmins    = count($admins);
             }
         } catch (error) {
             modalBody.innerHTML = `<div class="error-message">Failed to load admin information.</div>`;
+        } finally {
+            if (btnEl) setBtnLoading(btnEl, false);
         }
     };
 
@@ -831,6 +915,9 @@ $totalAdmins    = count($admins);
 
     document.getElementById('addForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        const submitBtn = e.target.querySelector('.submit-btn');
+        setBtnLoading(submitBtn, true);
 
         const body = new URLSearchParams({
             action:   'add_admin',
@@ -852,12 +939,16 @@ $totalAdmins    = count($admins);
                 showToast('Admin added successfully', 'success');
                 closeAddModal();
                 setTimeout(() => location.reload(), 1200);
+                // Don't re-enable — page is about to reload
+                return;
             } else {
                 showToast(data.message || 'Error adding admin', 'error');
             }
         } catch (err) {
             showToast('Network error', 'error');
         }
+
+        setBtnLoading(submitBtn, false);
     });
 
     /* ───────────────────────────────────────────────────────────
@@ -877,6 +968,9 @@ $totalAdmins    = count($admins);
 
     document.getElementById('editForm').addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        const submitBtn = e.target.querySelector('.submit-btn');
+        setBtnLoading(submitBtn, true);
 
         const body = new URLSearchParams({
             action:   'update_admin',
@@ -899,19 +993,24 @@ $totalAdmins    = count($admins);
                 showToast('Admin updated successfully', 'success');
                 closeEditModal();
                 setTimeout(() => location.reload(), 1200);
+                return;
             } else {
                 showToast(data.message || 'Error updating admin', 'error');
             }
         } catch (err) {
             showToast('Network error', 'error');
         }
+
+        setBtnLoading(submitBtn, false);
     });
 
     /* ───────────────────────────────────────────────────────────
        Delete admin
        ─────────────────────────────────────────────────────────── */
-    window.deleteAdmin = function(adminId, username) {
+    window.deleteAdmin = function(adminId, username, btnEl) {
         if (!confirm(`Are you sure you want to delete the admin "${username}"?\n\nThis action cannot be undone.`)) return;
+
+        if (btnEl) setBtnLoading(btnEl, true);
 
         const body = new URLSearchParams({
             action:   'delete_admin',
@@ -928,12 +1027,31 @@ $totalAdmins    = count($admins);
             if (data.success) {
                 showToast('Admin deleted successfully', 'success');
                 setTimeout(() => location.reload(), 1200);
+                return;
             } else {
                 showToast(data.message || 'Error deleting admin', 'error');
+                if (btnEl) setBtnLoading(btnEl, false);
             }
         })
-        .catch(() => showToast('Network error', 'error'));
+        .catch(() => {
+            showToast('Network error', 'error');
+            if (btnEl) setBtnLoading(btnEl, false);
+        });
     };
+
+    /* ───────────────────────────────────────────────────────────
+       Loading state helper
+       ─────────────────────────────────────────────────────────── */
+    function setBtnLoading(btn, isLoading) {
+        if (!btn) return;
+        if (isLoading) {
+            btn.classList.add('loading');
+            btn.disabled = true;
+        } else {
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    }
 
     /* ───────────────────────────────────────────────────────────
        Helpers
