@@ -1,4 +1,10 @@
 <?php
+// Start output buffering from the very first line. This ensures that any
+// stray PHP warning (e.g. from conn.php's session functions when a session
+// is already active) goes into the buffer and can be discarded by ob_clean()
+// inside the AJAX handlers — keeping JSON responses clean.
+ob_start();
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -13,7 +19,11 @@ if (!isset($_SESSION['admin_id'])) {
 // AJAX: manage posts for an election
 // ─────────────────────────────────────────────────────────────
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['ajax_action'])) {
-    ob_clean();
+    // Discard any warnings that were buffered before this point
+    // (e.g. session warnings from conn.php) so the JSON goes out clean.
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     header('Content-Type: application/json');
 
     if ($_POST['ajax_action'] == 'add_post') {
@@ -257,6 +267,12 @@ if (isset($_GET['edit_id'])) {
         }
     }
 }
+
+// This is a normal page render (not AJAX) — discard the buffer to prevent
+// any stray warnings from leaking into the HTML, then continue.
+if (ob_get_level() > 0) {
+    ob_end_clean();
+}
 ?>
 
 <!-- ============================ STYLES ============================ -->
@@ -398,9 +414,7 @@ if (isset($_GET['edit_id'])) {
         vertical-align: middle;
     }
 
-    /* ─────────────────────────────────────────────────────────────
-       Modal
-       ───────────────────────────────────────────────────────────── */
+    /* Modal */
     .me-page .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0;
              width: 100%; height: 100%; overflow: auto;
              background-color: rgba(0, 0, 0, 0.6); }
@@ -430,9 +444,7 @@ if (isset($_GET['edit_id'])) {
         cursor: wait;
     }
 
-    /* ─────────────────────────────────────────────────────────────
-       Add post form
-       ───────────────────────────────────────────────────────────── */
+    /* Add post form */
     .me-page .add-post-form { display: flex; gap: 10px; margin-top: 15px; align-items: stretch; }
     .me-page .add-post-form input {
         flex: 1; padding: 8px 10px; border: 1px solid #ddd;
@@ -477,9 +489,7 @@ if (isset($_GET['edit_id'])) {
         font-size: 12px;
     }
 
-    /* ─────────────────────────────────────────────────────────────
-       Dark theme support (if body.dark-theme is set)
-       ───────────────────────────────────────────────────────────── */
+    /* Dark theme */
     body.dark-theme .me-page .election-form-container { background: #1e1e2e; }
     body.dark-theme .me-page .election-form-container h2 { color: #f3f4f6; }
     body.dark-theme .me-page table th { background: #2d2d3d; color: #cbd5e1; }
@@ -668,13 +678,28 @@ if (isset($_GET['edit_id'])) {
     const ajaxUrl     = 'manage_elections.php';
     const mainPageUrl = 'main.php?page=elections';
 
+    /**
+     * Fetch + parse JSON safely.
+     * If the server returns HTML (warnings, error pages, etc.), we print
+     * the raw response to the console and throw a clear error — instead of
+     * letting response.json() throw a cryptic SyntaxError.
+     */
     async function apiFetch(url, params) {
-        return fetch(url, {
+        const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: params.toString(),
             cache: 'no-store'
         });
+
+        const raw = await response.text();
+
+        try {
+            return JSON.parse(raw);
+        } catch (parseErr) {
+            console.error('Non-JSON response from server:', raw);
+            throw new Error('Server returned invalid JSON');
+        }
     }
 
     // ─────────────────────────────────────────────────────────
@@ -706,8 +731,7 @@ if (isset($_GET['edit_id'])) {
             formData.append('ajax_action', 'get_posts');
             formData.append('election_id', currentElectionId);
 
-            const response = await apiFetch(ajaxUrl, formData);
-            const data = await response.json();
+            const data = await apiFetch(ajaxUrl, formData);
 
             if (data.success && data.posts.length > 0) {
                 let html = '';
@@ -734,7 +758,7 @@ if (isset($_GET['edit_id'])) {
     }
 
     // ─────────────────────────────────────────────────────────
-    // Add post — with loading state that RESETS after success
+    // Add post — button resets after success/failure
     // ─────────────────────────────────────────────────────────
     window.addPost = async function() {
         const input  = document.getElementById('newPostName');
@@ -750,7 +774,6 @@ if (isset($_GET['edit_id'])) {
         }
         if (!currentElectionId) return;
 
-        // ---- Enter loading state ----
         if (btn) {
             btn.disabled = true;
             if (btnTxt) {
@@ -764,17 +787,13 @@ if (isset($_GET['edit_id'])) {
             formData.append('election_id', currentElectionId);
             formData.append('postname', postName);
 
-            const response = await apiFetch(ajaxUrl, formData);
-            const data = await response.json();
+            const data = await apiFetch(ajaxUrl, formData);
 
             if (data.success) {
-                // Clear input, keep focus, refresh list
                 input.value = '';
                 input.focus();
-
                 await loadPosts();
 
-                // Brief success indicator on the input
                 input.placeholder = '✓ Added! Add another…';
                 setTimeout(() => {
                     input.placeholder = 'Enter post name (e.g., President, Secretary)';
@@ -784,9 +803,9 @@ if (isset($_GET['edit_id'])) {
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error adding post');
+            alert('Error adding post. Check console for details.');
         } finally {
-            // ---- ALWAYS reset the button so it can be used again ----
+            // ALWAYS reset the button so it can be used again
             if (btn) {
                 btn.disabled = false;
                 if (btnTxt) {
@@ -797,12 +816,11 @@ if (isset($_GET['edit_id'])) {
     };
 
     // ─────────────────────────────────────────────────────────
-    // Delete post — with loading state on the delete span
+    // Delete post — spinner on the delete link
     // ─────────────────────────────────────────────────────────
     window.deletePost = async function(postId, el) {
         if (!confirm('Are you sure you want to delete this post?')) return;
 
-        // Save original content for restore-on-failure
         const originalHTML = el ? el.innerHTML : '';
 
         if (el) {
@@ -815,12 +833,9 @@ if (isset($_GET['edit_id'])) {
             formData.append('ajax_action', 'delete_post');
             formData.append('post_id', postId);
 
-            const response = await apiFetch(ajaxUrl, formData);
-            const data = await response.json();
+            const data = await apiFetch(ajaxUrl, formData);
 
             if (data.success) {
-                // loadPosts() rebuilds the list from scratch — the deleted row
-                // disappears and the whole list gets fresh DOM nodes.
                 await loadPosts();
                 return;
             } else {
@@ -828,10 +843,9 @@ if (isset($_GET['edit_id'])) {
             }
         } catch (error) {
             console.error('Error:', error);
-            alert('Error deleting post');
+            alert('Error deleting post. Check console for details.');
         }
 
-        // Restore the delete span if we didn't successfully reload
         if (el) {
             el.classList.remove('loading');
             el.innerHTML = originalHTML;
@@ -874,7 +888,6 @@ if (isset($_GET['edit_id'])) {
         return div.innerHTML;
     }
 
-    // Close modal on backdrop click
     window.addEventListener('click', function(event) {
         const modal = document.getElementById('postsModal');
         if (event.target === modal) {
@@ -882,7 +895,6 @@ if (isset($_GET['edit_id'])) {
         }
     });
 
-    // Enter key submits the add-post form
     document.addEventListener('DOMContentLoaded', function() {
         const input = document.getElementById('newPostName');
         if (input) {
