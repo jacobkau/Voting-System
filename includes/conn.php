@@ -5,7 +5,12 @@ if (defined('CONN_LOADED')) {
 define('CONN_LOADED', true);
 
 // =====================================================================
-// PROXY DETECTION
+// 1. PHP TIMEZONE
+// =====================================================================
+date_default_timezone_set('Africa/Nairobi');
+
+// =====================================================================
+// 2. PROXY DETECTION
 // =====================================================================
 if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
     && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') {
@@ -13,13 +18,17 @@ if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
 }
 
 // =====================================================================
-// SESSION SAVE PATH
+// 3. SESSION SAVE PATH
+//    Must run BEFORE session_start(). If a session is already active
+//    (a page called session_start() before including conn.php), we
+//    silently skip — PHP wouldn't allow the change anyway and would
+//    emit a warning that pollutes JSON responses.
 // =====================================================================
 $sessCandidates = [
     session_save_path(),
-    sys_get_temp_dir(),        
+    sys_get_temp_dir(),
     '/tmp',
-    __DIR__ . '/../tmp_sessions', 
+    __DIR__ . '/../tmp_sessions',
 ];
 
 $chosenSessionPath = null;
@@ -41,29 +50,31 @@ if ($chosenSessionPath === null) {
 }
 
 if ($chosenSessionPath !== null) {
-    session_save_path($chosenSessionPath);
+    // Only set the save path if no session has been opened yet
+    if (session_status() === PHP_SESSION_NONE) {
+        session_save_path($chosenSessionPath);
+    }
 } else {
     error_log("SESSION ERROR: no writable session path found.");
 }
 
 // =====================================================================
-// SESSION COOKIE PARAMS + START
+// 4. SESSION COOKIE PARAMS + START
 // =====================================================================
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path'     => '/',
-    'domain'   => '',
-    'secure'   => true,
-    'httponly' => true,
-    'samesite' => 'Lax',
-]);
-
 if (session_status() === PHP_SESSION_NONE) {
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'domain'   => '',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
 // =====================================================================
-// HTTPS ENFORCEMENT
+// 5. HTTPS ENFORCEMENT + SECURITY HEADERS
 // =====================================================================
 if (php_sapi_name() !== 'cli'
     && !headers_sent()
@@ -79,22 +90,26 @@ if (php_sapi_name() !== 'cli'
         || (!empty($_SERVER['HTTP_X_FORWARDED_SSL'])
             && strtolower($_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
         || (!empty($_SERVER['HTTP_CF_VISITOR'])
-            && strpos($_SERVER['HTTP_CF_VISITOR'], '"scheme":"https"') !== false);
+            && strpos($_SERVER['HTTP_CF_VISITOR'], 'https') !== false);
 
     if (!$isHttps) {
-        $host       = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? 'localhost';
+        $host       = $_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? '';
         $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 
-        header('HTTP/1.1 301 Moved Permanently');
-        header('Location: https://' . $host . $requestUri);
-        exit;
+        if (!empty($host)) {
+            header('Location: https://' . $host . $requestUri, true, 301);
+            exit;
+        }
     }
 
     header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
 }
 
 // =====================================================================
-// DATABASE CONNECTION
+// 6. DATABASE CONNECTION
 // =====================================================================
 
 if (!function_exists('conn_fail')) {
@@ -144,25 +159,18 @@ try {
     $db   = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
 
+    try {
+        $conn->exec("SET time_zone = '+03:00'");
+    } catch (PDOException $e) {
+        error_log("Could not set MySQL session timezone: " . $e->getMessage());
+    }
+
 } catch (Exception $e) {
     conn_fail("DB connection failed: " . $e->getMessage());
 }
 
 // =====================================================================
-// TIMEZONE — Kenya / East Africa Time (UTC+3)
-// =====================================================================
-try {
-    $conn->exec("SET time_zone = '+03:00'");
-} catch (PDOException $e) {
-    error_log("Could not set MySQL session timezone: " . $e->getMessage());
-}
-
-if (!ini_get('date.timezone')) {
-    date_default_timezone_set('Africa/Nairobi');
-}
-
-// =====================================================================
-// Election status helper — derives effective status from dates
+// 7. ELECTION STATUS HELPER
 // =====================================================================
 if (!function_exists('effectiveElectionStatus')) {
     function effectiveElectionStatus(array $e): string {
@@ -191,9 +199,6 @@ if (!function_exists('effectiveElectionStatus')) {
             return 'active';
         }
 
-        // Fallback — bad or missing data
         return $e['status'] ?? 'upcoming';
     }
 }
-
- ?>
