@@ -65,7 +65,6 @@ $subpageMap = [
     'voters'        => 'manage_election_voters.php',
     'candidates'    => 'manage_candidates.php',
     'elections'     => 'manage_elections.php',
-    'posts'         => 'manage_posts.php',
     'results'       => 'manage_results.php',
     'admins'        => 'manage_admins.php',
     'profile'       => 'manage_profile.php',
@@ -650,14 +649,7 @@ if (file_exists($subpageFullPath)) {
             .sidebar a { padding: 10px 12px; font-size: 13px; }
         }
 
-        /* ═════════════════════════════════════════════════════════
-           DEFENSIVE LAYOUT LOCKS
-           Placed LAST so they win any cascade tie. These use
-           `body >` descendant chains that can only match the
-           admin shell, never a sub-page's own elements.
-           ═════════════════════════════════════════════════════════ */
-
-        /* Outer container — the fixed-position flex wrapper */
+ 
         body > .container {
             display: flex !important;
             position: fixed !important;
@@ -716,14 +708,7 @@ if (file_exists($subpageFullPath)) {
             overflow: visible !important;
         }
 
-        /* ─────────────────────────────────────────────────────
-           Sub-page's own .container wrapper — flatten it.
-           Sub-pages like manage_admins.php define their own
-           `.container { background:white; border-radius:16px;
-           overflow:hidden; box-shadow:… }` designed for
-           standalone pages. Inside <main>, flatten it so it
-           doesn't clip its own children (tables, forms, etc.)
-           ───────────────────────────────────────────────────── */
+       
         body > .container > main > .main-content > .container {
             background: transparent !important;
             border-radius: 0 !important;
@@ -740,9 +725,6 @@ if (file_exists($subpageFullPath)) {
             overflow: visible !important;
         }
 
-        /* The sub-page's title header ("Manage Admins", etc.) — keep
-           it but strip the padding / rounding that assumed a
-           standalone page */
         body > .container > main > .main-content > .container > .header,
         body > .container > main > .main-content > .header {
             border-radius: 0 !important;
@@ -824,7 +806,6 @@ if (file_exists($subpageFullPath)) {
             <ul>
                 <li><a href="main.php?page=home" class="<?php echo $currentPage === 'home' ? 'active' : ''; ?>"><i class="fas fa-tachometer-alt"></i> <span>Dashboard</span></a></li>
                 <li><a href="main.php?page=elections" class="<?php echo $currentPage === 'elections' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt"></i> <span>Manage Elections</span></a></li>
-                <li><a href="main.php?page=posts" class="<?php echo $currentPage === 'posts' ? 'active' : ''; ?>"><i class="fas fa-clipboard-list"></i> <span>Manage Posts</span></a></li>
                 <li><a href="main.php?page=candidates" class="<?php echo $currentPage === 'candidates' ? 'active' : ''; ?>"><i class="fas fa-user-tie"></i> <span>Manage Candidates</span></a></li>
                 <li><a href="main.php?page=voters" class="<?php echo $currentPage === 'voters' ? 'active' : ''; ?>"><i class="fas fa-user-check"></i> <span>Manage Voters</span></a></li>
                 <li><a href="main.php?page=users" class="<?php echo $currentPage === 'users' ? 'active' : ''; ?>"><i class="fas fa-users"></i> <span>Manage All Users</span></a></li>
