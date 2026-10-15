@@ -543,7 +543,7 @@ if (file_exists($subpageFullPath)) {
         }
 
         /* ═════════════════════════════════════════════════════════
-           DEBUG PANEL (only shown with ?debug=1)
+           DEBUG PANEL
            ═════════════════════════════════════════════════════════ */
         .debug-panel {
             background: #fef3c7;
@@ -649,7 +649,9 @@ if (file_exists($subpageFullPath)) {
             .sidebar a { padding: 10px 12px; font-size: 13px; }
         }
 
- 
+        /* ═════════════════════════════════════════════════════════
+           DEFENSIVE LAYOUT LOCKS
+           ═════════════════════════════════════════════════════════ */
         body > .container {
             display: flex !important;
             position: fixed !important;
@@ -664,7 +666,6 @@ if (file_exists($subpageFullPath)) {
             margin: 0 !important;
         }
 
-        /* Sidebar */
         body > .container > .sidebar {
             display: flex !important;
             flex-direction: column !important;
@@ -687,7 +688,6 @@ if (file_exists($subpageFullPath)) {
             padding: 16px 8px !important;
         }
 
-        /* <main> column */
         body > .container > main {
             flex-grow: 1 !important;
             padding: 25px !important;
@@ -708,7 +708,6 @@ if (file_exists($subpageFullPath)) {
             overflow: visible !important;
         }
 
-       
         body > .container > main > .main-content > .container {
             background: transparent !important;
             border-radius: 0 !important;
@@ -734,14 +733,12 @@ if (file_exists($subpageFullPath)) {
             margin-bottom: 10px !important;
         }
 
-        /* Guard against horizontal clipping inside tables */
         body > .container > main > .main-content > .container table,
         body > .container > main > .main-content > .container .table-responsive {
             max-width: 100% !important;
             margin-left: 0 !important;
         }
 
-        /* Modals must escape any overflow:hidden */
         body > .container > main > .main-content > .container .modal {
             overflow: auto !important;
         }
@@ -902,7 +899,7 @@ if (file_exists($subpageFullPath)) {
         })();
 
         // ────────────────────────────────────────────────────────────
-        // Live notification bell
+        // Live notification bell — hardened
         // ────────────────────────────────────────────────────────────
         (function() {
             const POLL_INTERVAL_MS = 15000;
@@ -917,6 +914,8 @@ if (file_exists($subpageFullPath)) {
 
             let lastTotal = -1;
             let lastSeenTotal = 0;
+            let consecutiveFailures = 0;
+            const MAX_FAILURES = 5;
 
             try {
                 lastSeenTotal = parseInt(localStorage.getItem('notif_seen_total') || '0', 10) || 0;
@@ -985,15 +984,41 @@ if (file_exists($subpageFullPath)) {
             }
 
             async function pollOnce() {
+                // Back off if the endpoint has failed repeatedly
+                if (consecutiveFailures >= MAX_FAILURES) {
+                    return;
+                }
+
                 try {
                     const res = await fetch(API_URL, {
                         credentials: 'same-origin',
                         cache: 'no-store'
                     });
-                    if (!res.ok) return;
 
-                    const data = await res.json();
-                    if (!data.ok) return;
+                    if (!res.ok) {
+                        consecutiveFailures++;
+                        return;
+                    }
+
+                    // Read as text first, then parse — handles a server that
+                    // accidentally returns HTML or an empty body.
+                    const raw = await res.text();
+                    let data;
+                    try {
+                        data = JSON.parse(raw);
+                    } catch (parseErr) {
+                        console.warn('Notification endpoint returned non-JSON:', raw.slice(0, 200));
+                        consecutiveFailures++;
+                        return;
+                    }
+
+                    if (!data.ok) {
+                        consecutiveFailures++;
+                        return;
+                    }
+
+                    // Success — reset the failure counter
+                    consecutiveFailures = 0;
 
                     renderBadge(data.total);
                     renderPanel(data);
@@ -1004,7 +1029,11 @@ if (file_exists($subpageFullPath)) {
                     }
                     lastTotal = data.total;
 
-                } catch (err) { /* silent */ }
+                } catch (err) {
+                    // Network error (offline, ERR_CONNECTION_CLOSED, etc.)
+                    consecutiveFailures++;
+                    // Silent — retry next tick unless MAX_FAILURES is reached
+                }
             }
 
             btn.addEventListener('click', function(e) {
@@ -1013,6 +1042,8 @@ if (file_exists($subpageFullPath)) {
                 panel.classList.toggle('open', willOpen);
 
                 if (willOpen) {
+                    // Manual open should force a fresh poll regardless of backoff
+                    consecutiveFailures = 0;
                     pollOnce();
                 }
             });
@@ -1040,7 +1071,11 @@ if (file_exists($subpageFullPath)) {
             setInterval(pollOnce, POLL_INTERVAL_MS);
 
             document.addEventListener('visibilitychange', function() {
-                if (document.visibilityState === 'visible') pollOnce();
+                if (document.visibilityState === 'visible') {
+                    // Coming back to the tab — reset backoff and poll
+                    consecutiveFailures = 0;
+                    pollOnce();
+                }
             });
         })();
     </script>
