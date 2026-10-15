@@ -19,12 +19,15 @@ if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])
 
 // =====================================================================
 // 3. SESSION SAVE PATH
+//    Must run BEFORE session_start(). If a session is already active
+//    (e.g. a page called session_start() before including conn.php),
+//    we silently skip — PHP wouldn't allow the change anyway.
 // =====================================================================
 $sessCandidates = [
     session_save_path(),
-    sys_get_temp_dir(),           
+    sys_get_temp_dir(),
     '/tmp',
-    __DIR__ . '/../tmp_sessions', 
+    __DIR__ . '/../tmp_sessions',
 ];
 
 $chosenSessionPath = null;
@@ -46,7 +49,10 @@ if ($chosenSessionPath === null) {
 }
 
 if ($chosenSessionPath !== null) {
-    session_save_path($chosenSessionPath);
+    // Only set the save path if no session has been opened yet
+    if (session_status() === PHP_SESSION_NONE) {
+        session_save_path($chosenSessionPath);
+    }
 } else {
     error_log("SESSION ERROR: no writable session path found.");
 }
@@ -67,7 +73,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // =====================================================================
-// 5. HTTPS ENFORCEMENT 
+// 5. HTTPS ENFORCEMENT
 // =====================================================================
 if (php_sapi_name() !== 'cli'
     && !headers_sent()
@@ -151,6 +157,7 @@ try {
 
     $db   = new PDO($dsn, $user, $pass, $options);
     $conn = $db;
+
     try {
         $conn->exec("SET time_zone = '+03:00'");
     } catch (PDOException $e) {
@@ -162,7 +169,7 @@ try {
 }
 
 // =====================================================================
-// 8. ELECTION STATUS HELPER
+// 7. ELECTION STATUS HELPER
 // =====================================================================
 if (!function_exists('effectiveElectionStatus')) {
 
@@ -195,4 +202,3 @@ if (!function_exists('effectiveElectionStatus')) {
         return $e['status'] ?? 'upcoming';
     }
 }
-?>
