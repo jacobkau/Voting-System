@@ -1,4 +1,8 @@
 <?php
+// Buffer output from the very first line — this prevents any stray
+// PHP warning from polluting JSON responses later in the file.
+ob_start();
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -27,6 +31,7 @@ if (!function_exists('resolveAdminImageUrl')) {
    AJAX: get_admin
    ===================================================================== */
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'get_admin') {
+    ob_clean();                              // discard any stray warnings
     header('Content-Type: application/json');
 
     $adminId = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
@@ -70,6 +75,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
    AJAX: add_admin
    ===================================================================== */
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'add_admin') {
+    ob_clean();
     header('Content-Type: application/json');
 
     $username = isset($_POST['username']) ? trim($_POST['username']) : '';
@@ -93,11 +99,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 
     try {
-        $check = $conn->prepare("SELECT id FROM admin WHERE username = ?");
-        $check->execute([$username]);
-        if ($check->rowCount() > 0) {
-            echo json_encode(['success' => false, 'message' => 'Username already exists']);
-            exit();
+        // Check both username AND email collisions with specific messages
+        $check = $conn->prepare("SELECT id, username, email FROM admin WHERE username = ? OR email = ?");
+        $check->execute([$username, $email]);
+        $existing = $check->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            if (strcasecmp($existing['username'], $username) === 0) {
+                echo json_encode(['success' => false, 'message' => 'Username already exists']);
+                exit();
+            }
+            if (strcasecmp($existing['email'], $email) === 0) {
+                echo json_encode(['success' => false, 'message' => 'Email already in use by another admin']);
+                exit();
+            }
         }
 
         $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -119,6 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
    AJAX: update_admin
    ===================================================================== */
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'update_admin') {
+    ob_clean();
     header('Content-Type: application/json');
 
     $adminId  = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
@@ -138,12 +154,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
     }
 
     try {
-        // Reject if the new username is taken by someone else
-        $check = $conn->prepare("SELECT id FROM admin WHERE username = ? AND id <> ?");
-        $check->execute([$username, $adminId]);
-        if ($check->rowCount() > 0) {
-            echo json_encode(['success' => false, 'message' => 'Username already taken by another admin']);
-            exit();
+        // Reject if the new username or email is taken by someone else
+        $check = $conn->prepare("SELECT id, username, email FROM admin WHERE (username = ? OR email = ?) AND id <> ?");
+        $check->execute([$username, $email, $adminId]);
+        $existing = $check->fetch(PDO::FETCH_ASSOC);
+
+        if ($existing) {
+            if (strcasecmp($existing['username'], $username) === 0) {
+                echo json_encode(['success' => false, 'message' => 'Username already taken by another admin']);
+                exit();
+            }
+            if (strcasecmp($existing['email'], $email) === 0) {
+                echo json_encode(['success' => false, 'message' => 'Email already in use by another admin']);
+                exit();
+            }
         }
 
         if (!empty($password)) {
@@ -179,6 +203,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['a
    AJAX: delete_admin
    ===================================================================== */
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['action']) && $_POST['action'] == 'delete_admin') {
+    ob_clean();
     header('Content-Type: application/json');
 
     $adminId = isset($_POST['admin_id']) ? intval($_POST['admin_id']) : 0;
@@ -253,6 +278,9 @@ try {
 
 $currentAdminId = isset($_SESSION['admin_id']) ? intval($_SESSION['admin_id']) : 0;
 $totalAdmins    = count($admins);
+
+// Flush any warnings we captured so far — they should never reach the browser
+ob_end_clean();
 ?>
 
 <!-- ============================ STYLES ============================ -->
@@ -375,9 +403,6 @@ $totalAdmins    = count($admins);
         vertical-align: middle;
     }
 
-    /* ─────────────────────────────────────────────────────────────
-       Buttons (base) + Loading state
-       ───────────────────────────────────────────────────────────── */
     .adm-page .btn {
         border: none;
         color: white;
@@ -417,7 +442,6 @@ $totalAdmins    = count($admins);
         opacity: 1;
     }
 
-    /* Loading state — spinner replaces content */
     .adm-page .btn.loading {
         cursor: wait;
         opacity: 0.85;
@@ -449,7 +473,6 @@ $totalAdmins    = count($admins);
         to { transform: rotate(360deg); }
     }
 
-    /* Submit button loading state */
     .adm-page .submit-btn {
         background: #2c7a7b;
         color: white;
@@ -492,9 +515,6 @@ $totalAdmins    = count($admins);
         animation: admBtnSpin 0.7s linear infinite;
     }
 
-    /* ─────────────────────────────────────────────────────────────
-       Modals
-       ───────────────────────────────────────────────────────────── */
     .adm-page .modal {
         display: none;
         position: fixed;
@@ -855,11 +875,9 @@ $totalAdmins    = count($admins);
     </div>
 </div>
 
+<!-- ============================ SCRIPTS ============================ -->
 <script>
 (function() {
-    /* ───────────────────────────────────────────────────────────
-       Force-refresh helper — bypasses browser cache entirely
-       ─────────────────────────────────────────────────────────── */
     function forceReload(delayMs) {
         setTimeout(() => {
             const url = new URL(window.location.href);
@@ -868,9 +886,6 @@ $totalAdmins    = count($admins);
         }, delayMs || 900);
     }
 
-    /* ───────────────────────────────────────────────────────────
-       View admin
-       ─────────────────────────────────────────────────────────── */
     window.showAdminInfo = async function(adminId, btnEl) {
         const modal      = document.getElementById('adminModal');
         const modalBody  = document.getElementById('adminModalBody');
@@ -886,7 +901,8 @@ $totalAdmins    = count($admins);
             const response = await fetch('manage_admins.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=get_admin&admin_id=' + adminId
+                body: 'action=get_admin&admin_id=' + adminId,
+                cache: 'no-store'
             });
 
             const data = await response.json();
@@ -911,9 +927,6 @@ $totalAdmins    = count($admins);
         }
     };
 
-    /* ───────────────────────────────────────────────────────────
-       Add admin
-       ─────────────────────────────────────────────────────────── */
     window.showAddModal = function() {
         document.getElementById('addForm').reset();
         document.getElementById('addModal').style.display = 'block';
@@ -943,26 +956,36 @@ $totalAdmins    = count($admins);
                 body: body.toString(),
                 cache: 'no-store'
             });
-            const data = await res.json();
+
+            const raw = await res.text();
+            console.log('RAW RESPONSE:', raw);
+
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (parseErr) {
+                console.error('Server did not return valid JSON:', raw);
+                showToast('Server error — check console', 'error');
+                setBtnLoading(submitBtn, false);
+                return;
+            }
 
             if (data.success) {
                 showToast('Admin added successfully', 'success');
                 closeAddModal();
                 forceReload(900);
-                return; // keep button in loading state through the reload
+                return;
             } else {
                 showToast(data.message || 'Error adding admin', 'error');
             }
         } catch (err) {
+            console.error('Network error:', err);
             showToast('Network error', 'error');
         }
 
         setBtnLoading(submitBtn, false);
     });
 
-    /* ───────────────────────────────────────────────────────────
-       Edit admin
-       ─────────────────────────────────────────────────────────── */
     window.editAdmin = function(id, username, fullname, email) {
         document.getElementById('edit_admin_id').value = id;
         document.getElementById('edit_username').value = username;
@@ -997,7 +1020,19 @@ $totalAdmins    = count($admins);
                 body: body.toString(),
                 cache: 'no-store'
             });
-            const data = await res.json();
+
+            const raw = await res.text();
+            console.log('RAW RESPONSE:', raw);
+
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (parseErr) {
+                console.error('Server did not return valid JSON:', raw);
+                showToast('Server error — check console', 'error');
+                setBtnLoading(submitBtn, false);
+                return;
+            }
 
             if (data.success) {
                 showToast('Admin updated successfully', 'success');
@@ -1008,15 +1043,13 @@ $totalAdmins    = count($admins);
                 showToast(data.message || 'Error updating admin', 'error');
             }
         } catch (err) {
+            console.error('Network error:', err);
             showToast('Network error', 'error');
         }
 
         setBtnLoading(submitBtn, false);
     });
 
-    /* ───────────────────────────────────────────────────────────
-       Delete admin
-       ─────────────────────────────────────────────────────────── */
     window.deleteAdmin = function(adminId, username, btnEl) {
         if (!confirm(`Are you sure you want to delete the admin "${username}"?\n\nThis action cannot be undone.`)) return;
 
@@ -1033,8 +1066,19 @@ $totalAdmins    = count($admins);
             body: body.toString(),
             cache: 'no-store'
         })
-        .then(res => res.json())
-        .then(data => {
+        .then(res => res.text())
+        .then(raw => {
+            console.log('RAW RESPONSE:', raw);
+            let data;
+            try {
+                data = JSON.parse(raw);
+            } catch (parseErr) {
+                console.error('Server did not return valid JSON:', raw);
+                showToast('Server error — check console', 'error');
+                if (btnEl) setBtnLoading(btnEl, false);
+                return;
+            }
+
             if (data.success) {
                 showToast('Admin deleted successfully', 'success');
                 forceReload(900);
@@ -1050,9 +1094,6 @@ $totalAdmins    = count($admins);
         });
     };
 
-    /* ───────────────────────────────────────────────────────────
-       Loading state helper
-       ─────────────────────────────────────────────────────────── */
     function setBtnLoading(btn, isLoading) {
         if (!btn) return;
         if (isLoading) {
@@ -1064,9 +1105,6 @@ $totalAdmins    = count($admins);
         }
     }
 
-    /* ───────────────────────────────────────────────────────────
-       Helpers
-       ─────────────────────────────────────────────────────────── */
     window.closeAdminModal = function() {
         document.getElementById('adminModal').style.display = 'none';
     };
@@ -1086,14 +1124,12 @@ $totalAdmins    = count($admins);
         return div.innerHTML;
     }
 
-    // Close modal when clicking the dark overlay
     window.addEventListener('click', function(event) {
         if (event.target.classList && event.target.classList.contains('modal')) {
             event.target.style.display = 'none';
         }
     });
 
-    // Close modals on Escape
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {
             document.querySelectorAll('.modal').forEach(m => m.style.display = 'none');
