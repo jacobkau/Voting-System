@@ -1,8 +1,8 @@
-name: Keep Aiven Database Alive
+name: Keep Database Alive
 
 on:
   schedule:
-    # Runs every 10 minutes (Aiven and Render usually sleep after 15 mins)
+    # Runs every 10 minutes 
     - cron: "*/10 * * * *"
   workflow_dispatch: # Allows you to run it manually to test
 
@@ -11,5 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Health Endpoint
-        # Replace with your actual Render URL and the health.php file
         run: curl -fsS --max-time 60 "https://wittymart.onrender.com/health.php" || echo "Ping failed, but cron will try again in 10 mins."
