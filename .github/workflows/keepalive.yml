@@ -11,4 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Health Endpoint
-        run: curl -fsS --max-time 60 "https://wittymart.onrender.com/health.php" || echo "Ping failed, but cron will try again in 10 mins."
+        run: curl -fsS --max-time 60 "https://witty-voting-system.onrender.com/health.php" || echo "Ping failed, but cron will try again in 10 mins."
