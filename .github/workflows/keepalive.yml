@@ -1,0 +1,16 @@
+name: Keep Render and Aiven Alive
+
+on:
+  schedule:
+    # Runs every 10 minutes. This is the sweet spot for free tiers.
+    - cron: "*/10 * * * *"
+  workflow_dispatch: # Allows you to run it manually to test
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the live site
+        # Use curl to make a simple GET request. 
+        # Replace with your actual live URL (e.g., the homepage or a specific health page).
+        run: curl -fsS --max-time 60 "https://wittymart.onrender.com/" | head -c 400
